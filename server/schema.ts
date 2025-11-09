@@ -212,3 +212,215 @@ export const adapterLicenses = sqliteTable("adapter_licenses", {
 
 export type AdapterLicense = typeof adapterLicenses.$inferSelect;
 export type InsertAdapterLicense = typeof adapterLicenses.$inferInsert;
+
+// ============================================================================
+// Secrets Vault System (Master Seed-Based Encryption)
+// ============================================================================
+
+// Master Keys Table - Stores Argon2id hash of user's master seed
+export const secretsMasterKeys = sqliteTable("secrets_master_keys", {
+  id: text("id").primaryKey(),
+  
+  // Argon2id hash parameters
+  passwordHash: text("password_hash").notNull(), // Argon2id hash of master seed
+  salt: text("salt").notNull(), // Random salt for Argon2id
+  
+  // Key derivation parameters (for verification/migration)
+  argonMemory: integer("argon_memory").notNull().default(65536), // 64 MB
+  argonIterations: integer("argon_iterations").notNull().default(3),
+  argonParallelism: integer("argon_parallelism").notNull().default(4),
+  
+  // Recovery and audit
+  recoveryCodeHash: text("recovery_code_hash"), // Optional recovery code hash
+  lastUnlocked: text("last_unlocked"),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type SecretsMasterKey = typeof secretsMasterKeys.$inferSelect;
+export type InsertSecretsMasterKey = typeof secretsMasterKeys.$inferInsert;
+
+// Secrets Vault Table - Encrypted secrets for all integrations
+export const secretsVault = sqliteTable("secrets_vault", {
+  id: text("id").primaryKey(),
+  
+  // Master key reference (for future key rotation support)
+  masterKeyId: text("master_key_id").notNull().default("default"),
+  
+  // Integration type and label
+  integrationType: text("integration_type").notNull().$type<
+    "smtp" | "azure_blob" | "sftp" | "ftp" | "database" | "api_key" | "custom"
+  >(),
+  label: text("label").notNull(), // User-friendly name (e.g., "Production SMTP")
+  
+  // Encrypted payload (AES-256-GCM)
+  encryptedPayload: text("encrypted_payload").notNull(), // Base64-encoded ciphertext
+  iv: text("iv").notNull(), // Initialization vector
+  authTag: text("auth_tag").notNull(), // Authentication tag for GCM
+  
+  // Metadata (unencrypted, for display/filtering - NO SENSITIVE DATA)
+  metadata: text("metadata", { mode: "json" }).$type<{
+    host?: string; // For SMTP/SFTP/FTP (safe: publicly known)
+    username?: string; // For SMTP/SFTP/FTP (safe: public identifier)
+    accountName?: string; // For Azure Blob (safe: account identifier)
+    serviceName?: string; // For API keys (safe: service name)
+    description?: string; // User-provided description (safe)
+  }>(),
+  
+  // Rotation and audit
+  lastRotatedAt: text("last_rotated_at"),
+  rotationDueAt: text("rotation_due_at"), // Optional auto-rotation schedule
+  
+  // Status
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type SecretsVaultEntry = typeof secretsVault.$inferSelect;
+export type InsertSecretsVaultEntry = typeof secretsVault.$inferInsert;
+
+// Decrypted secret payloads (type-safe interfaces, never stored)
+export interface SmtpSecretPayload {
+  password: string;
+}
+
+export interface AzureBlobSecretPayload {
+  accountName: string;
+  accountKey: string;
+  sasUrl?: string;
+}
+
+export interface SftpSecretPayload {
+  password?: string;
+  privateKey?: string;
+  passphrase?: string;
+}
+
+export interface DatabaseSecretPayload {
+  connectionString?: string;
+  password?: string;
+}
+
+export interface FtpSecretPayload {
+  password?: string;
+  privateKey?: string;
+  passphrase?: string;
+}
+
+export interface ApiKeySecretPayload {
+  apiKey: string;
+  apiSecret?: string;
+  additionalHeaders?: Record<string, string>;
+}
+
+export interface CustomSecretPayload {
+  [key: string]: string;
+}
+
+export type SecretPayload = 
+  | SmtpSecretPayload 
+  | AzureBlobSecretPayload 
+  | SftpSecretPayload 
+  | FtpSecretPayload
+  | DatabaseSecretPayload 
+  | ApiKeySecretPayload 
+  | CustomSecretPayload;
+
+// Validation schemas for secret creation
+export const createSmtpSecretSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  metadata: z.object({
+    host: z.string().optional(),
+    username: z.string().optional(),
+    description: z.string().optional(),
+  }).optional(),
+  payload: z.object({
+    password: z.string().min(1, "Password is required"),
+  }),
+});
+
+export const createAzureBlobSecretSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  metadata: z.object({
+    accountName: z.string().optional(),
+    description: z.string().optional(),
+  }).optional(),
+  payload: z.object({
+    accountName: z.string().min(1, "Account name is required"),
+    accountKey: z.string().min(1, "Account key is required"),
+    sasUrl: z.string().optional(),
+  }),
+});
+
+export const createSftpSecretSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  metadata: z.object({
+    host: z.string().optional(),
+    username: z.string().optional(),
+    description: z.string().optional(),
+  }).optional(),
+  payload: z.object({
+    password: z.string().optional(),
+    privateKey: z.string().optional(),
+    passphrase: z.string().optional(),
+  }).refine(
+    (data) => data.password || data.privateKey,
+    { message: "Either password or private key is required" }
+  ),
+});
+
+export const createFtpSecretSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  metadata: z.object({
+    host: z.string().optional(),
+    username: z.string().optional(),
+    description: z.string().optional(),
+  }).optional(),
+  payload: z.object({
+    password: z.string().optional(),
+    privateKey: z.string().optional(),
+    passphrase: z.string().optional(),
+  }).refine(
+    (data) => data.password || data.privateKey,
+    { message: "Either password or private key is required" }
+  ),
+});
+
+export const createDatabaseSecretSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  metadata: z.object({
+    host: z.string().optional(),
+    description: z.string().optional(),
+  }).optional(),
+  payload: z.object({
+    connectionString: z.string().optional(),
+    password: z.string().optional(),
+  }).refine(
+    (data) => data.connectionString || data.password,
+    { message: "Either connection string or password is required" }
+  ),
+});
+
+export const createApiKeySecretSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  metadata: z.object({
+    serviceName: z.string().optional(),
+    description: z.string().optional(),
+  }).optional(),
+  payload: z.object({
+    apiKey: z.string().min(1, "API key is required"),
+    apiSecret: z.string().optional(),
+    additionalHeaders: z.record(z.string()).optional(),
+  }),
+});
+
+export const createCustomSecretSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  metadata: z.object({
+    description: z.string().optional(),
+  }).optional(),
+  payload: z.record(z.string().min(1)),
+});

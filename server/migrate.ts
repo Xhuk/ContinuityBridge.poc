@@ -136,6 +136,41 @@ export async function ensureTables() {
       )
     `);
 
+    // Create secrets_master_keys table (for unified secrets vault)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS secrets_master_keys (
+        id TEXT PRIMARY KEY,
+        password_hash TEXT NOT NULL,
+        salt TEXT NOT NULL,
+        argon_memory INTEGER NOT NULL DEFAULT 65536,
+        argon_iterations INTEGER NOT NULL DEFAULT 3,
+        argon_parallelism INTEGER NOT NULL DEFAULT 4,
+        recovery_code_hash TEXT,
+        last_unlocked TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create secrets_vault table (for all integration secrets)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS secrets_vault (
+        id TEXT PRIMARY KEY,
+        master_key_id TEXT NOT NULL DEFAULT 'default' REFERENCES secrets_master_keys(id) ON DELETE CASCADE,
+        integration_type TEXT NOT NULL,
+        label TEXT NOT NULL,
+        encrypted_payload TEXT NOT NULL,
+        iv TEXT NOT NULL,
+        auth_tag TEXT NOT NULL,
+        metadata TEXT,
+        last_rotated_at TEXT,
+        rotation_due_at TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create indices for common queries
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS idx_flow_runs_flow_id ON flow_runs(flow_id)
@@ -159,6 +194,14 @@ export async function ensureTables() {
 
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS idx_adapter_licenses_customer_id ON adapter_licenses(customer_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_secrets_vault_integration_type ON secrets_vault(integration_type)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_secrets_vault_master_key_id ON secrets_vault(master_key_id)
     `);
 
     console.log("[Database] Tables initialized successfully");
