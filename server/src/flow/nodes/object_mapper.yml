@@ -1,0 +1,67 @@
+# Object Mapper Node - Transform data using field mappings
+# Category: transform
+
+id: object_mapper
+category: transform
+label: Object Mapper
+description: Map fields from source object to target object using visual field mappings (supports nested paths, defaults, transformations)
+icon: ArrowLeftRight
+
+# Input/Output handles
+inputs: 1        # Single input for source data
+outputs: 1       # Single output for mapped data
+
+# Configuration fields (UI form)
+configFields:
+  - name: label
+    label: Node Label
+    type: text
+    required: false
+    default: Object Mapper
+    placeholder: Transform Order Data
+    helpText: Custom label for this node
+
+  - name: mappings
+    label: Field Mappings
+    type: json
+    required: true
+    default: {}
+    helpText: |
+      Field mapping configuration in object-mapper format. Example:
+      {
+        "orderId": "$.OrderDocument.OrderNumber",
+        "sku": "$.Item.SKU",
+        "quantity": {
+          "key": "$.Item.Quantity",
+          "transform": "parseInt"
+        },
+        "customer.name": "$.Destination.CustomerName",
+        "customer.city": "$.Destination.City"
+      }
+
+  - name: sourceFormat
+    label: Source Format
+    type: select
+    required: false
+    default: json
+    options:
+      - json
+      - xml
+    helpText: Input data format (affects path syntax - JSONPath vs XPath)
+
+  - name: strict
+    label: Strict Mode
+    type: boolean
+    required: false
+    default: false
+    helpText: If true, fail on missing required fields. If false, use defaults/null
+
+  - name: defaultValues
+    label: Default Values
+    type: json
+    required: false
+    default: {}
+    helpText: Default values for fields (e.g., {"status": "pending"})
+
+# Backend executor function
+executor: executeObjectMapper

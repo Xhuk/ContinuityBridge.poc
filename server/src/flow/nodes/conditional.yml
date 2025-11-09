@@ -1,0 +1,48 @@
+# Conditional Node - Route data based on conditions
+# Category: logic
+
+id: conditional
+category: logic
+label: Conditional
+description: Route data to different outputs based on conditional logic (if/else branching)
+icon: GitBranch
+
+# Input/Output handles
+inputs: 1        # Single input
+outputs: 2       # Two outputs: "true" and "false" branches
+
+# Configuration fields (UI form)
+configFields:
+  - name: label
+    label: Node Label
+    type: text
+    required: false
+    default: Conditional
+    placeholder: Check Stock Level
+    helpText: Custom label for this node
+
+  - name: condition
+    label: Condition Expression
+    type: code
+    required: true
+    placeholder: input.quantity > 100
+    helpText: |
+      JavaScript expression that evaluates to true/false. Available variables:
+      - input: The input data from previous node
+      - context: Flow execution context
+      
+      Examples:
+      - input.status === "pending"
+      - input.total > 1000
+      - input.items && input.items.length > 0
+      - input.priority === "high" || input.urgent === true
+
+  - name: passthrough
+    label: Passthrough Mode
+    type: boolean
+    required: false
+    default: true
+    helpText: If true, pass input data to output unchanged. If false, only pass condition result
+
+# Backend executor function
+executor: executeConditional

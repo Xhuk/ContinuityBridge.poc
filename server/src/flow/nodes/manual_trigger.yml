@@ -1,0 +1,40 @@
+# Manual Trigger Node - Start flow manually via API
+# Category: trigger
+
+id: manual_trigger
+category: trigger
+label: Manual Trigger
+description: Flow can only be started manually via API call or UI test button (no automatic triggers)
+icon: Play
+
+# Input/Output handles
+inputs: 0        # Trigger nodes have no inputs
+outputs: 1       # Single output with provided input data
+
+# Configuration fields (UI form)
+configFields:
+  - name: label
+    label: Node Label
+    type: text
+    required: false
+    default: Manual Trigger
+    placeholder: Start Flow
+    helpText: Custom label for this node
+
+  - name: inputSchema
+    label: Input Schema (JSON Schema)
+    type: json
+    required: false
+    helpText: |
+      Optional JSON Schema to validate input data. Example:
+      {
+        "type": "object",
+        "required": ["orderId"],
+        "properties": {
+          "orderId": {"type": "string"},
+          "items": {"type": "array"}
+        }
+      }
+
+# Backend executor function
+executor: executeManualTrigger

@@ -1,0 +1,60 @@
+# Custom JavaScript Node - Execute custom transformation logic
+# Category: transform
+
+id: custom_javascript
+category: transform
+label: Custom JavaScript
+description: Execute custom JavaScript code to transform data (sandboxed execution with limited scope)
+icon: Code
+
+# Input/Output handles
+inputs: 1        # Input data (available as "input" variable)
+outputs: 1       # Transformed data (must return a value)
+
+# Configuration fields (UI form)
+configFields:
+  - name: label
+    label: Node Label
+    type: text
+    required: false
+    default: Custom JS
+    placeholder: Calculate Tax
+    helpText: Custom label for this node
+
+  - name: code
+    label: JavaScript Code
+    type: code
+    required: true
+    placeholder: |
+      // Transform the input data
+      // Available variables: input, context
+      // Must return the transformed data
+      
+      return {
+        ...input,
+        total: input.quantity * input.price,
+        tax: input.quantity * input.price * 0.1
+      };
+    helpText: |
+      JavaScript code to transform input data. Available variables:
+      - input: The input data from previous node
+      - context: Flow execution context (traceId, flowId, etc.)
+      
+      Your code must return the transformed data. Example:
+      
+      // Add calculated fields
+      return {
+        ...input,
+        fullName: input.firstName + ' ' + input.lastName,
+        total: input.items.reduce((sum, item) => sum + item.price, 0)
+      };
+
+  - name: timeout
+    label: Execution Timeout (ms)
+    type: number
+    required: false
+    default: 5000
+    helpText: Maximum execution time in milliseconds (prevents infinite loops)
+
+# Backend executor function
+executor: executeCustomJavascript

@@ -1,0 +1,67 @@
+# Interface Source Node - Pull data from Interface Registry
+# Category: trigger (can start a flow)
+
+id: interface_source
+category: trigger
+label: Interface Source
+description: Pull data from an interface configured in the Interface Registry (REST API, SFTP, Database, etc.)
+icon: Download
+
+# Input/Output handles
+inputs: 0        # Trigger nodes have no inputs
+outputs: 1       # Single output for retrieved data
+
+# Configuration fields (UI form)
+configFields:
+  - name: interfaceId
+    label: Interface
+    type: interface
+    required: true
+    helpText: Select the interface to pull data from
+
+  - name: method
+    label: HTTP Method
+    type: select
+    required: false
+    default: GET
+    options:
+      - GET
+      - POST
+    helpText: HTTP method for REST/SOAP interfaces (optional for other protocols)
+
+  - name: path
+    label: API Path
+    type: text
+    required: false
+    placeholder: /api/orders
+    helpText: API endpoint path (appended to interface base URL)
+
+  - name: queryParams
+    label: Query Parameters
+    type: json
+    required: false
+    default: {}
+    helpText: Query parameters as JSON object (e.g., {"status": "pending"})
+
+  - name: headers
+    label: HTTP Headers
+    type: json
+    required: false
+    default: {}
+    helpText: Additional HTTP headers as JSON object
+
+  - name: body
+    label: Request Body
+    type: json
+    required: false
+    helpText: Request body for POST/PUT requests (JSON format)
+
+  - name: pollInterval
+    label: Poll Interval (seconds)
+    type: number
+    required: false
+    default: 60
+    helpText: For timer-triggered flows - how often to poll this interface
+
+# Backend executor function
+executor: executeInterfaceSource

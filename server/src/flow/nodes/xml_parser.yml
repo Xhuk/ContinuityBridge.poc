@@ -1,0 +1,62 @@
+# XML Parser Node - Parse XML string to JSON object
+# Category: parser
+
+id: xml_parser
+category: parser
+label: XML Parser
+description: Parse XML string into JSON object for easier transformation and mapping
+icon: FileCode
+
+# Input/Output handles
+inputs: 1        # XML string input
+outputs: 1       # JSON object output
+
+# Configuration fields (UI form)
+configFields:
+  - name: label
+    label: Node Label
+    type: text
+    required: false
+    default: XML Parser
+    placeholder: Parse Order XML
+    helpText: Custom label for this node
+
+  - name: ignoreAttributes
+    label: Ignore Attributes
+    type: boolean
+    required: false
+    default: false
+    helpText: If true, XML attributes are ignored (only text content is extracted)
+
+  - name: attributeNamePrefix
+    label: Attribute Prefix
+    type: text
+    required: false
+    default: "@_"
+    placeholder: "@_"
+    helpText: Prefix for attribute names in output JSON (e.g., "@_id")
+
+  - name: textNodeName
+    label: Text Node Name
+    type: text
+    required: false
+    default: "#text"
+    placeholder: "#text"
+    helpText: Property name for text content when element has both text and attributes
+
+  - name: ignoreDeclaration
+    label: Ignore XML Declaration
+    type: boolean
+    required: false
+    default: true
+    helpText: If true, ignore <?xml ...?> declaration
+
+  - name: removeNSPrefix
+    label: Remove Namespace Prefixes
+    type: boolean
+    required: false
+    default: true
+    helpText: If true, remove namespace prefixes from element names (e.g., soap:Envelope → Envelope)
+
+# Backend executor function
+executor: executeXmlParser

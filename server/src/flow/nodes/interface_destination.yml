@@ -1,0 +1,76 @@
+# Interface Destination Node - Send data to Interface Registry endpoint
+# Category: output
+
+id: interface_destination
+category: output
+label: Interface Destination
+description: Send data to an interface configured in the Interface Registry (REST API, SFTP, Database, etc.)
+icon: Upload
+
+# Input/Output handles
+inputs: 1        # Single input for data to send
+outputs: 1       # Single output for response/confirmation
+
+# Configuration fields (UI form)
+configFields:
+  - name: interfaceId
+    label: Interface
+    type: interface
+    required: true
+    helpText: Select the interface to send data to
+
+  - name: method
+    label: HTTP Method
+    type: select
+    required: false
+    default: POST
+    options:
+      - POST
+      - PUT
+      - PATCH
+    helpText: HTTP method for REST/SOAP interfaces (optional for other protocols)
+
+  - name: path
+    label: API Path
+    type: text
+    required: false
+    placeholder: /api/orders
+    helpText: API endpoint path (appended to interface base URL)
+
+  - name: headers
+    label: HTTP Headers
+    type: json
+    required: false
+    default: {}
+    helpText: Additional HTTP headers as JSON object
+
+  - name: bodyTemplate
+    label: Body Template
+    type: textarea
+    required: false
+    helpText: |
+      Optional body template (Handlebars syntax). If not provided, 
+      the input data is sent as-is. Example:
+      {
+        "order": {
+          "id": "{{orderId}}",
+          "items": {{json items}}
+        }
+      }
+
+  - name: timeout
+    label: Timeout (ms)
+    type: number
+    required: false
+    default: 30000
+    helpText: Request timeout in milliseconds
+
+  - name: retryAttempts
+    label: Retry Attempts
+    type: number
+    required: false
+    default: 3
+    helpText: Number of retry attempts on failure
+
+# Backend executor function
+executor: executeInterfaceDestination

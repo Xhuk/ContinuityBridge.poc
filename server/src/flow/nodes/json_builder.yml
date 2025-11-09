@@ -1,0 +1,67 @@
+# JSON Builder Node - Format and validate JSON output
+# Category: builder
+
+id: json_builder
+category: builder
+label: JSON Builder
+description: Format, validate, and prettify JSON data before sending to destination
+icon: Braces
+
+# Input/Output handles
+inputs: 1        # JSON object input
+outputs: 1       # Formatted JSON output (can be string or object)
+
+# Configuration fields (UI form)
+configFields:
+  - name: label
+    label: Node Label
+    type: text
+    required: false
+    default: JSON Builder
+    placeholder: Format API Response
+    helpText: Custom label for this node
+
+  - name: outputFormat
+    label: Output Format
+    type: select
+    required: false
+    default: object
+    options:
+      - object
+      - string
+      - pretty
+    helpText: |
+      - object: Keep as JS object (for further processing)
+      - string: Convert to JSON string (compact)
+      - pretty: Convert to pretty-printed JSON string
+
+  - name: indent
+    label: Indentation
+    type: number
+    required: false
+    default: 2
+    helpText: Number of spaces for indentation (only for "pretty" format)
+
+  - name: sortKeys
+    label: Sort Keys
+    type: boolean
+    required: false
+    default: false
+    helpText: If true, sort object keys alphabetically
+
+  - name: removeNull
+    label: Remove Null Values
+    type: boolean
+    required: false
+    default: false
+    helpText: If true, remove properties with null values
+
+  - name: removeEmpty
+    label: Remove Empty Objects/Arrays
+    type: boolean
+    required: false
+    default: false
+    helpText: If true, remove empty objects ({}) and arrays ([])
+
+# Backend executor function
+executor: executeJsonBuilder
