@@ -10,6 +10,8 @@ import { executeJsonBuilder } from "./executors/json-builder";
 import { executeCustomJavascript } from "./executors/custom-javascript";
 import { executeConditional } from "./executors/conditional";
 import { executeManualTrigger } from "./executors/manual-trigger";
+import { executeCsvParser } from "./executors/csv-parser";
+import { executeValidation } from "./executors/validation";
 
 /**
  * Flow Orchestrator - Executes flows by traversing nodes and executing them in sequence
@@ -38,6 +40,8 @@ export class FlowOrchestrator {
     this.registerExecutor("executeCustomJavascript", executeCustomJavascript);
     this.registerExecutor("executeConditional", executeConditional);
     this.registerExecutor("executeManualTrigger", executeManualTrigger);
+    this.registerExecutor("executeCsvParser", executeCsvParser);
+    this.registerExecutor("executeValidation", executeValidation);
   }
 
   /**
@@ -287,6 +291,8 @@ export class FlowOrchestrator {
       custom_javascript: "executeCustomJavascript",
       conditional: "executeConditional",
       manual_trigger: "executeManualTrigger",
+      csv_parser: "executeCsvParser",
+      validation: "executeValidation",
     };
 
     return executorMap[node.type] || node.type;

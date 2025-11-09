@@ -10,12 +10,13 @@ export const executeXmlParser: NodeExecutor = async (node, input, context) => {
     throw new Error("XML Parser input must be a string");
   }
 
+  const config = node.data.config as any || {};
   const options = {
-    ignoreAttributes: node.data.config?.ignoreAttributes ?? false,
-    attributeNamePrefix: node.data.config?.attributeNamePrefix ?? "@_",
-    textNodeName: node.data.config?.textNodeName ?? "#text",
-    ignoreDeclaration: node.data.config?.ignoreDeclaration ?? true,
-    removeNSPrefix: node.data.config?.removeNSPrefix ?? true,
+    ignoreAttributes: config.ignoreAttributes ?? false,
+    attributeNamePrefix: config.attributeNamePrefix ?? "@_",
+    textNodeName: config.textNodeName ?? "#text",
+    ignoreDeclaration: config.ignoreDeclaration ?? true,
+    removeNSPrefix: config.removeNSPrefix ?? true,
   };
 
   const parser = new XMLParser(options);

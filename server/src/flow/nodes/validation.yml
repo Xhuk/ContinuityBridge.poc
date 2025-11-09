@@ -1,0 +1,71 @@
+# Validation Node - Validate and type-check data
+# Category: transformation
+
+id: validation
+category: transformation
+label: Validation
+description: Validate data fields, check types, and ensure data quality with customizable rules
+icon: CheckCircle
+
+# Input/Output handles
+inputs: 1        # Data input (any format)
+outputs: 2       # Output 1: Valid data, Output 2: Invalid data
+
+# Configuration fields (UI form)
+configFields:
+  - name: label
+    label: Node Label
+    type: text
+    required: false
+    default: Validation
+    placeholder: Validate Product Data
+    helpText: Custom label for this node
+
+  - name: rules
+    label: Validation Rules (YAML)
+    type: textarea
+    required: true
+    placeholder: |
+      sku:
+        type: string
+        required: true
+        pattern: "^[A-Z0-9-]+$"
+      quantity:
+        type: number
+        required: true
+        min: 0
+      price:
+        type: number
+        min: 0.01
+        max: 999999
+      email:
+        type: string
+        pattern: "^[^@]+@[^@]+\\.[^@]+$"
+    helpText: |
+      YAML object defining validation rules for each field.
+      Supported rules:
+      - type: string, number, boolean, array, object
+      - required: true/false
+      - min: minimum value (for numbers)
+      - max: maximum value (for numbers)
+      - minLength: minimum length (for strings)
+      - maxLength: maximum length (for strings)
+      - pattern: regex pattern (for strings)
+      - enum: array of allowed values
+
+  - name: strictMode
+    label: Strict Mode
+    type: boolean
+    required: false
+    default: false
+    helpText: If true, reject data with extra fields not defined in rules
+
+  - name: continueOnError
+    label: Continue on Error
+    type: boolean
+    required: false
+    default: false
+    helpText: If true, send invalid items to output 2 instead of stopping the flow
+
+# Backend executor function
+executor: executeValidation

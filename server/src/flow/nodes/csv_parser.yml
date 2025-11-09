@@ -1,0 +1,69 @@
+# CSV Parser Node - Parse CSV string to JSON array
+# Category: parser
+
+id: csv_parser
+category: parser
+label: CSV Parser
+description: Parse CSV string into array of JSON objects for transformation and mapping
+icon: Table
+
+# Input/Output handles
+inputs: 1        # CSV string input
+outputs: 1       # JSON array output
+
+# Configuration fields (UI form)
+configFields:
+  - name: label
+    label: Node Label
+    type: text
+    required: false
+    default: CSV Parser
+    placeholder: Parse Inventory CSV
+    helpText: Custom label for this node
+
+  - name: delimiter
+    label: Delimiter
+    type: text
+    required: false
+    default: ","
+    placeholder: ","
+    helpText: Field delimiter character (default is comma)
+
+  - name: quote
+    label: Quote Character
+    type: text
+    required: false
+    default: "\""
+    placeholder: "\""
+    helpText: Character used to quote fields containing special characters
+
+  - name: hasHeader
+    label: Has Header Row
+    type: boolean
+    required: false
+    default: true
+    helpText: If true, first row is treated as header with column names
+
+  - name: skipEmptyLines
+    label: Skip Empty Lines
+    type: boolean
+    required: false
+    default: true
+    helpText: If true, empty lines are skipped during parsing
+
+  - name: trim
+    label: Trim Whitespace
+    type: boolean
+    required: false
+    default: true
+    helpText: If true, trim whitespace from field values
+
+  - name: columns
+    label: Column Names
+    type: textarea
+    required: false
+    placeholder: "sku,quantity,warehouse,status"
+    helpText: Optional comma-separated list of column names (overrides header row)
+
+# Backend executor function
+executor: executeCsvParser
