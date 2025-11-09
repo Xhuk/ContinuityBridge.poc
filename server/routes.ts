@@ -7,12 +7,19 @@ import { registerGraphQLServer } from "./src/http/graphql.js";
 import { initializeQueue } from "./src/serverQueue.js";
 import { Worker, setWorkerInstance } from "./src/workers/worker.js";
 import { logger } from "./src/core/logger.js";
-import { storage } from "./storage.js";
+import { DatabaseStorage } from "./database-storage.js";
+import { ensureTables } from "./migrate.js";
 
 const log = logger.child("Server");
 
 export async function registerRoutes(app: Express): Promise<Server> {
   try {
+    // Initialize database tables
+    await ensureTables();
+    
+    // Create database storage instance
+    const storage = new DatabaseStorage();
+    
     // Initialize queue provider
     await initializeQueue();
 

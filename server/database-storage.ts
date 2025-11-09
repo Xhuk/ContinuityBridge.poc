@@ -1,0 +1,236 @@
+import { 
+  type FlowDefinition as SchemaFlowDefinition,
+  type InsertFlowDefinition as SchemaInsertFlowDefinition,
+  type FlowRun as SchemaFlowRun,
+} from "@shared/schema";
+import { randomUUID } from "crypto";
+import { db } from "./db";
+import { flowDefinitions, flowRuns } from "./schema";
+import { eq, desc } from "drizzle-orm";
+import { IStorage } from "./storage";
+
+/**
+ * Database-backed storage implementation using SQLite or PostgreSQL
+ * Provides persistent storage for flows and flow runs
+ */
+export class DatabaseStorage implements IStorage {
+  constructor() {
+    // Tables should already be created by ensureTables()
+  }
+
+  // ============================================================================
+  // Flow Definition Management
+  // ============================================================================
+
+  async createFlow(insertFlow: SchemaInsertFlowDefinition): Promise<SchemaFlowDefinition> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    
+    const flow: SchemaFlowDefinition = {
+      ...insertFlow,
+      id,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await db.insert(flowDefinitions).values({
+      id: flow.id,
+      name: flow.name,
+      description: flow.description,
+      nodes: JSON.stringify(flow.nodes),
+      edges: JSON.stringify(flow.edges),
+      version: flow.version,
+      enabled: flow.enabled ? 1 : 0,
+      tags: flow.tags ? JSON.stringify(flow.tags) : null,
+      metadata: flow.metadata ? JSON.stringify(flow.metadata) : null,
+      createdAt: flow.createdAt,
+      updatedAt: flow.updatedAt,
+    });
+
+    return flow;
+  }
+
+  async getFlow(id: string): Promise<SchemaFlowDefinition | undefined> {
+    const result = await db.select().from(flowDefinitions).where(eq(flowDefinitions.id, id)).limit(1);
+    
+    if (result.length === 0) {
+      return undefined;
+    }
+
+    const row = result[0];
+    return this.mapFlowFromDb(row);
+  }
+
+  async getFlows(): Promise<SchemaFlowDefinition[]> {
+    const results = await db.select().from(flowDefinitions).orderBy(desc(flowDefinitions.createdAt));
+    return results.map(row => this.mapFlowFromDb(row));
+  }
+
+  async updateFlow(
+    id: string,
+    updates: Partial<SchemaInsertFlowDefinition>
+  ): Promise<SchemaFlowDefinition | undefined> {
+    const existing = await this.getFlow(id);
+    if (!existing) {
+      return undefined;
+    }
+
+    const updatedFlow: SchemaFlowDefinition = {
+      ...existing,
+      ...updates,
+      id,
+      createdAt: existing.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await db.update(flowDefinitions)
+      .set({
+        name: updatedFlow.name,
+        description: updatedFlow.description,
+        nodes: JSON.stringify(updatedFlow.nodes),
+        edges: JSON.stringify(updatedFlow.edges),
+        version: updatedFlow.version,
+        enabled: updatedFlow.enabled ? 1 : 0,
+        tags: updatedFlow.tags ? JSON.stringify(updatedFlow.tags) : null,
+        metadata: updatedFlow.metadata ? JSON.stringify(updatedFlow.metadata) : null,
+        updatedAt: updatedFlow.updatedAt,
+      })
+      .where(eq(flowDefinitions.id, id));
+
+    return updatedFlow;
+  }
+
+  async deleteFlow(id: string): Promise<boolean> {
+    const result = await db.delete(flowDefinitions).where(eq(flowDefinitions.id, id));
+    return true; // SQLite doesn't return affected rows count
+  }
+
+  // ============================================================================
+  // Flow Run Management
+  // ============================================================================
+
+  async createFlowRun(runData: Omit<SchemaFlowRun, "id">): Promise<SchemaFlowRun> {
+    const id = randomUUID();
+    const run: SchemaFlowRun = {
+      ...runData,
+      id,
+    };
+
+    await db.insert(flowRuns).values({
+      id: run.id,
+      flowId: run.flowId,
+      flowName: run.flowName,
+      flowVersion: run.flowVersion,
+      traceId: run.traceId,
+      status: run.status,
+      startedAt: run.startedAt,
+      completedAt: run.completedAt || null,
+      durationMs: run.durationMs || null,
+      inputData: run.inputData ? JSON.stringify(run.inputData) : null,
+      outputData: run.outputData ? JSON.stringify(run.outputData) : null,
+      triggeredBy: run.triggeredBy,
+      executedNodes: run.executedNodes ? JSON.stringify(run.executedNodes) : null,
+      nodeExecutions: run.nodeExecutions ? JSON.stringify(run.nodeExecutions) : null,
+      error: run.error || null,
+      errorNode: run.errorNode || null,
+    });
+
+    return run;
+  }
+
+  async getFlowRun(id: string): Promise<SchemaFlowRun | undefined> {
+    const result = await db.select().from(flowRuns).where(eq(flowRuns.id, id)).limit(1);
+    
+    if (result.length === 0) {
+      return undefined;
+    }
+
+    return this.mapFlowRunFromDb(result[0]);
+  }
+
+  async getFlowRuns(): Promise<SchemaFlowRun[]> {
+    const results = await db.select().from(flowRuns).orderBy(desc(flowRuns.startedAt));
+    return results.map(row => this.mapFlowRunFromDb(row));
+  }
+
+  async getFlowRunsByFlowId(flowId: string): Promise<SchemaFlowRun[]> {
+    const results = await db.select()
+      .from(flowRuns)
+      .where(eq(flowRuns.flowId, flowId))
+      .orderBy(desc(flowRuns.startedAt));
+    
+    return results.map(row => this.mapFlowRunFromDb(row));
+  }
+
+  async updateFlowRun(
+    id: string,
+    updates: Partial<SchemaFlowRun>
+  ): Promise<SchemaFlowRun | undefined> {
+    const existing = await this.getFlowRun(id);
+    if (!existing) {
+      return undefined;
+    }
+
+    const updated: SchemaFlowRun = {
+      ...existing,
+      ...updates,
+      id,
+    };
+
+    await db.update(flowRuns)
+      .set({
+        status: updated.status,
+        completedAt: updated.completedAt || null,
+        durationMs: updated.durationMs || null,
+        outputData: updated.outputData ? JSON.stringify(updated.outputData) : null,
+        executedNodes: updated.executedNodes ? JSON.stringify(updated.executedNodes) : null,
+        nodeExecutions: updated.nodeExecutions ? JSON.stringify(updated.nodeExecutions) : null,
+        error: updated.error || null,
+        errorNode: updated.errorNode || null,
+      })
+      .where(eq(flowRuns.id, id));
+
+    return updated;
+  }
+
+  // ============================================================================
+  // Helper methods for mapping database rows to domain objects
+  // ============================================================================
+
+  private mapFlowFromDb(row: any): SchemaFlowDefinition {
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description || undefined,
+      nodes: typeof row.nodes === 'string' ? JSON.parse(row.nodes) : row.nodes,
+      edges: typeof row.edges === 'string' ? JSON.parse(row.edges) : row.edges,
+      version: row.version,
+      enabled: Boolean(row.enabled),
+      tags: row.tags ? (typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags) : undefined,
+      metadata: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata) : undefined,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private mapFlowRunFromDb(row: any): SchemaFlowRun {
+    return {
+      id: row.id,
+      flowId: row.flowId,
+      flowName: row.flowName,
+      flowVersion: row.flowVersion,
+      traceId: row.traceId,
+      status: row.status,
+      startedAt: row.startedAt,
+      completedAt: row.completedAt || undefined,
+      durationMs: row.durationMs || undefined,
+      inputData: row.inputData ? (typeof row.inputData === 'string' ? JSON.parse(row.inputData) : row.inputData) : undefined,
+      outputData: row.outputData ? (typeof row.outputData === 'string' ? JSON.parse(row.outputData) : row.outputData) : undefined,
+      triggeredBy: row.triggeredBy,
+      executedNodes: row.executedNodes ? (typeof row.executedNodes === 'string' ? JSON.parse(row.executedNodes) : row.executedNodes) : undefined,
+      nodeExecutions: row.nodeExecutions ? (typeof row.nodeExecutions === 'string' ? JSON.parse(row.nodeExecutions) : row.nodeExecutions) : undefined,
+      error: row.error || undefined,
+      errorNode: row.errorNode || undefined,
+    };
+  }
+}
