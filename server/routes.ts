@@ -22,8 +22,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Create pipeline instance with flow support
     const pipeline = new Pipeline({ orchestrator });
 
-    // Register REST API routes
-    registerRESTRoutes(app, pipeline, orchestrator);
+    // Register REST API routes with storage
+    registerRESTRoutes(app, pipeline, orchestrator, storage);
 
     // Register GraphQL server (standalone on port 4000) with shared pipeline
     registerGraphQLServer(pipeline).catch((err) => {

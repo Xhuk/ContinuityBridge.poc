@@ -86,20 +86,33 @@ export class Pipeline {
         }
       }
 
-      // Step 2: Decide origin warehouse
-      const decision = this.decider.decide(canonical);
-      log.debug(`Warehouse selected for trace ${traceId}`, {
-        warehouse: decision.selectedWarehouse.id,
-      });
+      // Step 2: Decide origin warehouse (optional - only for CanonicalItem format)
+      let decision: ReturnType<typeof this.decider.decide> | undefined;
+      let dispatchResults: any[] = [];
 
-      // Step 3: Dispatch to receivers
-      const dispatchPayload = {
-        traceId,
-        canonical,
-        decision,
-      };
+      const isCanonicalItem = 
+        canonical && 
+        typeof canonical === 'object' && 
+        'itemId' in canonical &&
+        'destination' in canonical;
 
-      const dispatchResults = await dispatchToReceivers(dispatchPayload);
+      if (isCanonicalItem) {
+        decision = this.decider.decide(canonical);
+        log.debug(`Warehouse selected for trace ${traceId}`, {
+          warehouse: decision.selectedWarehouse.id,
+        });
+
+        // Step 3: Dispatch to receivers (only for CanonicalItem)
+        const dispatchPayload = {
+          traceId,
+          canonical,
+          decision,
+        };
+
+        dispatchResults = await dispatchToReceivers(dispatchPayload);
+      } else {
+        log.debug(`Skipping warehouse decision and dispatch for non-CanonicalItem output`);
+      }
 
       // Step 4: Record metrics
       const latencyMs = Date.now() - startTime;
@@ -108,18 +121,18 @@ export class Pipeline {
 
       log.info(`Pipeline completed for trace ${traceId}`, {
         latencyMs,
-        warehouse: decision.selectedWarehouse.id,
+        warehouse: decision?.selectedWarehouse.id || 'N/A',
       });
 
       return {
         success: true,
         traceId,
         canonical,
-        decision: {
+        decision: decision ? {
           warehouseId: decision.selectedWarehouse.id,
           warehouseName: decision.selectedWarehouse.name,
           reason: decision.reason,
-        },
+        } : undefined,
         dispatchResults,
         latencyMs,
       };

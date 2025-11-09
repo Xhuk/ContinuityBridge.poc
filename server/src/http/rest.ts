@@ -30,8 +30,9 @@ export function getPayloadStorage() {
 }
 
 import type { FlowOrchestrator } from "../flow/orchestrator.js";
+import type { IStorage } from "../../storage.js";
 
-export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrator?: FlowOrchestrator): void {
+export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrator?: FlowOrchestrator, storage?: IStorage): void {
   // POST /api/items/ifd - Process XML IFD payload
   app.post("/api/items/ifd", async (req, res) => {
     try {
@@ -488,6 +489,91 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
     }
   });
 
+  // ========== FLOW MANAGEMENT ENDPOINTS ==========
+
+  // GET /api/flows - List all flows
+  app.get("/api/flows", async (req, res) => {
+    try {
+      if (!storage) {
+        return res.status(501).json({ error: "Flow storage is not initialized" });
+      }
+      const flows = await storage.getFlows();
+      res.json(flows);
+    } catch (error: any) {
+      log.error("Error listing flows", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/flows/:id - Get a specific flow
+  app.get("/api/flows/:id", async (req, res) => {
+    try {
+      if (!storage) {
+        return res.status(501).json({ error: "Flow storage is not initialized" });
+      }
+      const flow = await storage.getFlow(req.params.id);
+      if (!flow) {
+        return res.status(404).json({ error: "Flow not found" });
+      }
+      res.json(flow);
+    } catch (error: any) {
+      log.error("Error getting flow", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/flows - Create a new flow
+  app.post("/api/flows", async (req, res) => {
+    try {
+      if (!storage) {
+        return res.status(501).json({ error: "Flow storage is not initialized" });
+      }
+      const flowData = req.body;
+      const flow = await storage.createFlow(flowData);
+      log.info(`Flow created: ${flow.id} - ${flow.name}`);
+      res.status(201).json(flow);
+    } catch (error: any) {
+      log.error("Error creating flow", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/flows/:id - Update a flow
+  app.patch("/api/flows/:id", async (req, res) => {
+    try {
+      if (!storage) {
+        return res.status(501).json({ error: "Flow storage is not initialized" });
+      }
+      const flow = await storage.updateFlow(req.params.id, req.body);
+      if (!flow) {
+        return res.status(404).json({ error: "Flow not found" });
+      }
+      log.info(`Flow updated: ${flow.id} - ${flow.name}`);
+      res.json(flow);
+    } catch (error: any) {
+      log.error("Error updating flow", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/flows/:id - Delete a flow
+  app.delete("/api/flows/:id", async (req, res) => {
+    try {
+      if (!storage) {
+        return res.status(501).json({ error: "Flow storage is not initialized" });
+      }
+      const deleted = await storage.deleteFlow(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Flow not found" });
+      }
+      log.info(`Flow deleted: ${req.params.id}`);
+      res.status(204).send();
+    } catch (error: any) {
+      log.error("Error deleting flow", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ========== FLOW EXECUTION ENDPOINTS ==========
 
   // POST /api/flows/:id/execute - Execute a flow manually
@@ -574,7 +660,25 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       log.error("Error executing flow directly", error);
       res.status(500).json({
         ok: false,
-        error: error.message });
+        error: error.message,
+      });
+    }
+  });
+
+  // GET /api/flows/runs/:runId - Get flow run status
+  app.get("/api/flows/runs/:runId", async (req, res) => {
+    try {
+      if (!storage) {
+        return res.status(501).json({ error: "Flow storage is not initialized" });
+      }
+      const flowRun = await storage.getFlowRun(req.params.runId);
+      if (!flowRun) {
+        return res.status(404).json({ error: "Flow run not found" });
+      }
+      res.json(flowRun);
+    } catch (error: any) {
+      log.error("Error getting flow run", error);
+      res.status(500).json({ error: error.message });
     }
   });
 
