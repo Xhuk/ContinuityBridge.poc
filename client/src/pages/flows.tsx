@@ -832,16 +832,16 @@ function ValidationNodeConfig({
           <div>
             <Label htmlFor="interfaceId">Interface (Optional)</Label>
             <Select
-              value={config.interfaceId || ""}
+              value={config.interfaceId || "none"}
               onValueChange={(value) =>
-                setConfig({ ...config, interfaceId: value })
+                setConfig({ ...config, interfaceId: value === "none" ? undefined : value })
               }
             >
               <SelectTrigger id="interfaceId" data-testid="select-interface">
                 <SelectValue placeholder="No interface selected (manual fields)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No interface (manual)</SelectItem>
+                <SelectItem value="none">No interface (manual)</SelectItem>
                 {interfaces?.map((iface) => (
                   <SelectItem key={iface.id} value={iface.id}>
                     {iface.name}
