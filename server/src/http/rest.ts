@@ -432,6 +432,61 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
     }
   });
 
+  // HEAD /api/interfaces - Check if interfaces exist (no response body)
+  app.head("/api/interfaces", (req, res) => {
+    try {
+      const interfaces = interfaceManager.getAllInterfaces();
+      res.set({
+        "Content-Type": "application/json",
+        "X-Total-Count": interfaces.length.toString(),
+      });
+      res.status(200).end();
+    } catch (error: any) {
+      log.error("Error checking interfaces", error);
+      res.status(500).end();
+    }
+  });
+
+  // HEAD /api/interfaces/:id - Check if specific interface exists (no response body)
+  app.head("/api/interfaces/:id", (req, res) => {
+    try {
+      const iface = interfaceManager.getInterface(req.params.id);
+      if (!iface) {
+        return res.status(404).end();
+      }
+      res.set({
+        "Content-Type": "application/json",
+        "X-Interface-Name": iface.name,
+        "X-Interface-Type": iface.type,
+        "X-Interface-Protocol": iface.protocol,
+      });
+      res.status(200).end();
+    } catch (error: any) {
+      log.error("Error checking interface", error);
+      res.status(500).end();
+    }
+  });
+
+  // OPTIONS /api/interfaces - Describe allowed methods for collection
+  app.options("/api/interfaces", (req, res) => {
+    res.set({
+      "Allow": "GET, POST, HEAD, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, HEAD, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    });
+    res.status(204).end();
+  });
+
+  // OPTIONS /api/interfaces/:id - Describe allowed methods for specific resource
+  app.options("/api/interfaces/:id", (req, res) => {
+    res.set({
+      "Allow": "GET, PUT, DELETE, HEAD, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, PUT, DELETE, HEAD, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    });
+    res.status(204).end();
+  });
+
   // POST /api/interfaces/:id/test - Test connectivity
   app.post("/api/interfaces/:id/test", async (req, res) => {
     try {
@@ -572,6 +627,96 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       log.error("Error deleting flow", error);
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // PUT /api/flows/:id - Replace entire flow (idempotent)
+  app.put("/api/flows/:id", async (req, res) => {
+    try {
+      if (!storage) {
+        return res.status(501).json({ error: "Flow storage is not initialized" });
+      }
+      
+      const existingFlow = await storage.getFlow(req.params.id);
+      const flowData = { ...req.body, id: req.params.id };
+      
+      if (existingFlow) {
+        // Replace existing flow
+        const flow = await storage.updateFlow(req.params.id, flowData);
+        if (!flow) {
+          return res.status(404).json({ error: "Flow not found" });
+        }
+        log.info(`Flow replaced: ${flow.id} - ${flow.name}`);
+        res.json(flow);
+      } else {
+        // Create new flow with specified ID
+        const flow = await storage.createFlow(flowData);
+        log.info(`Flow created via PUT: ${flow.id} - ${flow.name}`);
+        res.status(201).json(flow);
+      }
+    } catch (error: any) {
+      log.error("Error replacing flow", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // HEAD /api/flows - Check if flows exist (no response body)
+  app.head("/api/flows", async (req, res) => {
+    try {
+      if (!storage) {
+        return res.status(501).end();
+      }
+      const flows = await storage.getFlows();
+      res.set({
+        "Content-Type": "application/json",
+        "X-Total-Count": flows.length.toString(),
+      });
+      res.status(200).end();
+    } catch (error: any) {
+      log.error("Error checking flows", error);
+      res.status(500).end();
+    }
+  });
+
+  // HEAD /api/flows/:id - Check if specific flow exists (no response body)
+  app.head("/api/flows/:id", async (req, res) => {
+    try {
+      if (!storage) {
+        return res.status(501).end();
+      }
+      const flow = await storage.getFlow(req.params.id);
+      if (!flow) {
+        return res.status(404).end();
+      }
+      res.set({
+        "Content-Type": "application/json",
+        "X-Flow-Name": flow.name,
+        "X-Flow-Enabled": flow.enabled.toString(),
+      });
+      res.status(200).end();
+    } catch (error: any) {
+      log.error("Error checking flow", error);
+      res.status(500).end();
+    }
+  });
+
+  // OPTIONS /api/flows - Describe allowed methods for collection
+  app.options("/api/flows", (req, res) => {
+    res.set({
+      "Allow": "GET, POST, HEAD, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, HEAD, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    });
+    res.status(204).end();
+  });
+
+  // OPTIONS /api/flows/:id - Describe allowed methods for specific resource
+  app.options("/api/flows/:id", (req, res) => {
+    res.set({
+      "Allow": "GET, PUT, PATCH, DELETE, HEAD, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, PUT, PATCH, DELETE, HEAD, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    });
+    res.status(204).end();
   });
 
   // ========== FLOW EXECUTION ENDPOINTS ==========

@@ -4,6 +4,13 @@
 ContinuityBridge is a configurable bi-directional integration hub designed to connect diverse enterprise systems such as WMS, Oracle, Manhattan, Amazon, and Last Mile. It ingests payloads from multiple sources (SFTP, Azure Blob, REST APIs), transforms them using configurable mappings, applies warehouse routing logic, and dispatches them to various destinations with swappable queue backends. The project aims to provide a robust, scalable, and observable solution for complex data integration challenges, supporting both linear transformation flows and advanced orchestration.
 
 ## Recent Changes (November 2025)
+- **RFC 7231 HTTP Methods Support**: Full REST API compliance
+  - Implemented all RFC 7231 methods: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS
+  - Added idempotent PUT for complete resource replacement
+  - Added HEAD for resource existence checks without body
+  - Added OPTIONS for method discovery and CORS support
+  - Proper HTTP status codes (200, 201, 204, 404, 501)
+  - Applied to flows and interfaces endpoints
 - **Phase 2.2d Complete**: Pipeline Integration with Flow Orchestrator
   - Integrated FlowOrchestrator with Pipeline for flexible transformation workflows
   - Added REST API endpoints for flow CRUD operations (GET/POST /api/flows)
