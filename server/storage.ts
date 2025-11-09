@@ -31,6 +31,18 @@ export interface IStorage {
   getSmtpSettingsForService?(): Promise<SmtpSettings | undefined>; // Optional: includes encrypted password
   upsertSmtpSettings(settings: InsertSmtpSettings): Promise<SmtpSettings>;
   deleteSmtpSettings(): Promise<boolean>;
+
+  // Secrets Vault Management (Master Seed-based encryption)
+  getMasterKey?(): Promise<SecretsMasterKey | undefined>;
+  saveMasterKey?(data: InsertSecretsMasterKey): Promise<SecretsMasterKey>;
+  clearMasterKey?(): Promise<void>;
+  
+  listSecrets?(integrationType?: SecretsVaultEntry['integrationType']): Promise<SecretsVaultEntry[]>;
+  getSecret?(id: string): Promise<SecretsVaultEntry | undefined>;
+  saveSecret?(data: InsertSecretsVaultEntry): Promise<SecretsVaultEntry>;
+  updateSecret?(id: string, data: Partial<InsertSecretsVaultEntry>): Promise<SecretsVaultEntry | undefined>;
+  deleteSecret?(id: string): Promise<boolean>;
+  clearAllSecrets?(): Promise<void>;
 }
 
 export class MemStorage implements IStorage {

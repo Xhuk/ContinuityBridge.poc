@@ -4,6 +4,19 @@
 ContinuityBridge is a configurable bi-directional integration hub designed to connect diverse enterprise systems such as WMS, Oracle, Manhattan, Amazon, and Last Mile. It ingests payloads from multiple sources (SFTP, Azure Blob, REST APIs), transforms them using configurable mappings, applies warehouse routing logic, and dispatches them to various destinations with swappable queue backends. The project aims to provide a robust, scalable, and observable solution for complex data integration challenges, supporting both linear transformation flows and advanced orchestration.
 
 ## Recent Changes (November 2025)
+- **Phase 2.6 In Progress**: Unified Secrets Vault with Master Seed Encryption
+  - Implemented Argon2id-based master seed system for all integration credentials
+  - Created SecretService with AES-256-GCM encryption (session-based unlock)
+  - Database schema: secrets_master_keys + secrets_vault with foreign key constraints
+  - Supports 7 integration types: SMTP, Azure Blob, SFTP, FTP, Database, API Keys, Custom
+  - Master seed never stored - only Argon2id hash with salt (64MB memory, 3 iterations, 4 parallelism)
+  - Each secret encrypted with unique IV and authenticated GCM tag
+  - Session unlock: user enters master seed per session, key held in memory only
+  - Recovery code generation with irreversible-loss warnings
+  - Type-safe payload interfaces with Zod validation for all integration types
+  - Foreign key enforcement: secrets_vault.master_key_id → secrets_master_keys.id
+  - Migration path planned from legacy SMTP_ENCRYPTION_KEY to unified vault
+  - Customer self-service: manage SMTP, Azure, SFTP passwords without admin access
 - **Phase 2.5 Complete**: Interface-Scoped Conditional Logic System
   - Implemented interface-scoped conditional logic to prevent mixing logic between adapters (e.g., Amazon conditions only work with Amazon interfaces)
   - Added conditionSchema to InterfaceTemplate type with field definitions (name, type, description, enum values) and rule presets
@@ -65,6 +78,7 @@ ContinuityBridge is a configurable bi-directional integration hub designed to co
 The frontend features a React application with a dashboard for KPIs, charts, and queue depth monitoring, an events history table, queue management, and dedicated pages for managing data sources and interfaces. A comprehensive sidebar provides navigation to all key areas. **Phase 2.3 added a visual Flow Builder** - a React Flow-based canvas where users can drag-and-drop nodes to create transformation flows, configure them via dialogs, connect them visually, and save/load/execute flows through REST API integration.
 
 ### Technical Implementations
+- **Unified Secrets Vault**: Production-grade secrets management with Argon2id key derivation and AES-256-GCM encryption. User creates master seed on first launch (never stored, only hashed). Session-based unlock derives 256-bit master key in memory. Supports SMTP, Azure Blob, SFTP, FTP, Database, API keys, and custom secrets. Each secret has unique IV and GCM authentication tag. Foreign key constraints prevent orphaned secrets. Recovery code generation with explicit warnings about irrecoverable loss. Self-service management UI planned for customers to manage their own credentials without admin access.
 - **Interface Template Catalog**: YAML-based library of pre-configured marketplace/enterprise system templates (Amazon SP-API, MercadoLibre, Manhattan WMS, ShipStation, FedEx). Singleton service loads templates at startup with Zod validation, provides REST API for listing/viewing/instantiating. Templates define typed protocols, authentication, required secrets, endpoint schemas, and payload templates. Enables customers to instantiate standard integrations with their credentials vs. manual interface configuration.
 - **Flow Orchestrator**: A core service for executing node graphs, tracking per-node execution, and supporting conditional routing. Includes production-safe executors for manual triggers, interface operations, XML/CSV parsing, JSON building, object mapping, validation, and **interface-scoped conditionals**. CSV parser handles quoted fields, configurable delimiters, and header detection. Validation node supports YAML rule sets with type checking, pattern matching, range validation, and multi-output routing (valid/invalid streams). Conditional node uses declarative YAML syntax with server-side schema validation to prevent RCE attacks - no JavaScript execution. **Now integrated with Pipeline for end-to-end flow execution.**
 - **Pipeline Integration**: The Pipeline now supports both legacy XML transformation (mode: 'xml') and modern flow-based transformation (mode: 'flow'). Warehouse decision logic is conditional - it only runs when the output matches CanonicalItem structure (itemId + destination fields). This allows flows to transform ANY data format without requiring canonical format.
@@ -96,3 +110,5 @@ The frontend features a React application with a dashboard for KPIs, charts, and
 - **React Flow (@xyflow/react)**: For visual flow builder canvas and node graph rendering.
 - **fast-xml-parser**: For XML syntax validation.
 - **object-mapper**: For field mapping within flows.
+- **Argon2**: For production-grade password hashing and key derivation (Argon2id algorithm).
+- **Node.js crypto**: For AES-256-GCM symmetric encryption with authenticated encryption.

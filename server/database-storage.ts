@@ -7,7 +7,20 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { flowDefinitions, flowRuns, smtpSettings, type FlowDefinition, type FlowRun, type SmtpSettings } from "./schema";
+import { 
+  flowDefinitions, 
+  flowRuns, 
+  smtpSettings, 
+  secretsMasterKeys,
+  secretsVault,
+  type FlowDefinition, 
+  type FlowRun, 
+  type SmtpSettings,
+  type SecretsMasterKey,
+  type SecretsVaultEntry,
+  type InsertSecretsMasterKey,
+  type InsertSecretsVaultEntry,
+} from "./schema";
 import { eq, desc } from "drizzle-orm";
 import { IStorage } from "./storage";
 
@@ -340,5 +353,108 @@ export class DatabaseStorage implements IStorage {
 
     const row: any = result[0];
     return this.mapSmtpFromDb(row, true); // Include password for service configuration
+  }
+
+  // ============================================================================
+  // Secrets Vault Implementation
+  // ============================================================================
+
+  async getMasterKey(): Promise<SchemaSecretsMasterKey | undefined> {
+    const result = await (db.select() as any).from(secretsMasterKeys).limit(1);
+    
+    if (result.length === 0) {
+      return undefined;
+    }
+
+    return result[0] as SchemaSecretsMasterKey;
+  }
+
+  async saveMasterKey(data: SchemaInsertSecretsMasterKey): Promise<SchemaSecretsMasterKey> {
+    const masterKey = {
+      ...data,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await (db.insert(secretsMasterKeys) as any).values(masterKey);
+
+    return masterKey as SchemaSecretsMasterKey;
+  }
+
+  async clearMasterKey(): Promise<void> {
+    await (db.delete(secretsMasterKeys) as any);
+  }
+
+  async listSecrets(integrationType?: SchemaSecretsVaultEntry['integrationType']): Promise<SchemaSecretsVaultEntry[]> {
+    let query = (db.select() as any).from(secretsVault);
+
+    if (integrationType) {
+      query = query.where(eq(secretsVault.integrationType, integrationType));
+    }
+
+    const results = await query;
+    return results as SchemaSecretsVaultEntry[];
+  }
+
+  async getSecret(id: string): Promise<SchemaSecretsVaultEntry | undefined> {
+    const result = await (db.select() as any)
+      .from(secretsVault)
+      .where(eq(secretsVault.id, id))
+      .limit(1);
+
+    if (result.length === 0) {
+      return undefined;
+    }
+
+    return result[0] as SchemaSecretsVaultEntry;
+  }
+
+  async saveSecret(data: SchemaInsertSecretsVaultEntry): Promise<SchemaSecretsVaultEntry> {
+    const secret = {
+      ...data,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await (db.insert(secretsVault) as any).values(secret);
+
+    return secret as SchemaSecretsVaultEntry;
+  }
+
+  async updateSecret(
+    id: string,
+    data: Partial<SchemaInsertSecretsVaultEntry>
+  ): Promise<SchemaSecretsVaultEntry | undefined> {
+    const existing = await this.getSecret(id);
+    
+    if (!existing) {
+      return undefined;
+    }
+
+    const updated = {
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await (db.update(secretsVault) as any)
+      .set(updated)
+      .where(eq(secretsVault.id, id));
+
+    return { ...existing, ...updated } as SchemaSecretsVaultEntry;
+  }
+
+  async deleteSecret(id: string): Promise<boolean> {
+    const existing = await this.getSecret(id);
+    
+    if (!existing) {
+      return false;
+    }
+
+    await (db.delete(secretsVault) as any).where(eq(secretsVault.id, id));
+    return true;
+  }
+
+  async clearAllSecrets(): Promise<void> {
+    await (db.delete(secretsVault) as any);
   }
 }
