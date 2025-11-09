@@ -421,7 +421,7 @@ export default function Flows() {
       <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
         <DialogContent data-testid="dialog-node-config">
           <DialogHeader>
-            <DialogTitle>Configure {selectedNode?.data?.label || "Node"}</DialogTitle>
+            <DialogTitle>Configure {String(selectedNode?.data?.label || "Node")}</DialogTitle>
             <DialogDescription>
               Edit the configuration for this node
             </DialogDescription>
