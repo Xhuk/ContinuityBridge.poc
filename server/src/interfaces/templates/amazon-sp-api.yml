@@ -1,0 +1,147 @@
+# Amazon Seller Partner API (SP-API) - Standard Marketplace Interface
+# Category: marketplace
+
+id: amazon-sp-api
+name: Amazon Seller Partner API
+description: Integration with Amazon Seller Central for product catalog, inventory, orders, and fulfillment
+type: marketplace
+direction: bidirectional
+protocol: rest_api
+
+# Connection details
+endpoint: https://sellingpartnerapi-na.amazon.com
+httpConfig:
+  method: POST
+  headers:
+    Content-Type: application/json
+    Accept: application/json
+  timeout: 30000
+  retryAttempts: 3
+  retryDelay: 1000
+
+# Authentication - OAuth2 with LWA (Login with Amazon)
+authType: oauth2
+oauth2Config:
+  tokenUrl: https://api.amazon.com/auth/o2/token
+  grantType: refresh_token
+  scope: ""
+
+# Supported data formats
+formats:
+  - json
+  - xml
+defaultFormat: json
+
+# Required secrets (to be filled by customer)
+requiredSecrets:
+  - clientId          # LWA Client ID
+  - clientSecret      # LWA Client Secret
+  - refreshToken      # LWA Refresh Token
+  - customAuth:
+      - sellerId      # Amazon Seller ID
+      - marketplaceId # Amazon Marketplace ID (e.g., ATVPDKIKX0DER for US)
+
+# Common API endpoints
+endpoints:
+  # Catalog Items API v2022-04-01
+  createProduct:
+    path: /catalog/2022-04-01/items
+    method: POST
+    description: Create a new product listing
+    
+  updateProduct:
+    path: /catalog/2022-04-01/items/{asin}
+    method: PATCH
+    description: Update existing product listing
+    
+  getProduct:
+    path: /catalog/2022-04-01/items/{asin}
+    method: GET
+    description: Get product details by ASIN
+    
+  # Listings Items API v2021-08-01
+  putListing:
+    path: /listings/2021-08-01/items/{sellerId}/{sku}
+    method: PUT
+    description: Create or update a product listing by SKU
+    
+  deleteListing:
+    path: /listings/2021-08-01/items/{sellerId}/{sku}
+    method: DELETE
+    description: Delete a product listing
+    
+  # Inventory API v1
+  updateInventory:
+    path: /fba/inventory/v1/items/inventory
+    method: POST
+    description: Update inventory quantity for FBA items
+    
+  # Feeds API v2021-06-30
+  createFeed:
+    path: /feeds/2021-06-30/feeds
+    method: POST
+    description: Submit feed (bulk product updates, inventory, prices)
+
+# Example payload templates
+payloadTemplates:
+  createProduct:
+    productType: PRODUCT
+    requirements: LISTING
+    attributes:
+      condition_type:
+        - value: new_new
+          marketplace_id: ATVPDKIKX0DER
+      item_name:
+        - value: "{{productName}}"
+          language_tag: en_US
+          marketplace_id: ATVPDKIKX0DER
+      brand:
+        - value: "{{brandName}}"
+          marketplace_id: ATVPDKIKX0DER
+      externally_assigned_product_identifier:
+        - value: "{{upc}}"
+          type: upc
+          marketplace_id: ATVPDKIKX0DER
+      merchant_suggested_asin:
+        - value: "{{sku}}"
+          marketplace_id: ATVPDKIKX0DER
+      bullet_point:
+        - value: "{{description}}"
+          language_tag: en_US
+          marketplace_id: ATVPDKIKX0DER
+  
+  updateInventory:
+    sellerSku: "{{sku}}"
+    marketplaceId: ATVPDKIKX0DER
+    supply:
+      - supplyType: IN_STOCK
+        quantity: "{{quantity}}"
+
+# Field mapping suggestions (WMS → Amazon)
+suggestedMappings:
+  wms_to_amazon:
+    sku: $.Item.SKU
+    productName: $.Item.Description
+    quantity: $.Item.Quantity
+    upc: $.Item.UPC
+    brandName: $.Item.Brand
+    price: $.Item.Price
+    weight: $.Item.Weight
+    dimensions:
+      length: $.Item.Dimensions.Length
+      width: $.Item.Dimensions.Width
+      height: $.Item.Dimensions.Height
+
+# Tags
+tags:
+  - marketplace
+  - amazon
+  - ecommerce
+  - standard
+
+# Metadata
+metadata:
+  vendor: Amazon
+  documentation: https://developer-docs.amazon.com/sp-api/
+  rateLimit: 200 requests per second
+  region: North America

@@ -1,0 +1,152 @@
+# MercadoLibre API - Standard Marketplace Interface
+# Category: marketplace
+
+id: mercadolibre-api
+name: MercadoLibre API
+description: Integration with MercadoLibre marketplace for product listings, inventory, and order management
+type: marketplace
+direction: bidirectional
+protocol: rest_api
+
+# Connection details
+endpoint: https://api.mercadolibre.com
+httpConfig:
+  method: POST
+  headers:
+    Content-Type: application/json
+    Accept: application/json
+  timeout: 30000
+  retryAttempts: 3
+  retryDelay: 1000
+
+# Authentication - OAuth2
+authType: oauth2
+oauth2Config:
+  tokenUrl: https://api.mercadolibre.com/oauth/token
+  grantType: refresh_token
+  scope: ""
+
+# Supported data formats
+formats:
+  - json
+defaultFormat: json
+
+# Required secrets (to be filled by customer)
+requiredSecrets:
+  - clientId          # MercadoLibre App ID
+  - clientSecret      # MercadoLibre Secret Key
+  - refreshToken      # OAuth Refresh Token
+  - customAuth:
+      - userId        # MercadoLibre User ID
+      - siteId        # Site ID (MLB=Brazil, MLM=Mexico, MLA=Argentina, etc.)
+
+# Common API endpoints
+endpoints:
+  createListing:
+    path: /items
+    method: POST
+    description: Create a new product listing
+    
+  updateListing:
+    path: /items/{itemId}
+    method: PUT
+    description: Update existing product listing
+    
+  getListing:
+    path: /items/{itemId}
+    method: GET
+    description: Get product details by Item ID
+    
+  updateStock:
+    path: /items/{itemId}
+    method: PUT
+    description: Update product stock quantity
+    
+  updatePrice:
+    path: /items/{itemId}
+    method: PUT
+    description: Update product price
+    
+  pauseListing:
+    path: /items/{itemId}
+    method: PUT
+    description: Pause/activate a listing
+    
+  getOrders:
+    path: /orders/search
+    method: GET
+    description: Search orders by various criteria
+    
+  getCategories:
+    path: /sites/{siteId}/categories
+    method: GET
+    description: Get category tree for site
+
+# Example payload templates
+payloadTemplates:
+  createListing:
+    title: "{{productName}}"
+    category_id: "{{categoryId}}"
+    price: "{{price}}"
+    currency_id: "{{currencyId}}"
+    available_quantity: "{{quantity}}"
+    buying_mode: buy_it_now
+    condition: new
+    listing_type_id: gold_special
+    description:
+      plain_text: "{{description}}"
+    pictures:
+      - source: "{{imageUrl}}"
+    attributes:
+      - id: BRAND
+        value_name: "{{brandName}}"
+      - id: MODEL
+        value_name: "{{model}}"
+    shipping:
+      mode: me2
+      free_shipping: false
+      dimensions: "{{dimensions}}"
+      
+  updateStock:
+    available_quantity: "{{quantity}}"
+    
+  updatePrice:
+    price: "{{price}}"
+
+# Field mapping suggestions (WMS → MercadoLibre)
+suggestedMappings:
+  wms_to_mercadolibre:
+    productName: $.Item.Description
+    sku: $.Item.SKU
+    price: $.Item.Price
+    quantity: $.Item.Quantity
+    categoryId: $.Item.CategoryId
+    currencyId: BRL
+    brandName: $.Item.Brand
+    model: $.Item.Model
+    description: $.Item.LongDescription
+    weight: $.Item.Weight
+    dimensions: 
+      length: $.Item.Dimensions.Length
+      width: $.Item.Dimensions.Width
+      height: $.Item.Dimensions.Height
+
+# Tags
+tags:
+  - marketplace
+  - mercadolibre
+  - ecommerce
+  - latam
+  - standard
+
+# Metadata
+metadata:
+  vendor: MercadoLibre
+  documentation: https://developers.mercadolibre.com/
+  rateLimit: 10000 requests per hour
+  regions:
+    - Brazil (MLB)
+    - Mexico (MLM)
+    - Argentina (MLA)
+    - Chile (MLC)
+    - Colombia (MCO)

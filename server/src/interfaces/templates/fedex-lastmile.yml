@@ -1,0 +1,173 @@
+# FedEx Ship API - Last Mile Carrier Interface
+# Category: lastmile
+
+id: fedex-lastmile
+name: FedEx Ship API
+description: Integration with FedEx for shipping rate quotes, label generation, and shipment tracking
+type: lastmile
+direction: bidirectional
+protocol: rest_api
+
+# Connection details
+endpoint: https://apis.fedex.com
+httpConfig:
+  method: POST
+  headers:
+    Content-Type: application/json
+    Accept: application/json
+  timeout: 30000
+  retryAttempts: 3
+  retryDelay: 1000
+
+# Authentication - OAuth2
+authType: oauth2
+oauth2Config:
+  tokenUrl: https://apis.fedex.com/oauth/token
+  grantType: client_credentials
+  scope: ""
+
+# Supported data formats
+formats:
+  - json
+defaultFormat: json
+
+# Required secrets
+requiredSecrets:
+  - clientId          # FedEx API Key
+  - clientSecret      # FedEx Secret Key
+  - customAuth:
+      - accountNumber # FedEx Account Number
+      - meterNumber   # FedEx Meter Number (optional)
+
+# Common API endpoints
+endpoints:
+  getRates:
+    path: /rate/v1/rates/quotes
+    method: POST
+    description: Get shipping rate quotes
+    
+  createShipment:
+    path: /ship/v1/shipments
+    method: POST
+    description: Create shipment and generate label
+    
+  cancelShipment:
+    path: /ship/v1/shipments/cancel
+    method: PUT
+    description: Cancel a shipment
+    
+  trackShipment:
+    path: /track/v1/trackingnumbers
+    method: POST
+    description: Track shipment by tracking number
+    
+  validateAddress:
+    path: /address/v1/addresses/resolve
+    method: POST
+    description: Validate shipping address
+    
+  pickupSchedule:
+    path: /pickup/v1/pickups
+    method: POST
+    description: Schedule package pickup
+
+# Example payload templates
+payloadTemplates:
+  getRates:
+    accountNumber:
+      value: "{{accountNumber}}"
+    requestedShipment:
+      shipper:
+        address:
+          postalCode: "{{shipperZip}}"
+          countryCode: "{{shipperCountry}}"
+      recipient:
+        address:
+          postalCode: "{{recipientZip}}"
+          countryCode: "{{recipientCountry}}"
+      pickupType: USE_SCHEDULED_PICKUP
+      serviceType: FEDEX_GROUND
+      packagingType: YOUR_PACKAGING
+      rateRequestType:
+        - ACCOUNT
+      requestedPackageLineItems:
+        - weight:
+            units: LB
+            value: "{{weight}}"
+          
+  createShipment:
+    labelResponseOptions: URL_ONLY
+    requestedShipment:
+      shipper:
+        contact:
+          personName: "{{shipperName}}"
+          phoneNumber: "{{shipperPhone}}"
+        address:
+          streetLines:
+            - "{{shipperStreet1}}"
+          city: "{{shipperCity}}"
+          stateOrProvinceCode: "{{shipperState}}"
+          postalCode: "{{shipperZip}}"
+          countryCode: "{{shipperCountry}}"
+      recipients:
+        - contact:
+            personName: "{{recipientName}}"
+            phoneNumber: "{{recipientPhone}}"
+          address:
+            streetLines:
+              - "{{recipientStreet1}}"
+            city: "{{recipientCity}}"
+            stateOrProvinceCode: "{{recipientState}}"
+            postalCode: "{{recipientZip}}"
+            countryCode: "{{recipientCountry}}"
+      shipDatestamp: "{{shipDate}}"
+      serviceType: FEDEX_GROUND
+      packagingType: YOUR_PACKAGING
+      pickupType: USE_SCHEDULED_PICKUP
+      blockInsightVisibility: false
+      shippingChargesPayment:
+        paymentType: SENDER
+      labelSpecification:
+        imageType: PDF
+        labelStockType: PAPER_85X11_TOP_HALF_LABEL
+      requestedPackageLineItems:
+        - weight:
+            units: LB
+            value: "{{weight}}"
+
+# Field mapping suggestions
+suggestedMappings:
+  wms_to_fedex:
+    shipperName: $.Shipper.Name
+    shipperStreet1: $.Shipper.Address
+    shipperCity: $.Shipper.City
+    shipperState: $.Shipper.State
+    shipperZip: $.Shipper.ZipCode
+    shipperCountry: $.Shipper.Country
+    recipientName: $.Destination.Name
+    recipientStreet1: $.Destination.Address
+    recipientCity: $.Destination.City
+    recipientState: $.Destination.State
+    recipientZip: $.Destination.ZipCode
+    recipientCountry: $.Destination.Country
+    weight: $.Item.Weight
+
+# Tags
+tags:
+  - lastmile
+  - carrier
+  - shipping
+  - fedex
+  - standard
+
+# Metadata
+metadata:
+  vendor: FedEx
+  documentation: https://developer.fedex.com/api/en-us/home.html
+  rateLimit: Variable by service
+  supportedServices:
+    - FedEx Ground
+    - FedEx Express
+    - FedEx 2Day
+    - FedEx Overnight
+    - FedEx International

@@ -8,6 +8,7 @@ import { logger } from "../core/logger.js";
 import { getCurrentBackend } from "../serverQueue.js";
 import { getDataSourceManager } from "../datasources/manager.js";
 import { interfaceManager } from "../interfaces/manager.js";
+import { interfaceTemplateCatalog } from "../interfaces/template-catalog.js";
 
 const log = logger.child("REST-API");
 
@@ -540,6 +541,117 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       res.json(events);
     } catch (error: any) {
       log.error("Error fetching integration events", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ========== INTERFACE TEMPLATE ENDPOINTS ==========
+
+  // GET /api/interface-templates - List all interface templates
+  app.get("/api/interface-templates", (req, res) => {
+    try {
+      const { type, tag, search } = req.query;
+      
+      let templates;
+      if (search) {
+        templates = interfaceTemplateCatalog.searchTemplates(search as string);
+      } else if (type) {
+        templates = interfaceTemplateCatalog.getTemplatesByType(type as string);
+      } else if (tag) {
+        templates = interfaceTemplateCatalog.getTemplatesByTag(tag as string);
+      } else {
+        templates = interfaceTemplateCatalog.getAllTemplates();
+      }
+      
+      res.json(templates);
+    } catch (error: any) {
+      log.error("Error listing interface templates", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/interface-templates/:id - Get specific interface template
+  app.get("/api/interface-templates/:id", (req, res) => {
+    try {
+      const template = interfaceTemplateCatalog.getTemplate(req.params.id);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      res.json(template);
+    } catch (error: any) {
+      log.error("Error getting interface template", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/interface-templates/:id/instantiate - Create interface from template
+  app.post("/api/interface-templates/:id/instantiate", (req, res) => {
+    try {
+      const template = interfaceTemplateCatalog.getTemplate(req.params.id);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      const { name, secrets, customization } = req.body;
+      
+      if (!name) {
+        return res.status(400).json({ error: "Interface name is required" });
+      }
+      
+      // Build interface config from template
+      const interfaceConfig: any = {
+        name,
+        description: customization?.description || template.description,
+        type: template.type,
+        direction: template.direction,
+        protocol: template.protocol,
+        endpoint: customization?.endpoint || template.endpoint,
+        authType: template.authType,
+        formats: template.formats,
+        defaultFormat: template.defaultFormat,
+        enabled: true,
+        tags: [...(template.tags || []), "from-template", `template:${template.id}`],
+        metadata: {
+          ...template.metadata,
+          templateId: template.id,
+          templateName: template.name,
+          instantiatedAt: new Date().toISOString(),
+        },
+      };
+      
+      // Add HTTP config if present
+      if (template.httpConfig) {
+        interfaceConfig.httpConfig = {
+          ...template.httpConfig,
+          ...customization?.httpConfig,
+        };
+      }
+      
+      // Add OAuth2 config if present
+      if (template.oauth2Config) {
+        interfaceConfig.oauth2Config = template.oauth2Config;
+      }
+      
+      // Create the interface
+      const createdInterface = interfaceManager.addInterface(interfaceConfig, secrets);
+      
+      log.info(`Interface created from template ${template.id}: ${createdInterface.name}`);
+      
+      res.status(201).json({
+        interface: createdInterface,
+        template: {
+          id: template.id,
+          name: template.name,
+          suggestedMappings: template.suggestedMappings,
+          endpoints: template.endpoints,
+          payloadTemplates: template.payloadTemplates,
+        },
+      });
+    } catch (error: any) {
+      log.error("Error instantiating interface from template", error);
       res.status(500).json({ error: error.message });
     }
   });

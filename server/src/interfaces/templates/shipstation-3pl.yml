@@ -1,0 +1,159 @@
+# ShipStation - Standard 3PL/Shipping Interface
+# Category: 3pl
+
+id: shipstation-3pl
+name: ShipStation
+description: Integration with ShipStation for multi-carrier shipping, label printing, and order fulfillment
+type: 3pl
+direction: bidirectional
+protocol: rest_api
+
+# Connection details
+endpoint: https://ssapi.shipstation.com
+httpConfig:
+  method: POST
+  headers:
+    Content-Type: application/json
+    Accept: application/json
+  timeout: 30000
+  retryAttempts: 3
+  retryDelay: 1000
+
+# Authentication - Basic Auth (API Key + API Secret as username:password)
+authType: basic
+
+# Supported data formats
+formats:
+  - json
+defaultFormat: json
+
+# Required secrets
+requiredSecrets:
+  - username         # API Key (used as username)
+  - password         # API Secret (used as password)
+
+# Common API endpoints
+endpoints:
+  createOrder:
+    path: /orders/createorder
+    method: POST
+    description: Create a new order in ShipStation
+    
+  getOrder:
+    path: /orders/{orderId}
+    method: GET
+    description: Get order details
+    
+  createLabel:
+    path: /orders/createlabelfororder
+    method: POST
+    description: Create shipping label for order
+    
+  voidLabel:
+    path: /orders/voidlabel
+    method: POST
+    description: Void a shipping label
+    
+  listCarriers:
+    path: /carriers
+    method: GET
+    description: List available carriers
+    
+  getShipment:
+    path: /shipments
+    method: GET
+    description: Get shipment details
+    
+  trackShipment:
+    path: /shipments/{shipmentId}/track
+    method: GET
+    description: Track shipment status
+    
+  getWarehouses:
+    path: /warehouses
+    method: GET
+    description: List configured warehouses
+
+# Example payload templates
+payloadTemplates:
+  createOrder:
+    orderNumber: "{{orderNumber}}"
+    orderKey: "{{orderKey}}"
+    orderDate: "{{orderDate}}"
+    orderStatus: awaiting_shipment
+    customerUsername: "{{customerEmail}}"
+    customerEmail: "{{customerEmail}}"
+    billTo:
+      name: "{{billToName}}"
+      company: "{{billToCompany}}"
+      street1: "{{billToStreet1}}"
+      city: "{{billToCity}}"
+      state: "{{billToState}}"
+      postalCode: "{{billToZip}}"
+      country: "{{billToCountry}}"
+      phone: "{{billToPhone}}"
+    shipTo:
+      name: "{{shipToName}}"
+      company: "{{shipToCompany}}"
+      street1: "{{shipToStreet1}}"
+      city: "{{shipToCity}}"
+      state: "{{shipToState}}"
+      postalCode: "{{shipToZip}}"
+      country: "{{shipToCountry}}"
+      phone: "{{shipToPhone}}"
+    items:
+      - sku: "{{sku}}"
+        name: "{{productName}}"
+        quantity: "{{quantity}}"
+        unitPrice: "{{unitPrice}}"
+        
+  createLabel:
+    orderId: "{{orderId}}"
+    carrierCode: "{{carrierCode}}"
+    serviceCode: "{{serviceCode}}"
+    packageCode: package
+    weight:
+      value: "{{weight}}"
+      units: ounces
+    dimensions:
+      length: "{{length}}"
+      width: "{{width}}"
+      height: "{{height}}"
+      units: inches
+
+# Field mapping suggestions (WMS → ShipStation)
+suggestedMappings:
+  wms_to_shipstation:
+    orderNumber: $.Order.OrderNumber
+    customerEmail: $.Order.Customer.Email
+    shipToName: $.Destination.Name
+    shipToStreet1: $.Destination.Address
+    shipToCity: $.Destination.City
+    shipToState: $.Destination.State
+    shipToZip: $.Destination.ZipCode
+    shipToCountry: $.Destination.Country
+    sku: $.Item.SKU
+    productName: $.Item.Description
+    quantity: $.Item.Quantity
+    weight: $.Item.Weight
+
+# Tags
+tags:
+  - 3pl
+  - shipping
+  - fulfillment
+  - shipstation
+  - standard
+
+# Metadata
+metadata:
+  vendor: ShipStation
+  documentation: https://www.shipstation.com/docs/api/
+  rateLimit: 40 requests per minute
+  supportedCarriers:
+    - UPS
+    - FedEx
+    - USPS
+    - DHL
+    - Canada Post
+    - Royal Mail

@@ -1,0 +1,157 @@
+# Manhattan WMS (Warehouse Management System) - Standard Interface
+# Category: wms
+
+id: manhattan-wms
+name: Manhattan WMS
+description: Integration with Manhattan Associates Warehouse Management System for inventory, orders, and fulfillment
+type: wms
+direction: bidirectional
+protocol: rest_api
+
+# Connection details (customer-specific endpoint)
+endpoint: "{{customerEndpoint}}"  # e.g., https://customer.manh.com/api
+httpConfig:
+  method: POST
+  headers:
+    Content-Type: application/json
+    Accept: application/json
+  timeout: 60000
+  retryAttempts: 3
+  retryDelay: 2000
+
+# Authentication - typically Basic or API Key
+authType: api_key
+authHeaderName: X-API-Key
+
+# Supported data formats
+formats:
+  - json
+  - xml
+defaultFormat: json
+
+# Required secrets
+requiredSecrets:
+  - apiKey           # Manhattan API Key
+  - customAuth:
+      - facilityId   # Warehouse/Facility ID
+      - companyId    # Company/Tenant ID
+
+# Common API endpoints
+endpoints:
+  # Inventory endpoints
+  getInventory:
+    path: /inventory/items/{sku}
+    method: GET
+    description: Get inventory details by SKU
+    
+  updateInventory:
+    path: /inventory/items/{sku}
+    method: PUT
+    description: Update inventory quantity
+    
+  inventorySnapshot:
+    path: /inventory/snapshot
+    method: GET
+    description: Get full inventory snapshot
+    
+  # Order endpoints
+  createOrder:
+    path: /orders
+    method: POST
+    description: Create inbound/outbound order
+    
+  getOrder:
+    path: /orders/{orderId}
+    method: GET
+    description: Get order status and details
+    
+  updateOrder:
+    path: /orders/{orderId}
+    method: PUT
+    description: Update order information
+    
+  cancelOrder:
+    path: /orders/{orderId}/cancel
+    method: POST
+    description: Cancel an order
+    
+  # Receipt endpoints
+  createReceipt:
+    path: /receipts
+    method: POST
+    description: Create inbound receipt
+    
+  # Shipment endpoints
+  createShipment:
+    path: /shipments
+    method: POST
+    description: Create outbound shipment
+    
+  getShipment:
+    path: /shipments/{shipmentId}
+    method: GET
+    description: Get shipment details
+
+# Example payload templates
+payloadTemplates:
+  createOrder:
+    companyId: "{{companyId}}"
+    facilityId: "{{facilityId}}"
+    orderNumber: "{{orderNumber}}"
+    orderType: OUTBOUND
+    priority: NORMAL
+    expectedDate: "{{expectedDate}}"
+    customer:
+      customerId: "{{customerId}}"
+      name: "{{customerName}}"
+      address: "{{address}}"
+      city: "{{city}}"
+      state: "{{state}}"
+      zipCode: "{{zipCode}}"
+    items:
+      - sku: "{{sku}}"
+        quantity: "{{quantity}}"
+        uom: EA
+        description: "{{description}}"
+        
+  updateInventory:
+    companyId: "{{companyId}}"
+    facilityId: "{{facilityId}}"
+    sku: "{{sku}}"
+    quantityOnHand: "{{quantity}}"
+    availableQuantity: "{{availableQuantity}}"
+    allocatedQuantity: "{{allocatedQuantity}}"
+
+# Field mapping suggestions (External → Manhattan)
+suggestedMappings:
+  external_to_manhattan:
+    orderNumber: $.Order.OrderNumber
+    customerId: $.Order.CustomerId
+    customerName: $.Order.CustomerName
+    sku: $.Item.SKU
+    quantity: $.Item.Quantity
+    description: $.Item.Description
+    address: $.Destination.Address
+    city: $.Destination.City
+    state: $.Destination.State
+    zipCode: $.Destination.ZipCode
+
+# Tags
+tags:
+  - wms
+  - manhattan
+  - warehouse
+  - inventory
+  - standard
+
+# Metadata
+metadata:
+  vendor: Manhattan Associates
+  documentation: https://docs.manh.com/
+  capabilities:
+    - Inventory Management
+    - Order Fulfillment
+    - Receiving
+    - Shipping
+    - Wave Planning
+    - Labor Management
