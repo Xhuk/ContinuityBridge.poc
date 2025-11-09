@@ -24,7 +24,7 @@ The frontend is a React application featuring a dashboard for KPIs, event histor
 - **Data Source Management**: Handles polling and retrieval from SFTP and Azure Blob.
 - **Transformation Engine**: A hybrid system offering both XML-to-canonical transformation (YAML-driven) and visual flow-based transformations for diverse data formats.
 - **Decision Engine**: Implements intelligent warehouse routing based on weighted scoring factors for CanonicalItem-formatted output.
-- **Swappable Queue Backends**: Supports InMemory, RabbitMQ, and Kafka for flexible message queuing.
+- **Swappable Queue Backends**: Supports InMemory, RabbitMQ, and Kafka for flexible message queuing with retry support via QueueDelivery abstraction (ack/fail/deadLetter hooks). **InMemoryQueue** provides native delay support (no external deps). **RabbitQueue** requires `rabbitmq_delayed_message_exchange` plugin for delayed retries (uses x-delayed-message exchange). **KafkaQueue** uses pause/resume strategy for MVP (separate delay topic recommended for production).
 - **Metrics Collection**: Gathers real-time performance data including latency, TPS, queue depth, and error rates.
 - **Dual API Layer**: Provides both REST and GraphQL APIs, with the REST API supporting flow CRUD operations and interface template management.
 - **Portable Storage**: Utilizes an `IStorage` interface with `MemStorage` for offline capability and Docker readiness, storing flow definitions and run tracking.
@@ -42,8 +42,15 @@ The frontend is a React application featuring a dashboard for KPIs, event histor
 - **YAML Node Catalog**: Defines core node types (10 types) for flow building, loaded and validated by a singleton service, including parsers, transformers, validators, and interface connectors.
 - **Dependency Injection Architecture**: Single-instance pattern across FlowOrchestrator, Pipeline, and Worker, with dependencies injected via constructor.
 
+## Deployment Requirements
+
+### Queue Backend Configuration
+- **InMemoryQueue**: No external dependencies. Native delay support via poll-time filtering. **Recommended for:** Electron, Docker, standalone deployments.
+- **RabbitMQ**: Requires `rabbitmq_delayed_message_exchange` plugin for delayed retries. Install via: `rabbitmq-plugins enable rabbitmq_delayed_message_exchange`. Without plugin, system will fail fast with clear error. **Recommended for:** Distributed systems with RabbitMQ infrastructure.
+- **Kafka**: Works with standard Kafka cluster. Uses pause/resume for delay (MVP). Separate delay topic recommended for high-throughput production. **Recommended for:** High-volume Kafka deployments.
+
 ## External Dependencies
-- **Queue Providers**: RabbitMQ, Kafka
+- **Queue Providers**: RabbitMQ (with delayed message plugin), Kafka
 - **Apollo Server**: For GraphQL API.
 - **Express**: For REST API.
 - **TanStack Query**: For frontend data fetching.
