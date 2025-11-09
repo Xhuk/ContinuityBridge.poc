@@ -721,24 +721,7 @@ function NodeConfigForm({
         );
 
       case "validation":
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="rules">Validation Rules (YAML)</Label>
-              <Textarea
-                id="rules"
-                value={config.rules || ""}
-                onChange={(e) =>
-                  setConfig({ ...config, rules: e.target.value })
-                }
-                placeholder="field_name:\n  type: string\n  required: true"
-                className="font-mono text-sm"
-                rows={8}
-                data-testid="input-validation-rules"
-              />
-            </div>
-          </div>
-        );
+        return <ValidationNodeConfig config={config} setConfig={setConfig} />;
 
       case "conditional":
         return <ConditionalNodeConfig config={config} setConfig={setConfig} />;
@@ -769,6 +752,350 @@ function NodeConfigForm({
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+function ValidationNodeConfig({
+  config,
+  setConfig,
+}: {
+  config: Record<string, any>;
+  setConfig: (config: Record<string, any>) => void;
+}) {
+  const [mode, setMode] = useState<"simple" | "advanced">(config.rules ? "advanced" : "simple");
+  const [fieldRules, setFieldRules] = useState<Array<{
+    field: string;
+    type: string;
+    required: boolean;
+    minLength?: number;
+    maxLength?: number;
+    min?: number;
+    max?: number;
+    pattern?: string;
+    enum?: string;
+  }>>(config.fieldRules || [{ field: "", type: "string", required: false }]);
+  
+  const { data: interfaces } = useQuery<any[]>({
+    queryKey: ["/api/interfaces"],
+  });
+  
+  const { data: templates } = useQuery<any[]>({
+    queryKey: ["/api/interface-templates"],
+  });
+  
+  const selectedInterface = interfaces?.find((i) => i.id === config.interfaceId);
+  const selectedTemplate = templates?.find((t) => t.id === selectedInterface?.templateId);
+  const conditionSchema = selectedTemplate?.conditionSchema;
+  
+  const addFieldRule = () => {
+    const newRules = [...fieldRules, { field: "", type: "string", required: false }];
+    setFieldRules(newRules);
+    setConfig({ ...config, fieldRules: newRules });
+  };
+  
+  const removeFieldRule = (index: number) => {
+    const newRules = fieldRules.filter((_, i) => i !== index);
+    setFieldRules(newRules);
+    setConfig({ ...config, fieldRules: newRules });
+  };
+  
+  const updateFieldRule = (index: number, updates: Partial<typeof fieldRules[0]>) => {
+    const newRules = [...fieldRules];
+    newRules[index] = { ...newRules[index], ...updates };
+    setFieldRules(newRules);
+    setConfig({ ...config, fieldRules: newRules });
+  };
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant={mode === "simple" ? "default" : "outline"}
+          onClick={() => setMode("simple")}
+        >
+          Simple Mode
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={mode === "advanced" ? "default" : "outline"}
+          onClick={() => setMode("advanced")}
+        >
+          Advanced Mode
+        </Button>
+      </div>
+      
+      {mode === "simple" ? (
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="interfaceId">Interface (Optional)</Label>
+            <Select
+              value={config.interfaceId || ""}
+              onValueChange={(value) =>
+                setConfig({ ...config, interfaceId: value })
+              }
+            >
+              <SelectTrigger id="interfaceId" data-testid="select-interface">
+                <SelectValue placeholder="No interface selected (manual fields)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">No interface (manual)</SelectItem>
+                {interfaces?.map((iface) => (
+                  <SelectItem key={iface.id} value={iface.id}>
+                    {iface.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <Separator />
+          
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Field Validation Rules</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={addFieldRule}
+                data-testid="button-add-field-rule"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add Field
+              </Button>
+            </div>
+            
+            {fieldRules.map((rule, index) => (
+              <Card key={index} className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor={`field-${index}`}>Field Name</Label>
+                      {conditionSchema ? (
+                        <Select
+                          value={rule.field}
+                          onValueChange={(value) =>
+                            updateFieldRule(index, { field: value })
+                          }
+                        >
+                          <SelectTrigger id={`field-${index}`}>
+                            <SelectValue placeholder="Select field..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {conditionSchema.fields.map((field: any) => (
+                              <SelectItem key={field.name} value={field.name}>
+                                {field.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id={`field-${index}`}
+                          value={rule.field}
+                          onChange={(e) =>
+                            updateFieldRule(index, { field: e.target.value })
+                          }
+                          placeholder="e.g., email"
+                          data-testid={`input-field-${index}`}
+                        />
+                      )}
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor={`type-${index}`}>Data Type</Label>
+                      <Select
+                        value={rule.type}
+                        onValueChange={(value) =>
+                          updateFieldRule(index, { type: value })
+                        }
+                      >
+                        <SelectTrigger id={`type-${index}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="string">String</SelectItem>
+                          <SelectItem value="number">Number</SelectItem>
+                          <SelectItem value="boolean">Boolean</SelectItem>
+                          <SelectItem value="email">Email</SelectItem>
+                          <SelectItem value="url">URL</SelectItem>
+                          <SelectItem value="date">Date</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  {fieldRules.length > 1 && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => removeFieldRule(index)}
+                      data-testid={`button-remove-field-${index}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={rule.required}
+                      onChange={(e) =>
+                        updateFieldRule(index, { required: e.target.checked })
+                      }
+                      className="w-4 h-4"
+                      data-testid={`checkbox-required-${index}`}
+                    />
+                    <span className="text-sm">Required</span>
+                  </label>
+                </div>
+                
+                {(rule.type === "string" || rule.type === "email" || rule.type === "url") && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor={`minLength-${index}`}>Min Length</Label>
+                      <Input
+                        id={`minLength-${index}`}
+                        type="number"
+                        value={rule.minLength || ""}
+                        onChange={(e) =>
+                          updateFieldRule(index, { minLength: Number(e.target.value) || undefined })
+                        }
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`maxLength-${index}`}>Max Length</Label>
+                      <Input
+                        id={`maxLength-${index}`}
+                        type="number"
+                        value={rule.maxLength || ""}
+                        onChange={(e) =>
+                          updateFieldRule(index, { maxLength: Number(e.target.value) || undefined })
+                        }
+                        placeholder="Unlimited"
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                {rule.type === "number" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor={`min-${index}`}>Minimum Value</Label>
+                      <Input
+                        id={`min-${index}`}
+                        type="number"
+                        value={rule.min || ""}
+                        onChange={(e) =>
+                          updateFieldRule(index, { min: Number(e.target.value) || undefined })
+                        }
+                        placeholder="No minimum"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`max-${index}`}>Maximum Value</Label>
+                      <Input
+                        id={`max-${index}`}
+                        type="number"
+                        value={rule.max || ""}
+                        onChange={(e) =>
+                          updateFieldRule(index, { max: Number(e.target.value) || undefined })
+                        }
+                        placeholder="No maximum"
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                {rule.type === "string" && (
+                  <div>
+                    <Label htmlFor={`pattern-${index}`}>Pattern (Regex - Optional)</Label>
+                    <Input
+                      id={`pattern-${index}`}
+                      value={rule.pattern || ""}
+                      onChange={(e) =>
+                        updateFieldRule(index, { pattern: e.target.value || undefined })
+                      }
+                      placeholder="^[A-Z].*"
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                )}
+                
+                <div>
+                  <Label htmlFor={`enum-${index}`}>Allowed Values (Optional)</Label>
+                  <Input
+                    id={`enum-${index}`}
+                    value={rule.enum || ""}
+                    onChange={(e) =>
+                      updateFieldRule(index, { enum: e.target.value || undefined })
+                    }
+                    placeholder="active,pending,closed (comma-separated)"
+                  />
+                </div>
+              </Card>
+            ))}
+          </div>
+          
+          <Separator />
+          
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.strictMode || false}
+                onChange={(e) =>
+                  setConfig({ ...config, strictMode: e.target.checked })
+                }
+                className="w-4 h-4"
+                data-testid="checkbox-strict-mode"
+              />
+              <span className="text-sm font-medium">Strict Mode</span>
+              <span className="text-xs text-muted-foreground">(Reject extra fields)</span>
+            </label>
+            
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.continueOnError || false}
+                onChange={(e) =>
+                  setConfig({ ...config, continueOnError: e.target.checked })
+                }
+                className="w-4 h-4"
+                data-testid="checkbox-continue-on-error"
+              />
+              <span className="text-sm font-medium">Continue on Error</span>
+              <span className="text-xs text-muted-foreground">(Pass invalid data to error output)</span>
+            </label>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <Label htmlFor="rules">Validation Rules (YAML)</Label>
+          <Textarea
+            id="rules"
+            value={config.rules || ""}
+            onChange={(e) =>
+              setConfig({ ...config, rules: e.target.value })
+            }
+            placeholder="field_name:\n  type: string\n  required: true\n  minLength: 5"
+            className="font-mono text-sm"
+            rows={12}
+            data-testid="input-validation-rules"
+          />
+          <p className="text-xs text-muted-foreground mt-2">
+            Types: string, number, boolean, email, url, date
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
