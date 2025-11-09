@@ -9,6 +9,7 @@ import { Worker, setWorkerInstance } from "./src/workers/worker.js";
 import { logger } from "./src/core/logger.js";
 import { DatabaseStorage } from "./database-storage.js";
 import { ensureTables } from "./migrate.js";
+import { secretsService } from "./src/secrets/secrets-service.js";
 
 const log = logger.child("Server");
 
@@ -36,8 +37,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       log.info("No SMTP settings found - email notifications disabled");
     }
     
-    // Initialize queue provider
-    await initializeQueue();
+    // Initialize queue provider with storage and secrets service for backend config
+    await initializeQueue(storage, secretsService);
 
     // Create flow orchestrator (shared across pipeline and REST routes)
     const orchestrator = new FlowOrchestrator(storage);

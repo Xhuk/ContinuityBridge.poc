@@ -1650,5 +1650,265 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
     }
   });
 
+  // ============================================================================
+  // QUEUE BACKEND MANAGEMENT - Connection Testing, Backend Switching, Rollback
+  // ============================================================================
+
+  // POST /api/queue/test-connection - Test RabbitMQ or Kafka connection
+  app.post("/api/queue/test-connection", async (req, res) => {
+    try {
+      const { backend, credentials } = req.body;
+
+      if (!backend || !credentials) {
+        return res.status(400).json({
+          error: "backend and credentials are required",
+        });
+      }
+
+      // Validate backend type
+      if (!["rabbitmq", "kafka"].includes(backend)) {
+        return res.status(400).json({
+          error: "backend must be 'rabbitmq' or 'kafka'",
+        });
+      }
+
+      // Test connection with timeout
+      const timeout = 10000; // 10 seconds
+      const testPromise = backend === "rabbitmq"
+        ? testRabbitMQConnection(credentials)
+        : testKafkaConnection(credentials);
+
+      const result = await Promise.race([
+        testPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Connection test timeout")), timeout)
+        ),
+      ]);
+
+      res.json({
+        ok: true,
+        message: `Successfully connected to ${backend.toUpperCase()}`,
+        details: result,
+      });
+    } catch (error: any) {
+      log.error("Connection test failed", error);
+      res.status(400).json({
+        ok: false,
+        error: error.message || "Connection test failed",
+      });
+    }
+  });
+
+  // POST /api/queue/change-backend - Save queue backend configuration
+  app.post("/api/queue/change-backend", async (req, res) => {
+    try {
+      if (!storage) {
+        return res.status(501).json({ error: "Storage not available" });
+      }
+
+      const { backend, secretId, immediate } = req.body;
+
+      if (!backend) {
+        return res.status(400).json({
+          error: "backend is required (inmemory, rabbitmq, kafka)",
+        });
+      }
+
+      if (backend !== "inmemory" && !secretId) {
+        return res.status(400).json({
+          error: "secretId is required for rabbitmq and kafka backends",
+        });
+      }
+
+      // Check if worker is processing messages
+      const worker = getWorkerInstance();
+      if (worker && worker.isProcessing && worker.isProcessing()) {
+        return res.status(409).json({
+          error: "Worker is currently processing messages. Please pause the worker first.",
+          workerStatus: "processing",
+        });
+      }
+
+      // Get current backend config or create default
+      let currentConfig = await storage.getQueueBackendConfig?.();
+      
+      // Save previous backend before changing
+      const previousBackend = currentConfig?.currentBackend || "inmemory";
+      const previousSecretId = currentConfig?.currentSecretId;
+
+      // Update backend configuration
+      const newConfig = {
+        id: "singleton",
+        currentBackend: backend,
+        currentSecretId: secretId || null,
+        previousBackend,
+        previousSecretId,
+        lastChangeAt: new Date().toISOString(),
+        changePending: !immediate,
+        lastError: null,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await storage.saveQueueBackendConfig?.(newConfig);
+
+      auditLog("QUEUE_BACKEND_CHANGED", {
+        from: previousBackend,
+        to: backend,
+        immediate,
+        ip: req.ip,
+        timestamp: new Date().toISOString(),
+      });
+
+      res.json({
+        ok: true,
+        message: immediate
+          ? "Backend changed - restart application to apply"
+          : "Backend configuration saved - restart when ready",
+        config: {
+          currentBackend: backend,
+          previousBackend,
+          changePending: !immediate,
+        },
+        requiresRestart: true,
+      });
+    } catch (error: any) {
+      log.error("Error changing queue backend", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/queue/rollback - Rollback to previous queue backend
+  app.post("/api/queue/rollback", async (req, res) => {
+    try {
+      if (!storage || !storage.getQueueBackendConfig || !storage.saveQueueBackendConfig) {
+        return res.status(501).json({ error: "Storage not available" });
+      }
+
+      const config = await storage.getQueueBackendConfig();
+
+      if (!config || !config.previousBackend) {
+        return res.status(404).json({
+          error: "No previous backend configuration found",
+        });
+      }
+
+      // Swap current and previous
+      const rollbackConfig = {
+        ...config,
+        currentBackend: config.previousBackend,
+        currentSecretId: config.previousSecretId,
+        previousBackend: config.currentBackend,
+        previousSecretId: config.currentSecretId,
+        lastChangeAt: new Date().toISOString(),
+        changePending: false,
+        lastError: null,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await storage.saveQueueBackendConfig(rollbackConfig);
+
+      auditLog("QUEUE_BACKEND_ROLLBACK", {
+        from: config.currentBackend,
+        to: config.previousBackend,
+        ip: req.ip,
+        timestamp: new Date().toISOString(),
+      });
+
+      res.json({
+        ok: true,
+        message: `Rolled back to ${config.previousBackend} - restart application to apply`,
+        config: {
+          currentBackend: config.previousBackend,
+          previousBackend: config.currentBackend,
+        },
+        requiresRestart: true,
+      });
+    } catch (error: any) {
+      log.error("Error rolling back queue backend", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   log.info("REST routes registered");
 }
+
+// ============================================================================
+// Queue Backend Connection Testing Utilities
+// ============================================================================
+
+async function testRabbitMQConnection(credentials: any): Promise<any> {
+  const { url, queueIn, queueOut } = credentials;
+
+  if (!url) {
+    throw new Error("RabbitMQ URL is required");
+  }
+
+  let connection;
+  let channel;
+
+  try {
+    const amqp = await import("amqplib");
+    connection = await amqp.default.connect(url);
+    channel = await connection.createChannel();
+
+    // Test queue assertions
+    const testQueue = queueIn || "test_queue";
+    await channel.assertQueue(testQueue, { durable: true });
+
+    return {
+      connected: true,
+      url: url.replace(/:\/\/[^:]+:[^@]+@/, "://*****:*****@"), // Mask credentials
+      queueIn,
+      queueOut,
+      timestamp: new Date().toISOString(),
+    };
+  } finally {
+    if (channel) await channel.close().catch(() => {});
+    if (connection) await connection.close().catch(() => {});
+  }
+}
+
+async function testKafkaConnection(credentials: any): Promise<any> {
+  const { brokers, user, password, groupId, topicIn, topicOut } = credentials;
+
+  if (!brokers) {
+    throw new Error("Kafka brokers are required");
+  }
+
+  const { Kafka } = await import("kafkajs");
+  
+  const kafka = new Kafka({
+    clientId: "continuitybridge-test",
+    brokers: brokers.split(",").map((b: string) => b.trim()),
+    ...(user && password && {
+      sasl: {
+        mechanism: "plain",
+        username: user,
+        password,
+      },
+      ssl: true,
+    }),
+  });
+
+  const admin = kafka.admin();
+
+  try {
+    await admin.connect();
+    
+    // Test connection by listing topics
+    const topics = await admin.listTopics();
+
+    return {
+      connected: true,
+      brokers: brokers.split(",").map((b: string) => b.trim()),
+      groupId,
+      topicIn,
+      topicOut,
+      availableTopics: topics.slice(0, 10), // First 10 topics
+      timestamp: new Date().toISOString(),
+    };
+  } finally {
+    await admin.disconnect().catch(() => {});
+  }
+}
+

@@ -5,6 +5,14 @@ import {
   type SmtpSettings,
   type InsertSmtpSettings,
 } from "@shared/schema";
+import type {
+  QueueBackendConfig,
+  InsertQueueBackendConfig,
+  SecretsVaultEntry,
+  InsertSecretsVaultEntry,
+  SecretsMasterKey,
+  InsertSecretsMasterKey,
+} from "./schema";
 import { randomUUID } from "crypto";
 
 // Storage interface for ContinuityBridge
@@ -43,17 +51,23 @@ export interface IStorage {
   updateSecret?(id: string, data: Partial<InsertSecretsVaultEntry>): Promise<SecretsVaultEntry | undefined>;
   deleteSecret?(id: string): Promise<boolean>;
   clearAllSecrets?(): Promise<void>;
+
+  // Queue Backend Configuration (singleton config for backend switching)
+  getQueueBackendConfig?(): Promise<QueueBackendConfig | undefined>;
+  saveQueueBackendConfig?(config: InsertQueueBackendConfig): Promise<QueueBackendConfig>;
 }
 
 export class MemStorage implements IStorage {
   private flows: Map<string, FlowDefinition>;
   private flowRuns: Map<string, FlowRun>;
   private smtp: SmtpSettings | undefined;
+  private queueBackendConfig: QueueBackendConfig | undefined;
 
   constructor() {
     this.flows = new Map();
     this.flowRuns = new Map();
     this.smtp = undefined;
+    this.queueBackendConfig = undefined;
   }
 
   // ============================================================================
@@ -188,6 +202,26 @@ export class MemStorage implements IStorage {
     }
     this.smtp = undefined;
     return true;
+  }
+
+  // ============================================================================
+  // Queue Backend Configuration
+  // ============================================================================
+
+  async getQueueBackendConfig(): Promise<QueueBackendConfig | undefined> {
+    return this.queueBackendConfig;
+  }
+
+  async saveQueueBackendConfig(config: InsertQueueBackendConfig): Promise<QueueBackendConfig> {
+    const now = new Date().toISOString();
+    
+    this.queueBackendConfig = {
+      ...config,
+      id: 'singleton', // Always singleton
+      updatedAt: now,
+    };
+
+    return this.queueBackendConfig;
   }
 }
 
