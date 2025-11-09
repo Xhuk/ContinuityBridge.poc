@@ -62,11 +62,8 @@ export default function SecretsVault() {
   // Initialize vault
   const initMutation = useMutation({
     mutationFn: async (seed: string) => {
-      return await apiRequest("/api/secrets/initialize", {
-        method: "POST",
-        body: JSON.stringify({ masterSeed: seed }),
-        headers: { "Content-Type": "application/json" },
-      });
+      const res = await apiRequest("POST", "/api/secrets/initialize", { masterSeed: seed });
+      return await res.json();
     },
     onSuccess: (data: any) => {
       setRecoveryCode(data.recoveryCode);
@@ -89,11 +86,8 @@ export default function SecretsVault() {
   // Unlock vault
   const unlockMutation = useMutation({
     mutationFn: async (seed: string) => {
-      return await apiRequest("/api/secrets/unlock", {
-        method: "POST",
-        body: JSON.stringify({ masterSeed: seed }),
-        headers: { "Content-Type": "application/json" },
-      });
+      const res = await apiRequest("POST", "/api/secrets/unlock", { masterSeed: seed });
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/secrets/status"] });
@@ -116,9 +110,8 @@ export default function SecretsVault() {
   // Lock vault
   const lockMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("/api/secrets/lock", {
-        method: "POST",
-      });
+      const res = await apiRequest("POST", "/api/secrets/lock");
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/secrets/status"] });
