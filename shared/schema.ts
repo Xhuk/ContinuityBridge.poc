@@ -577,3 +577,251 @@ export const integrationEventSchema = z.object({
 });
 
 export type IntegrationEvent = z.infer<typeof integrationEventSchema>;
+
+// ============================================================================
+// VISUAL FLOW BUILDER - React Flow Based Transformation System
+// ============================================================================
+
+// Node Position Schema (React Flow position)
+export const nodePositionSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+});
+
+export type NodePosition = z.infer<typeof nodePositionSchema>;
+
+// Flow Node Type Enum
+export const flowNodeTypeSchema = z.enum([
+  // Trigger/Input Nodes
+  "webhook_trigger",        // HTTP webhook endpoint
+  "interface_source",       // Pull from Interface Registry
+  "timer_trigger",          // Scheduled execution
+  "manual_trigger",         // Manual execution only
+  
+  // Parser Nodes (Input Format → Internal)
+  "xml_parser",             // Parse XML to JSON
+  "json_parser",            // Parse/validate JSON
+  "csv_parser",             // Parse CSV to JSON
+  "edi_parser",             // Parse EDI to JSON
+  "excel_parser",           // Parse Excel to JSON
+  
+  // Transform Nodes
+  "object_mapper",          // Map fields between objects (object-mapper)
+  "custom_javascript",      // Custom JS transformation function
+  "xslt_transform",         // XSLT for XML→XML
+  "template_builder",       // Build output from template (Handlebars)
+  "data_filter",            // Filter/validate data
+  "data_merge",             // Merge multiple inputs
+  "data_split",             // Split to multiple outputs
+  
+  // Builder Nodes (Internal → Output Format)
+  "xml_builder",            // Build XML from JSON
+  "json_builder",           // Build/format JSON
+  "csv_builder",            // Build CSV from JSON
+  "edi_builder",            // Build EDI from JSON
+  
+  // Output/Action Nodes
+  "interface_destination",  // Send to Interface Registry
+  "http_request",           // Make HTTP API call
+  "sftp_upload",            // Upload file to SFTP
+  "email_notification",     // Send email
+  "webhook_call",           // Call external webhook
+  
+  // Logic/Control Nodes
+  "conditional",            // If/else routing
+  "switch",                 // Multi-branch routing
+  "loop",                   // Iterate over array
+  "delay",                  // Add delay/wait
+  "error_handler",          // Catch and handle errors
+]);
+
+export type FlowNodeType = z.infer<typeof flowNodeTypeSchema>;
+
+// Flow Node Data Schema (configuration specific to each node)
+export const flowNodeDataSchema = z.object({
+  label: z.string(),                          // Display label
+  
+  // Interface references (for source/destination nodes)
+  interfaceId: z.string().optional(),
+  
+  // Mapping configuration (for object_mapper)
+  mappings: z.record(z.unknown()).optional(), // object-mapper mappings
+  
+  // Custom code (for custom_javascript)
+  code: z.string().optional(),
+  
+  // HTTP configuration (for http_request, webhook_call)
+  url: z.string().optional(),
+  method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional(),
+  headers: z.record(z.string()).optional(),
+  body: z.unknown().optional(),
+  
+  // SFTP configuration
+  host: z.string().optional(),
+  port: z.number().optional(),
+  remotePath: z.string().optional(),
+  
+  // Conditional logic
+  condition: z.string().optional(),           // JS expression
+  
+  // Template configuration
+  template: z.string().optional(),
+  
+  // Parser/Builder options
+  format: dataFormatSchema.optional(),
+  options: z.record(z.unknown()).optional(),
+  
+  // Webhook trigger configuration
+  webhookSlug: z.string().optional(),         // Custom URL slug
+  webhookMethod: z.enum(["POST", "GET", "PUT", "PATCH"]).optional(),
+  
+  // Timer trigger configuration
+  cronExpression: z.string().optional(),
+  
+  // Generic configuration for extensibility
+  config: z.record(z.unknown()).optional(),
+});
+
+export type FlowNodeData = z.infer<typeof flowNodeDataSchema>;
+
+// Flow Node Schema
+export const flowNodeSchema = z.object({
+  id: z.string(),                             // Unique node ID (React Flow)
+  type: flowNodeTypeSchema,
+  position: nodePositionSchema,
+  data: flowNodeDataSchema,
+});
+
+export type FlowNode = z.infer<typeof flowNodeSchema>;
+
+// Flow Edge Schema (connections between nodes)
+export const flowEdgeSchema = z.object({
+  id: z.string(),                             // Unique edge ID
+  source: z.string(),                         // Source node ID
+  target: z.string(),                         // Target node ID
+  sourceHandle: z.string().optional(),        // Source handle ID (for multi-output nodes)
+  targetHandle: z.string().optional(),        // Target handle ID (for multi-input nodes)
+  label: z.string().optional(),               // Edge label (e.g., "on success", "on error")
+  animated: z.boolean().default(false),       // Animate edge in UI
+});
+
+export type FlowEdge = z.infer<typeof flowEdgeSchema>;
+
+// Flow Definition Schema (complete flow configuration)
+export const flowDefinitionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  
+  // React Flow graph structure
+  nodes: z.array(flowNodeSchema),
+  edges: z.array(flowEdgeSchema),
+  
+  // Flow metadata
+  version: z.string().default("1.0"),
+  enabled: z.boolean().default(true),
+  tags: z.array(z.string()).default([]),
+  
+  // Execution settings
+  timeout: z.number().default(300000),        // 5 minutes default
+  retryOnFailure: z.boolean().default(false),
+  maxRetries: z.number().default(3),
+  
+  // Trigger configuration
+  triggerType: z.enum(["webhook", "interface", "timer", "manual", "queue"]).default("manual"),
+  webhookSlug: z.string().optional(),         // Custom webhook URL slug
+  webhookEnabled: z.boolean().default(false),
+  
+  // Metadata
+  createdBy: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+export type FlowDefinition = z.infer<typeof flowDefinitionSchema>;
+
+export const insertFlowDefinitionSchema = flowDefinitionSchema.omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+export type InsertFlowDefinition = z.infer<typeof insertFlowDefinitionSchema>;
+
+// Flow Run Schema (execution history)
+export const flowRunSchema = z.object({
+  id: z.string(),
+  flowId: z.string(),
+  flowName: z.string(),
+  flowVersion: z.string(),
+  
+  traceId: z.string(),                        // Unique trace ID for this execution
+  
+  status: z.enum(["pending", "running", "completed", "failed", "timeout", "cancelled", "skipped"]),
+  
+  startedAt: z.string(),
+  completedAt: z.string().optional(),
+  durationMs: z.number().optional(),
+  
+  // Input/Output data
+  inputData: z.unknown().optional(),          // Input payload
+  outputData: z.unknown().optional(),         // Final output
+  
+  // Execution path (which nodes were executed)
+  executedNodes: z.array(z.string()).default([]),
+  
+  // Node execution details
+  nodeExecutions: z.array(z.object({
+    nodeId: z.string(),
+    nodeName: z.string(),
+    status: z.enum(["pending", "running", "completed", "failed", "skipped"]),
+    startedAt: z.string().optional(),        // Optional: nodes may never execute (pending/skipped)
+    completedAt: z.string().optional(),
+    durationMs: z.number().optional(),
+    input: z.unknown().optional(),
+    output: z.unknown().optional(),
+    error: z.string().optional(),
+  })).default([]),
+  
+  // Error information
+  error: z.string().optional(),
+  errorNode: z.string().optional(),            // Node ID where error occurred
+  
+  // Metadata
+  triggeredBy: z.enum(["webhook", "interface", "timer", "manual", "queue"]),
+  metadata: z.record(z.unknown()).optional(),
+});
+
+export type FlowRun = z.infer<typeof flowRunSchema>;
+
+// Node Definition Catalog Schema (for available node types)
+export const nodeDefinitionSchema = z.object({
+  id: z.string(),                             // Node type ID (matches flowNodeTypeSchema)
+  category: z.enum(["trigger", "parser", "transform", "builder", "output", "logic"]),
+  label: z.string(),                          // Display name
+  description: z.string(),
+  icon: z.string(),                           // Icon name (lucide-react)
+  
+  // Input/Output handles
+  inputs: z.number().default(1),              // Number of input handles
+  outputs: z.number().default(1),             // Number of output handles
+  
+  // Configuration fields
+  configFields: z.array(z.object({
+    name: z.string(),
+    label: z.string(),
+    type: z.enum(["text", "textarea", "number", "boolean", "select", "interface", "code", "json"]),
+    required: z.boolean().default(false),
+    default: z.unknown().optional(),
+    options: z.array(z.string()).optional(), // For select fields
+    placeholder: z.string().optional(),
+    helpText: z.string().optional(),
+  })).default([]),
+  
+  // Validation
+  validateConfig: z.string().optional(),      // JS validation function
+  
+  // Execution
+  executor: z.string(),                       // Backend executor function name
+});
+
+export type NodeDefinition = z.infer<typeof nodeDefinitionSchema>;
