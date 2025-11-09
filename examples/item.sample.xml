@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ItemFulfillmentDocument>
+  <Header>
+    <DocumentId>IFD-2024-001234</DocumentId>
+    <Timestamp>2024-01-15T10:30:00Z</Timestamp>
+  </Header>
+  <Item>
+    <ItemId>ITEM-789012</ItemId>
+    <SKU>WIDGET-PRO-500</SKU>
+    <Description>Professional Widget 500</Description>
+    <Quantity>25</Quantity>
+    <Weight>12.5</Weight>
+    <Dimensions>
+      <Length>30</Length>
+      <Width>20</Width>
+      <Height>15</Height>
+    </Dimensions>
+  </Item>
+  <Destination>
+    <Address>123 Main Street</Address>
+    <City>San Francisco</City>
+    <State>CA</State>
+    <ZipCode>94102</ZipCode>
+    <Country>USA</Country>
+    <Coordinates>
+      <Latitude>37.7749</Latitude>
+      <Longitude>-122.4194</Longitude>
+    </Coordinates>
+  </Destination>
+</ItemFulfillmentDocument>

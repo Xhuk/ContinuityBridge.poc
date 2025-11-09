@@ -1,0 +1,25 @@
+{
+  "itemId": "ITEM-789012",
+  "sku": "WIDGET-PRO-500",
+  "description": "Professional Widget 500",
+  "quantity": 25,
+  "weight": 12.5,
+  "dimensions": {
+    "length": 30,
+    "width": 20,
+    "height": 15
+  },
+  "destination": {
+    "address": "123 Main Street",
+    "city": "San Francisco",
+    "state": "CA",
+    "zipCode": "94102",
+    "country": "USA",
+    "lat": 37.7749,
+    "lon": -122.4194
+  },
+  "metadata": {
+    "documentId": "IFD-2024-001234",
+    "timestamp": "2024-01-15T10:30:00Z"
+  }
+}

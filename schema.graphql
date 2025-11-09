@@ -1,0 +1,69 @@
+type Query {
+  kpis: KPIs!
+  recentEvents(limit: Int): [Event!]!
+  decisions: [Decision!]!
+}
+
+type Mutation {
+  processItemIFD(xml: String!): ProcessResult!
+  replayEvent(id: ID!): Boolean!
+  setWorker(enabled: Boolean!, concurrency: Int): WorkerStatus!
+  setQueueBackend(backend: String!): QueueConfig!
+}
+
+type KPIs {
+  avgLatencyMs: Float!
+  p95LatencyMs: Float!
+  tps: Float!
+  inDepth: Int!
+  outDepth: Int!
+  errors: Int!
+  totalProcessed: Int!
+  lastUpdated: String!
+}
+
+type Event {
+  id: ID!
+  traceId: String!
+  timestamp: String!
+  sku: String!
+  warehouse: String!
+  warehouseId: String!
+  reason: String!
+  status: String!
+  latencyMs: Float
+}
+
+type Decision {
+  traceId: String!
+  timestamp: String!
+  selectedWarehouse: Warehouse!
+  reason: String!
+}
+
+type Warehouse {
+  id: ID!
+  name: String!
+  location: String!
+}
+
+type ProcessResult {
+  ok: Boolean!
+  traceId: String!
+  canonical: String
+  error: String
+}
+
+type WorkerStatus {
+  enabled: Boolean!
+  concurrency: Int!
+  messagesProcessed: Int!
+  currentThroughput: Float!
+  status: String!
+}
+
+type QueueConfig {
+  backend: String!
+  workerEnabled: Boolean!
+  concurrency: Int!
+}

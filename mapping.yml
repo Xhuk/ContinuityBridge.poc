@@ -1,0 +1,75 @@
+# ContinuityBridge XML to Canonical JSON Mapping
+# This YAML file defines how XML IFD payloads are transformed to canonical JSON
+
+mappings:
+  itemId:
+    xpath: "//Item/ItemId"
+    type: "string"
+
+  sku:
+    xpath: "//Item/SKU"
+    type: "string"
+
+  description:
+    xpath: "//Item/Description"
+    type: "string"
+
+  quantity:
+    xpath: "//Item/Quantity"
+    type: "number"
+
+  weight:
+    xpath: "//Item/Weight"
+    type: "number"
+    optional: true
+
+  dimensions:
+    type: "object"
+    fields:
+      length:
+        xpath: "//Item/Dimensions/Length"
+        type: "number"
+      width:
+        xpath: "//Item/Dimensions/Width"
+        type: "number"
+      height:
+        xpath: "//Item/Dimensions/Height"
+        type: "number"
+
+  destination:
+    type: "object"
+    fields:
+      address:
+        xpath: "//Destination/Address"
+        type: "string"
+      city:
+        xpath: "//Destination/City"
+        type: "string"
+      state:
+        xpath: "//Destination/State"
+        type: "string"
+      zipCode:
+        xpath: "//Destination/ZipCode"
+        type: "string"
+      country:
+        xpath: "//Destination/Country"
+        type: "string"
+      lat:
+        xpath: "//Destination/Coordinates/Latitude"
+        type: "number"
+        optional: true
+      lon:
+        xpath: "//Destination/Coordinates/Longitude"
+        type: "number"
+        optional: true
+
+  metadata:
+    type: "object"
+    optional: true
+    fields:
+      documentId:
+        xpath: "//Header/DocumentId"
+        type: "string"
+      timestamp:
+        xpath: "//Header/Timestamp"
+        type: "string"

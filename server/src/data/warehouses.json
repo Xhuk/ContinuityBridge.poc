@@ -1,0 +1,102 @@
+[
+  {
+    "id": "WH-SF-001",
+    "name": "San Francisco Hub",
+    "location": {
+      "lat": 37.7749,
+      "lon": -122.4194,
+      "address": "1234 Market Street",
+      "city": "San Francisco",
+      "state": "CA"
+    },
+    "sla": 24,
+    "stock": {
+      "WIDGET-PRO-500": 150,
+      "WIDGET-STD-300": 200,
+      "WIDGET-LITE-100": 350
+    },
+    "costPerUnit": 5.50,
+    "capacity": 10000,
+    "status": "active"
+  },
+  {
+    "id": "WH-LA-002",
+    "name": "Los Angeles Distribution",
+    "location": {
+      "lat": 34.0522,
+      "lon": -118.2437,
+      "address": "5678 Commerce Way",
+      "city": "Los Angeles",
+      "state": "CA"
+    },
+    "sla": 36,
+    "stock": {
+      "WIDGET-PRO-500": 80,
+      "WIDGET-STD-300": 120,
+      "WIDGET-LITE-100": 180
+    },
+    "costPerUnit": 4.75,
+    "capacity": 8000,
+    "status": "active"
+  },
+  {
+    "id": "WH-NY-003",
+    "name": "New York Central",
+    "location": {
+      "lat": 40.7128,
+      "lon": -74.0060,
+      "address": "9012 Industrial Blvd",
+      "city": "New York",
+      "state": "NY"
+    },
+    "sla": 48,
+    "stock": {
+      "WIDGET-PRO-500": 100,
+      "WIDGET-STD-300": 180,
+      "WIDGET-LITE-100": 250
+    },
+    "costPerUnit": 6.25,
+    "capacity": 12000,
+    "status": "active"
+  },
+  {
+    "id": "WH-CHI-004",
+    "name": "Chicago Midwest Hub",
+    "location": {
+      "lat": 41.8781,
+      "lon": -87.6298,
+      "address": "3456 Logistics Parkway",
+      "city": "Chicago",
+      "state": "IL"
+    },
+    "sla": 36,
+    "stock": {
+      "WIDGET-PRO-500": 120,
+      "WIDGET-STD-300": 160,
+      "WIDGET-LITE-100": 200
+    },
+    "costPerUnit": 5.00,
+    "capacity": 9000,
+    "status": "active"
+  },
+  {
+    "id": "3PL-TX-001",
+    "name": "Dallas 3PL Partner",
+    "location": {
+      "lat": 32.7767,
+      "lon": -96.7970,
+      "address": "7890 Fulfillment Center Dr",
+      "city": "Dallas",
+      "state": "TX"
+    },
+    "sla": 72,
+    "stock": {
+      "WIDGET-PRO-500": 50,
+      "WIDGET-STD-300": 90,
+      "WIDGET-LITE-100": 150
+    },
+    "costPerUnit": 4.00,
+    "capacity": 5000,
+    "status": "active"
+  }
+]
