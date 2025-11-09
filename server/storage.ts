@@ -14,6 +14,8 @@ import type {
   InsertSecretsMasterKey,
   AuthAdapter,
   InsertAuthAdapter,
+  TokenCache,
+  InsertTokenCache,
 } from "./schema";
 import { randomUUID } from "crypto";
 
@@ -65,6 +67,15 @@ export interface IStorage {
   updateAuthAdapter?(id: string, data: Partial<InsertAuthAdapter>): Promise<AuthAdapter | undefined>;
   deleteAuthAdapter?(id: string): Promise<boolean>;
   getActiveAuthAdapters?(direction?: 'inbound' | 'outbound'): Promise<AuthAdapter[]>;
+
+  // Token Cache Management (for automatic token refresh and lifecycle)
+  getTokenCache?(adapterId: string, tokenType?: TokenCache['tokenType'], scope?: string): Promise<TokenCache | undefined>;
+  saveTokenCache?(data: InsertTokenCache): Promise<TokenCache>;
+  updateTokenCache?(id: string, data: Partial<InsertTokenCache>): Promise<TokenCache | undefined>;
+  updateTokenCacheOptimistic?(id: string, currentVersion: number, data: Partial<InsertTokenCache>): Promise<TokenCache | undefined>; // Compare-and-swap
+  deleteTokenCache?(id: string): Promise<boolean>;
+  deleteTokenCacheByAdapter?(adapterId: string): Promise<void>;
+  getExpiringSoonTokens?(minutesBeforeExpiry: number): Promise<TokenCache[]>; // For background refresh job
 
   // Audit Logs
   getAuditLogs?(filters?: { since?: string; limit?: number; resourceType?: string }): Promise<any[]>;

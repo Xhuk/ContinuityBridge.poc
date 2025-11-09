@@ -640,3 +640,43 @@ export const authAdapters = sqliteTable("auth_adapters", {
 
 export type AuthAdapter = typeof authAdapters.$inferSelect;
 export type InsertAuthAdapter = typeof authAdapters.$inferInsert;
+
+// Token Cache Table (for OAuth2, JWT, Cookie token lifecycle management)
+export const tokenCache = sqliteTable("token_cache", {
+  id: text("id").primaryKey(),
+  
+  // Composite key: adapterId + tokenType + scope
+  adapterId: text("adapter_id").notNull().references(() => authAdapters.id, { onDelete: "cascade" }),
+  tokenType: text("token_type").notNull().$type<"access" | "refresh" | "session">(),
+  scope: text("scope"), // For OAuth2 scopes or JWT audiences
+  
+  // Encrypted token data (encrypted via SecretsService)
+  accessToken: text("access_token"), // Encrypted
+  refreshToken: text("refresh_token"), // Encrypted (OAuth2 only)
+  sessionData: text("session_data", { mode: "json" }).$type<Record<string, unknown>>(), // Cookie session data
+  
+  // Lifecycle tracking
+  expiresAt: text("expires_at"), // ISO timestamp when token expires
+  lastUsedAt: text("last_used_at"), // For cookie idle timeout tracking
+  issuedAt: text("issued_at").notNull(), // When token was obtained
+  
+  // Optimistic locking for concurrent refresh prevention
+  version: integer("version").notNull().default(1), // Incremented on each update
+  refreshInFlight: integer("refresh_in_flight", { mode: "boolean" }).notNull().default(false),
+  refreshStartedAt: text("refresh_started_at"), // Heartbeat for detecting stuck refreshes
+  
+  // Metadata
+  metadata: text("metadata", { mode: "json" }).$type<{
+    grantType?: string; // OAuth2 grant type used
+    audience?: string; // JWT audience
+    issuer?: string; // JWT issuer
+    cookieDomain?: string; // Cookie domain
+    lastRefreshError?: string; // Last refresh error message
+  }>(),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type TokenCache = typeof tokenCache.$inferSelect;
+export type InsertTokenCache = typeof tokenCache.$inferInsert;
