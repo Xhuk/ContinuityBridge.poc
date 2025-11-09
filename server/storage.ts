@@ -16,6 +16,8 @@ import type {
   InsertAuthAdapter,
   TokenCache,
   InsertTokenCache,
+  InboundAuthPolicy,
+  InsertInboundAuthPolicy,
 } from "./schema";
 import { randomUUID } from "crypto";
 
@@ -80,6 +82,13 @@ export interface IStorage {
   // Audit Logs
   getAuditLogs?(filters?: { since?: string; limit?: number; resourceType?: string }): Promise<any[]>;
   addAuditLog?(log: any): Promise<void>;
+
+  // Inbound Auth Policies
+  getInboundAuthPolicies?(): Promise<InboundAuthPolicy[]>;
+  getInboundAuthPolicy?(routePattern: string, httpMethod?: string): Promise<InboundAuthPolicy | undefined>;
+  createInboundAuthPolicy?(policy: InsertInboundAuthPolicy): Promise<InboundAuthPolicy>;
+  updateInboundAuthPolicy?(id: string, policy: Partial<InsertInboundAuthPolicy>): Promise<InboundAuthPolicy | undefined>;
+  deleteInboundAuthPolicy?(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -89,6 +98,7 @@ export class MemStorage implements IStorage {
   private queueBackendConfig: QueueBackendConfig | undefined;
   private authAdapters: Map<string, AuthAdapter>;
   private auditLogs: any[];
+  private inboundAuthPolicies: Map<string, InboundAuthPolicy>;
 
   constructor() {
     this.flows = new Map();
@@ -97,6 +107,7 @@ export class MemStorage implements IStorage {
     this.queueBackendConfig = undefined;
     this.authAdapters = new Map();
     this.auditLogs = [];
+    this.inboundAuthPolicies = new Map();
   }
 
   // ============================================================================
@@ -373,6 +384,62 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       created_at: new Date().toISOString(),
     });
+  }
+
+  // ============================================================================
+  // Inbound Auth Policies
+  // ============================================================================
+
+  async getInboundAuthPolicies(): Promise<InboundAuthPolicy[]> {
+    return Array.from(this.inboundAuthPolicies.values());
+  }
+
+  async getInboundAuthPolicy(routePattern: string, httpMethod?: string): Promise<InboundAuthPolicy | undefined> {
+    // Find policy matching route pattern and HTTP method
+    for (const policy of this.inboundAuthPolicies.values()) {
+      if (policy.routePattern === routePattern) {
+        // If policy specifies ALL or matches the requested method
+        if (policy.httpMethod === "ALL" || !httpMethod || policy.httpMethod === httpMethod) {
+          return policy;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  async createInboundAuthPolicy(insertPolicy: InsertInboundAuthPolicy): Promise<InboundAuthPolicy> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const policy: InboundAuthPolicy = {
+      ...insertPolicy,
+      id,
+      httpMethod: insertPolicy.httpMethod || "ALL",
+      enforcementMode: insertPolicy.enforcementMode || "required",
+      multiTenant: insertPolicy.multiTenant || false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.inboundAuthPolicies.set(id, policy);
+    return policy;
+  }
+
+  async updateInboundAuthPolicy(id: string, updates: Partial<InsertInboundAuthPolicy>): Promise<InboundAuthPolicy | undefined> {
+    const policy = this.inboundAuthPolicies.get(id);
+    if (!policy) {
+      return undefined;
+    }
+
+    const updatedPolicy: InboundAuthPolicy = {
+      ...policy,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    this.inboundAuthPolicies.set(id, updatedPolicy);
+    return updatedPolicy;
+  }
+
+  async deleteInboundAuthPolicy(id: string): Promise<void> {
+    this.inboundAuthPolicies.delete(id);
   }
 }
 

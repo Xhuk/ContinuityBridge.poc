@@ -680,3 +680,29 @@ export const tokenCache = sqliteTable("token_cache", {
 
 export type TokenCache = typeof tokenCache.$inferSelect;
 export type InsertTokenCache = typeof tokenCache.$inferInsert;
+
+// Inbound Auth Policies (for Express middleware)
+export const inboundAuthPolicies = sqliteTable("inbound_auth_policies", {
+  id: text("id").primaryKey(),
+  
+  // Route configuration
+  routePattern: text("route_pattern").notNull().unique(), // e.g., "/api/interfaces/:id/execute"
+  httpMethod: text("http_method").$type<"GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "ALL">().default("ALL"),
+  
+  // Auth configuration
+  adapterId: text("adapter_id").references(() => authAdapters.id, { onDelete: "set null" }), // NULL = bypass
+  enforcementMode: text("enforcement_mode").$type<"bypass" | "optional" | "required">().notNull().default("required"),
+  
+  // Multi-tenant support
+  multiTenant: integer("multi_tenant", { mode: "boolean" }).notNull().default(false), // Allow X-Auth-Adapter-ID override
+  
+  // Metadata
+  description: text("description"),
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type InboundAuthPolicy = typeof inboundAuthPolicies.$inferSelect;
+export type InsertInboundAuthPolicy = typeof inboundAuthPolicies.$inferInsert;
