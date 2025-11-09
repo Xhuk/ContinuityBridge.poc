@@ -53,8 +53,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       secretsService,
     });
 
-    // TODO: Apply inbound auth middleware selectively to protected routes
-    // app.use(inboundAuthMiddleware);
+    // Apply inbound auth middleware globally
+    // Note: Policies with enforcement="bypass" allow public access
+    // TODO: In production, apply selectively to specific route groups for better performance
+    app.use(inboundAuthMiddleware);
 
     // Create flow orchestrator (shared across pipeline and REST routes)
     const orchestrator = new FlowOrchestrator(storage);
