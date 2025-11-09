@@ -1,4 +1,5 @@
 import { BaseAuthAdapter, type InboundAuthResult, type OutboundAuthResult } from "../base-auth-adapter";
+import type { OAuth2Secret } from '../../secrets/secret-validator';
 
 /**
  * OAuth2Adapter
@@ -26,10 +27,7 @@ export class OAuth2Adapter extends BaseAuthAdapter {
     }
 
     // Decrypt secret payload
-    const payload = await this.secretsService.retrieveSecret(
-      secret.id,
-      async (id) => await this.storage.getSecret?.(id)
-    );
+    const payload = await this.secretsService.retrieveSecret(secret) as OAuth2Secret;
 
     // Validate OAuth2 credentials
     if (!payload.clientId || !payload.clientSecret || !payload.tokenUrl) {
