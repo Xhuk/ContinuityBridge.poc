@@ -228,6 +228,108 @@ export async function ensureTables() {
       CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp)
     `);
 
+    // Create auth_adapters table (for inbound/outbound authentication)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS auth_adapters (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        type TEXT NOT NULL,
+        direction TEXT NOT NULL,
+        user_id TEXT,
+        secret_id TEXT REFERENCES secrets_vault(id) ON DELETE SET NULL,
+        config TEXT NOT NULL,
+        activated INTEGER NOT NULL DEFAULT 0,
+        last_tested_at TEXT,
+        last_used_at TEXT,
+        tags TEXT,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create token_cache table (for OAuth2, JWT, Cookie token lifecycle)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS token_cache (
+        id TEXT PRIMARY KEY,
+        adapter_id TEXT NOT NULL REFERENCES auth_adapters(id) ON DELETE CASCADE,
+        token_type TEXT NOT NULL,
+        scope TEXT,
+        access_token TEXT,
+        refresh_token TEXT,
+        session_data TEXT,
+        expires_at TEXT,
+        last_used_at TEXT,
+        issued_at TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        refresh_in_flight INTEGER NOT NULL DEFAULT 0,
+        refresh_started_at TEXT,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create inbound_auth_policies table (for Express middleware)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS inbound_auth_policies (
+        id TEXT PRIMARY KEY,
+        route_pattern TEXT NOT NULL UNIQUE,
+        http_method TEXT DEFAULT 'ALL',
+        adapter_id TEXT REFERENCES auth_adapters(id) ON DELETE SET NULL,
+        enforcement_mode TEXT NOT NULL DEFAULT 'required',
+        multi_tenant INTEGER NOT NULL DEFAULT 0,
+        description TEXT,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create queue_backend_config table (for swappable queue backends)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS queue_backend_config (
+        id TEXT PRIMARY KEY,
+        backend TEXT NOT NULL,
+        concurrency INTEGER NOT NULL DEFAULT 3,
+        rabbit_url TEXT,
+        rabbit_queue_name TEXT,
+        rabbit_dlq_name TEXT,
+        rabbit_max_retries INTEGER,
+        kafka_brokers TEXT,
+        kafka_topic TEXT,
+        kafka_group_id TEXT,
+        kafka_dlq_topic TEXT,
+        kafka_max_retries INTEGER,
+        last_change_at TEXT,
+        change_pending INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create indices for auth tables
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_auth_adapters_type ON auth_adapters(type)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_auth_adapters_direction ON auth_adapters(direction)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_token_cache_adapter_id ON token_cache(adapter_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_token_cache_expires_at ON token_cache(expires_at)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_inbound_auth_policies_route_pattern ON inbound_auth_policies(route_pattern)
+    `);
+
     console.log("[Database] Tables initialized successfully");
   } catch (error) {
     console.error("[Database] Error creating tables:", error);
