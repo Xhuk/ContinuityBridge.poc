@@ -2,10 +2,12 @@ import {
   type FlowDefinition as SchemaFlowDefinition,
   type InsertFlowDefinition as SchemaInsertFlowDefinition,
   type FlowRun as SchemaFlowRun,
+  type SmtpSettings as SchemaSmtpSettings,
+  type InsertSmtpSettings as SchemaInsertSmtpSettings,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { flowDefinitions, flowRuns, type FlowDefinition, type FlowRun } from "./schema";
+import { flowDefinitions, flowRuns, smtpSettings, type FlowDefinition, type FlowRun, type SmtpSettings } from "./schema";
 import { eq, desc } from "drizzle-orm";
 import { IStorage } from "./storage";
 
@@ -231,6 +233,94 @@ export class DatabaseStorage implements IStorage {
       nodeExecutions: row.nodeExecutions ? (typeof row.nodeExecutions === 'string' ? JSON.parse(row.nodeExecutions) : row.nodeExecutions) : undefined,
       error: row.error || undefined,
       errorNode: row.errorNode || undefined,
+    };
+  }
+
+  // ============================================================================
+  // SMTP Settings Management
+  // ============================================================================
+
+  async getSmtpSettings(): Promise<SchemaSmtpSettings | undefined> {
+    const result = await (db.select() as any).from(smtpSettings).limit(1);
+    
+    if (result.length === 0) {
+      return undefined;
+    }
+
+    const row: any = result[0];
+    return this.mapSmtpFromDb(row);
+  }
+
+  async upsertSmtpSettings(settings: SchemaInsertSmtpSettings): Promise<SchemaSmtpSettings> {
+    const existing = await this.getSmtpSettings();
+    const id = existing?.id || 'smtp-settings';
+    const now = new Date().toISOString();
+
+    const smtpData = {
+      id,
+      host: settings.host,
+      port: settings.port,
+      secure: settings.secure ? 1 : 0,
+      username: settings.username,
+      password: settings.password,
+      fromAddress: settings.fromAddress,
+      fromName: settings.fromName || null,
+      notifyOnFlowError: settings.notifyOnFlowError ? 1 : 0,
+      notifyOnValidationError: settings.notifyOnValidationError ? 1 : 0,
+      notifyOnAckFailure: settings.notifyOnAckFailure ? 1 : 0,
+      alertRecipients: settings.alertRecipients,
+      enabled: settings.enabled ? 1 : 0,
+      lastTestedAt: settings.lastTestedAt || null,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+
+    if (existing) {
+      await (db.update(smtpSettings) as any)
+        .set(smtpData)
+        .where(eq(smtpSettings.id, id));
+    } else {
+      await (db.insert(smtpSettings) as any).values(smtpData);
+    }
+
+    const result: SchemaSmtpSettings = {
+      ...settings,
+      id,
+      createdAt: smtpData.createdAt,
+      updatedAt: smtpData.updatedAt,
+    };
+
+    return result;
+  }
+
+  async deleteSmtpSettings(): Promise<boolean> {
+    const existing = await this.getSmtpSettings();
+    if (!existing) {
+      return false;
+    }
+
+    await (db.delete(smtpSettings) as any).where(eq(smtpSettings.id, existing.id));
+    return true;
+  }
+
+  private mapSmtpFromDb(row: any): SchemaSmtpSettings {
+    return {
+      id: row.id,
+      host: row.host,
+      port: row.port,
+      secure: Boolean(row.secure),
+      username: row.username,
+      password: row.password,
+      fromAddress: row.fromAddress,
+      fromName: row.fromName || undefined,
+      notifyOnFlowError: Boolean(row.notifyOnFlowError),
+      notifyOnValidationError: Boolean(row.notifyOnValidationError),
+      notifyOnAckFailure: Boolean(row.notifyOnAckFailure),
+      alertRecipients: row.alertRecipients,
+      enabled: Boolean(row.enabled),
+      lastTestedAt: row.lastTestedAt || undefined,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
     };
   }
 }

@@ -939,5 +939,149 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
     }
   });
 
+  // ============================================================================
+  // SMTP Settings Routes
+  // ============================================================================
+
+  // GET /api/smtp-settings - Get SMTP configuration (without password)
+  app.get("/api/smtp-settings", async (req, res) => {
+    try {
+      if (!storage) {
+        return res.status(501).json({ error: "Storage not initialized" });
+      }
+
+      const settings = await storage.getSmtpSettings();
+      
+      if (!settings) {
+        return res.json({ configured: false });
+      }
+
+      // Don't send password to client
+      const { password, ...safeSettings } = settings;
+      
+      res.json({
+        configured: true,
+        settings: safeSettings,
+      });
+    } catch (error: any) {
+      log.error("Error fetching SMTP settings", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PUT /api/smtp-settings - Update or create SMTP configuration
+  app.put("/api/smtp-settings", async (req, res) => {
+    try {
+      if (!storage) {
+        return res.status(501).json({ error: "Storage not initialized" });
+      }
+
+      // Validate request body with Zod
+      const { insertSmtpSettingsSchema } = await import('../../schema.js');
+      const validation = insertSmtpSettingsSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({
+          error: "Invalid SMTP settings",
+          details: validation.error.errors.map(e => `${e.path.join('.')}: ${e.message}`),
+        });
+      }
+
+      const settingsData = validation.data;
+      
+      // Encrypt password before storing
+      const { encryptPassword } = await import('../notifications/crypto.js');
+      const encryptedPassword = encryptPassword(settingsData.password);
+
+      const settings = await storage.upsertSmtpSettings({
+        ...settingsData,
+        password: encryptedPassword,
+      });
+
+      // Reconfigure email service with new settings
+      const { emailService } = await import('../notifications/index.js');
+      try {
+        await emailService.configure(settings);
+        log.info("Email service reconfigured with new SMTP settings");
+      } catch (emailError: any) {
+        log.error("Failed to configure email service", emailError);
+        return res.status(400).json({
+          error: `SMTP configuration failed: ${emailError.message}`,
+        });
+      }
+
+      // Don't send password back
+      const { password, ...safeSettings } = settings;
+      
+      res.json({
+        ok: true,
+        settings: safeSettings,
+      });
+    } catch (error: any) {
+      log.error("Error saving SMTP settings", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/smtp-settings/test - Send test email
+  app.post("/api/smtp-settings/test", async (req, res) => {
+    try {
+      const { emailService } = await import('../notifications/index.js');
+      
+      if (!emailService.isConfigured()) {
+        return res.status(400).json({
+          error: "SMTP is not configured",
+        });
+      }
+
+      const { recipients } = req.body;
+      await emailService.sendTestEmail(recipients);
+
+      // Update lastTestedAt timestamp
+      if (storage) {
+        const currentSettings = await storage.getSmtpSettings();
+        if (currentSettings) {
+          await storage.upsertSmtpSettings({
+            ...currentSettings,
+            lastTestedAt: new Date().toISOString(),
+          });
+        }
+      }
+
+      res.json({
+        ok: true,
+        message: "Test email sent successfully",
+      });
+    } catch (error: any) {
+      log.error("Error sending test email", error);
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+      });
+    }
+  });
+
+  // DELETE /api/smtp-settings - Delete SMTP configuration
+  app.delete("/api/smtp-settings", async (req, res) => {
+    try {
+      if (!storage) {
+        return res.status(501).json({ error: "Storage not initialized" });
+      }
+
+      const deleted = await storage.deleteSmtpSettings();
+      
+      if (deleted) {
+        // Unconfigure email service
+        const { emailService } = await import('../notifications/index.js');
+        await emailService.configure({ enabled: false } as any);
+      }
+
+      res.json({ ok: deleted });
+    } catch (error: any) {
+      log.error("Error deleting SMTP settings", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   log.info("REST routes registered");
 }

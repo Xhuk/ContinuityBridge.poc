@@ -92,6 +92,28 @@ export async function ensureTables() {
       )
     `);
 
+    // Create smtp_settings table
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS smtp_settings (
+        id TEXT PRIMARY KEY,
+        host TEXT NOT NULL,
+        port INTEGER NOT NULL DEFAULT 587,
+        secure INTEGER NOT NULL DEFAULT 0,
+        username TEXT NOT NULL,
+        password TEXT NOT NULL,
+        from_address TEXT NOT NULL,
+        from_name TEXT,
+        notify_on_flow_error INTEGER NOT NULL DEFAULT 1,
+        notify_on_validation_error INTEGER NOT NULL DEFAULT 0,
+        notify_on_ack_failure INTEGER NOT NULL DEFAULT 1,
+        alert_recipients TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        last_tested_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create adapter_licenses table (for marketplace licensing)
     sqlite.exec(`
       CREATE TABLE IF NOT EXISTS adapter_licenses (

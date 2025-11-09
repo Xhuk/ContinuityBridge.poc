@@ -2,6 +2,8 @@ import {
   type FlowDefinition,
   type InsertFlowDefinition,
   type FlowRun,
+  type SmtpSettings,
+  type InsertSmtpSettings,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -23,15 +25,22 @@ export interface IStorage {
   getFlowRuns(): Promise<FlowRun[]>;
   getFlowRunsByFlowId(flowId: string): Promise<FlowRun[]>;
   updateFlowRun(id: string, updates: Partial<FlowRun>): Promise<FlowRun | undefined>;
+
+  // SMTP Settings Management (single instance)
+  getSmtpSettings(): Promise<SmtpSettings | undefined>;
+  upsertSmtpSettings(settings: InsertSmtpSettings): Promise<SmtpSettings>;
+  deleteSmtpSettings(): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
   private flows: Map<string, FlowDefinition>;
   private flowRuns: Map<string, FlowRun>;
+  private smtp: SmtpSettings | undefined;
 
   constructor() {
     this.flows = new Map();
     this.flowRuns = new Map();
+    this.smtp = undefined;
   }
 
   // ============================================================================
@@ -136,6 +145,36 @@ export class MemStorage implements IStorage {
 
     this.flowRuns.set(id, updated);
     return updated;
+  }
+
+  // ============================================================================
+  // SMTP Settings Management
+  // ============================================================================
+
+  async getSmtpSettings(): Promise<SmtpSettings | undefined> {
+    return this.smtp;
+  }
+
+  async upsertSmtpSettings(settings: InsertSmtpSettings): Promise<SmtpSettings> {
+    const id = this.smtp?.id || 'smtp-settings';
+    const now = new Date().toISOString();
+    
+    this.smtp = {
+      ...settings,
+      id,
+      createdAt: this.smtp?.createdAt || now,
+      updatedAt: now,
+    };
+    
+    return this.smtp;
+  }
+
+  async deleteSmtpSettings(): Promise<boolean> {
+    if (!this.smtp) {
+      return false;
+    }
+    this.smtp = undefined;
+    return true;
   }
 }
 

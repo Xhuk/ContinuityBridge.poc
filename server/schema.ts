@@ -113,6 +113,62 @@ export type InsertInterface = typeof interfaces.$inferInsert;
 export type IntegrationEvent = typeof integrationEvents.$inferSelect;
 export type InsertIntegrationEvent = typeof integrationEvents.$inferInsert;
 
+// SMTP Settings Table (customer-configurable email settings)
+export const smtpSettings = sqliteTable("smtp_settings", {
+  id: text("id").primaryKey(),
+  
+  // SMTP Configuration
+  host: text("host").notNull(),
+  port: integer("port").notNull().default(587),
+  secure: integer("secure", { mode: "boolean" }).notNull().default(false), // true for 465, false for other ports
+  
+  // Authentication
+  username: text("username").notNull(),
+  password: text("password").notNull(), // Encrypted in application layer
+  
+  // Email Settings
+  fromAddress: text("from_address").notNull(),
+  fromName: text("from_name"),
+  
+  // Notification Rules
+  notifyOnFlowError: integer("notify_on_flow_error", { mode: "boolean" }).notNull().default(true),
+  notifyOnValidationError: integer("notify_on_validation_error", { mode: "boolean" }).notNull().default(false),
+  notifyOnAckFailure: integer("notify_on_ack_failure", { mode: "boolean" }).notNull().default(true),
+  
+  // Recipients for alerts (comma-separated emails)
+  alertRecipients: text("alert_recipients").notNull(),
+  
+  // Test/enabled status
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  lastTestedAt: text("last_tested_at"),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type SmtpSettings = typeof smtpSettings.$inferSelect;
+export type InsertSmtpSettings = typeof smtpSettings.$inferInsert;
+
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+
+// Validation schema for SMTP settings
+export const insertSmtpSettingsSchema = createInsertSchema(smtpSettings, {
+  host: z.string().min(1, "SMTP host is required"),
+  port: z.number().int().min(1).max(65535, "Port must be between 1 and 65535"),
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+  fromAddress: z.string().email("Invalid from address"),
+  fromName: z.string().optional(),
+  alertRecipients: z.string().min(1, "At least one alert recipient is required").refine(
+    (val) => {
+      const emails = val.split(',').map(e => e.trim()).filter(e => e.length > 0);
+      return emails.length > 0 && emails.every(email => z.string().email().safeParse(email).success);
+    },
+    { message: "All alert recipients must be valid email addresses" }
+  ),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+
 // Adapter Licenses Table (for marketplace business model)
 export const adapterLicenses = sqliteTable("adapter_licenses", {
   id: text("id").primaryKey(),

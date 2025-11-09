@@ -20,6 +20,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Create database storage instance
     const storage = new DatabaseStorage();
     
+    // Initialize email service with stored SMTP settings
+    const { emailService } = await import("./src/notifications/index.js");
+    const smtpSettings = await storage.getSmtpSettings();
+    if (smtpSettings) {
+      try {
+        await emailService.configure(smtpSettings);
+        log.info("Email service initialized with stored SMTP settings");
+      } catch (error) {
+        log.warn("Failed to initialize email service - SMTP settings may be invalid", error);
+      }
+    } else {
+      log.info("No SMTP settings found - email notifications disabled");
+    }
+    
     // Initialize queue provider
     await initializeQueue();
 
