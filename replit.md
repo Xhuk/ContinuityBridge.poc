@@ -4,6 +4,22 @@
 ContinuityBridge is a configurable bi-directional integration hub designed to connect diverse enterprise systems such as WMS, Oracle, Manhattan, Amazon, and Last Mile. It ingests payloads from multiple sources (SFTP, Azure Blob, REST APIs), transforms them using configurable mappings, applies warehouse routing logic, and dispatches them to various destinations with swappable queue backends. The project aims to provide a robust, scalable, and observable solution for complex data integration challenges, supporting both linear transformation flows and advanced orchestration.
 
 ## Recent Changes (November 2025)
+- **Phase 2.5 Complete**: Interface-Scoped Conditional Logic System
+  - Implemented interface-scoped conditional logic to prevent mixing logic between adapters (e.g., Amazon conditions only work with Amazon interfaces)
+  - Added conditionSchema to InterfaceTemplate type with field definitions (name, type, description, enum values) and rule presets
+  - Updated Amazon SP-API template: 7 conditionable fields (sku, asin, quantity, fulfillmentChannel, marketplaceId, price, condition) + 4 rule presets (FBA routing, low inventory, US marketplace, high value items)
+  - Updated MercadoLibre template: 6 conditionable fields (listing_type_id, price, available_quantity, condition, status, site_id) + 4 rule presets (premium listings, low stock, Brazil market, active listings)
+  - Built ConditionalNodeConfig UI component with Simple/Advanced mode toggle
+  - Simple mode: Interface selector → Field dropdown (schema-driven) → Operator dropdown → Value input (dynamic: dropdown for enums, number input for numeric fields)
+  - Advanced mode: YAML textarea for power users with multi-condition support
+  - Rule preset selector for quick condition setup from template presets
+  - Re-enabled conditional executor safely using declarative YAML syntax (no JavaScript execution)
+  - Implemented server-side validation: validates field exists in schema, operator is whitelisted, value type matches field type, enum values are valid
+  - Prevents UI bypass by enforcing schema validation on backend (uses interfaceManager + InterfaceTemplateCatalog)
+  - Custom interfaces without templateId allow any fields for flexibility
+  - Whitelisted operators only: equals, not_equals, greater_than, less_than, in, contains, starts_with, ends_with
+  - Nested field access via dot notation (e.g., "fulfillment.channel")
+  - Returns conditionMet + nextBranch in metadata for flow routing
 - **Phase 2.4 Complete**: Interface Template System & Enhanced Flow Nodes
   - Created YAML-based interface template library for standard marketplace integrations
   - Built 5 pre-configured templates: Amazon SP-API, MercadoLibre API, Manhattan WMS, ShipStation 3PL, FedEx Last Mile
@@ -50,7 +66,7 @@ The frontend features a React application with a dashboard for KPIs, charts, and
 
 ### Technical Implementations
 - **Interface Template Catalog**: YAML-based library of pre-configured marketplace/enterprise system templates (Amazon SP-API, MercadoLibre, Manhattan WMS, ShipStation, FedEx). Singleton service loads templates at startup with Zod validation, provides REST API for listing/viewing/instantiating. Templates define typed protocols, authentication, required secrets, endpoint schemas, and payload templates. Enables customers to instantiate standard integrations with their credentials vs. manual interface configuration.
-- **Flow Orchestrator**: A core service for executing node graphs, tracking per-node execution, and supporting conditional routing. Includes production-safe executors for manual triggers, interface operations, XML/CSV parsing, JSON building, object mapping, and validation. CSV parser handles quoted fields, configurable delimiters, and header detection. Validation node supports YAML rule sets with type checking, pattern matching, range validation, and multi-output routing (valid/invalid streams). Disabled executors (conditional, custom_javascript) are security hardened to prevent RCE attacks. **Now integrated with Pipeline for end-to-end flow execution.**
+- **Flow Orchestrator**: A core service for executing node graphs, tracking per-node execution, and supporting conditional routing. Includes production-safe executors for manual triggers, interface operations, XML/CSV parsing, JSON building, object mapping, validation, and **interface-scoped conditionals**. CSV parser handles quoted fields, configurable delimiters, and header detection. Validation node supports YAML rule sets with type checking, pattern matching, range validation, and multi-output routing (valid/invalid streams). Conditional node uses declarative YAML syntax with server-side schema validation to prevent RCE attacks - no JavaScript execution. **Now integrated with Pipeline for end-to-end flow execution.**
 - **Pipeline Integration**: The Pipeline now supports both legacy XML transformation (mode: 'xml') and modern flow-based transformation (mode: 'flow'). Warehouse decision logic is conditional - it only runs when the output matches CanonicalItem structure (itemId + destination fields). This allows flows to transform ANY data format without requiring canonical format.
 - **Interface Registry**: Manages interfaces with a production-ready schema supporting various types (WMS, ERP, Marketplace, TMS, 3PL, Last Mile, Custom), protocols (REST, SOAP, GraphQL, SFTP, FTP, Webhook, Database, Message Queue), and authentication methods.
 - **Data Source Management**: Handles SFTP and Azure Blob polling and file retrieval.
@@ -64,7 +80,8 @@ The frontend features a React application with a dashboard for KPIs, charts, and
 ### Feature Specifications
 - **Configuration-Driven Transformation**: Uses `mapping.yml` for flexible XML-to-JSON conversion (legacy mode).
 - **Flow-Based Transformation**: Visual node graph system for transforming ANY data format (XML, JSON, EDI, CSV) without code. Includes CSV parser for structured data ingestion and validation node for data quality gates.
-- **Template-Based Interface Instantiation**: Pre-configured YAML templates for standard marketplace/enterprise integrations. Customers instantiate templates with their own credentials instead of manually configuring endpoints, auth, and payload formats.
+- **Template-Based Interface Instantiation**: Pre-configured YAML templates for standard marketplace/enterprise integrations. Customers instantiate templates with their own credentials instead of manually configuring endpoints, auth, and payload formats. Templates include conditionSchema for interface-scoped conditional logic.
+- **Interface-Scoped Conditional Logic**: Each canonical adapter defines allowed conditional fields and operators in its template. Conditional nodes validate field names, operators, and value types against the selected interface's schema server-side. Prevents mixing logic between adapters (Amazon conditions only work with Amazon data). Includes rule presets for common scenarios (FBA routing, low inventory alerts, marketplace filtering).
 - **Intelligent Warehouse Routing**: Utilizes a weighted scoring model for optimal warehouse selection. Only applies to CanonicalItem-formatted data.
 - **Real-Time Metrics**: Provides comprehensive observability into system performance.
 - **Portable Storage**: Implemented with an `IStorage` interface and `MemStorage` for offline capability and Docker readiness. Supports flow definitions and flow run tracking.
