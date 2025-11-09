@@ -71,6 +71,25 @@ const interfaceTemplateSchema = z.object({
   // Feature highlights (for marketplace UI)
   features: z.array(z.string()).optional(),
   limitations: z.array(z.string()).optional(),
+  
+  // Conditional logic schema (for interface-scoped conditions)
+  conditionSchema: z.object({
+    fields: z.array(z.object({
+      name: z.string(),
+      type: z.enum(["string", "number", "boolean", "date"]),
+      description: z.string().optional(),
+      values: z.array(z.string()).optional(), // Enum values for dropdown
+    })),
+    rulePresets: z.array(z.object({
+      name: z.string(),
+      description: z.string().optional(),
+      condition: z.object({
+        field: z.string(),
+        operator: z.string(),
+        value: z.union([z.string(), z.number(), z.boolean()]),
+      }),
+    })).optional(),
+  }).optional(),
 });
 
 export type InterfaceTemplate = z.infer<typeof interfaceTemplateSchema>;

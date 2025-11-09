@@ -132,6 +132,73 @@ suggestedMappings:
       width: $.Item.Dimensions.Width
       height: $.Item.Dimensions.Height
 
+# Conditional Logic Schema (for interface-scoped conditions)
+conditionSchema:
+  fields:
+    - name: sku
+      type: string
+      description: Seller SKU (unique identifier)
+    - name: asin
+      type: string
+      description: Amazon Standard Identification Number
+    - name: quantity
+      type: number
+      description: Available inventory quantity
+    - name: fulfillmentChannel
+      type: string
+      description: Fulfillment method
+      values:
+        - FBA
+        - FBM
+    - name: marketplaceId
+      type: string
+      description: Amazon marketplace identifier
+      values:
+        - ATVPDKIKX0DER  # US
+        - A2EUQ1WTGCTBG2  # Canada
+        - A1AM78C64UM0Y8  # Mexico
+    - name: price
+      type: number
+      description: Product price
+    - name: condition
+      type: string
+      description: Product condition
+      values:
+        - new_new
+        - used_like_new
+        - used_very_good
+        - used_good
+        - used_acceptable
+  
+  rulePresets:
+    - name: Route FBA vs FBM
+      description: Route orders based on fulfillment channel
+      condition:
+        field: fulfillmentChannel
+        operator: equals
+        value: FBA
+    
+    - name: Filter Low Inventory
+      description: Identify products with low stock
+      condition:
+        field: quantity
+        operator: less_than
+        value: 10
+    
+    - name: US Marketplace Only
+      description: Filter for US marketplace items
+      condition:
+        field: marketplaceId
+        operator: equals
+        value: ATVPDKIKX0DER
+    
+    - name: High Value Items
+      description: Filter products above price threshold
+      condition:
+        field: price
+        operator: greater_than
+        value: 100
+
 # Tags
 tags:
   - marketplace

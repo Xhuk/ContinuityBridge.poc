@@ -131,6 +131,78 @@ suggestedMappings:
       width: $.Item.Dimensions.Width
       height: $.Item.Dimensions.Height
 
+# Conditional Logic Schema (for interface-scoped conditions)
+conditionSchema:
+  fields:
+    - name: listing_type_id
+      type: string
+      description: Listing type/tier
+      values:
+        - gold_special
+        - gold_premium
+        - gold
+        - silver
+        - bronze
+        - free
+    - name: price
+      type: number
+      description: Product listing price
+    - name: available_quantity
+      type: number
+      description: Available stock quantity
+    - name: condition
+      type: string
+      description: Product condition
+      values:
+        - new
+        - used
+        - refurbished
+    - name: status
+      type: string
+      description: Listing status
+      values:
+        - active
+        - paused
+        - closed
+    - name: site_id
+      type: string
+      description: MercadoLibre site/marketplace
+      values:
+        - MLB  # Brazil
+        - MLM  # Mexico
+        - MLA  # Argentina
+        - MLC  # Chile
+        - MCO  # Colombia
+  
+  rulePresets:
+    - name: Premium Listings Only
+      description: Filter for gold_special or gold_premium listings
+      condition:
+        field: listing_type_id
+        operator: equals
+        value: gold_special
+    
+    - name: Low Stock Alert
+      description: Identify listings with low inventory
+      condition:
+        field: available_quantity
+        operator: less_than
+        value: 5
+    
+    - name: Brazil Market Only
+      description: Filter for Brazil marketplace
+      condition:
+        field: site_id
+        operator: equals
+        value: MLB
+    
+    - name: Active Listings
+      description: Filter only active listings
+      condition:
+        field: status
+        operator: equals
+        value: active
+
 # Tags
 tags:
   - marketplace
