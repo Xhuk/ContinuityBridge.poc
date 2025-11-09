@@ -1,5 +1,5 @@
-import type { IStorage } from "../storage";
-import type { TokenCache, AuthAdapter } from "../schema";
+import type { IStorage } from "../../storage";
+import type { TokenCache, AuthAdapter } from "../../schema";
 import { SecretsService } from "../secrets/secrets-service";
 import { randomUUID } from "crypto";
 

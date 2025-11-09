@@ -268,6 +268,40 @@ export class SecretsService {
   }
 
   /**
+   * Encrypt a string value (for token cache encryption)
+   * Returns base64-encoded encrypted value with IV and auth tag embedded
+   */
+  async encrypt(plaintext: string): Promise<string> {
+    if (!this.isVaultUnlocked()) {
+      throw new Error('Vault is locked - please unlock with master seed first');
+    }
+
+    const encrypted = this.encryptPayload(plaintext);
+    
+    // Combine all components into single base64 string: iv:authTag:ciphertext
+    return `${encrypted.iv}:${encrypted.authTag}:${encrypted.ciphertext}`;
+  }
+
+  /**
+   * Decrypt a string value (for token cache decryption)
+   * Expects base64-encoded value with IV and auth tag embedded
+   */
+  async decrypt(encryptedValue: string): Promise<string> {
+    if (!this.isVaultUnlocked()) {
+      throw new Error('Vault is locked - please unlock with master seed first');
+    }
+
+    // Split combined string: iv:authTag:ciphertext
+    const parts = encryptedValue.split(':');
+    if (parts.length !== 3) {
+      throw new Error('Invalid encrypted value format');
+    }
+
+    const [iv, authTag, ciphertext] = parts;
+    return this.decryptPayload(ciphertext, iv, authTag);
+  }
+
+  /**
    * Encrypt payload with AES-256-GCM
    */
   private encryptPayload(plaintext: string): {
