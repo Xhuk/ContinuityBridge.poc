@@ -424,3 +424,22 @@ export const createCustomSecretSchema = z.object({
   }).optional(),
   payload: z.record(z.string().min(1)),
 });
+
+// Audit Logs Table (for compliance and security tracking)
+export const auditLogs = sqliteTable("audit_logs", {
+  id: text("id").primaryKey(),
+  timestamp: text("timestamp").notNull(),
+  operation: text("operation").notNull(), // e.g., "VAULT_INITIALIZED", "SECRET_CREATED"
+  resource_type: text("resource_type").$type<
+    "vault" | "secret" | "smtp" | "queue" | "flow" | "interface"
+  >(),
+  resource_id: text("resource_id"), // ID of affected resource
+  user_ip: text("user_ip"),
+  success: integer("success", { mode: "boolean" }).notNull().default(true),
+  error_message: text("error_message"),
+  details: text("details", { mode: "json" }).$type<Record<string, unknown>>(),
+  created_at: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;

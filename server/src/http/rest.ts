@@ -1099,5 +1099,494 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
     }
   });
 
+  // ============================================================================
+  // Secrets Vault Routes (Master Seed-based Encryption)
+  // ============================================================================
+
+  // Simple rate limiting for unlock attempts (in-memory)
+  const unlockAttempts = new Map<string, { count: number; resetAt: number }>();
+  const MAX_UNLOCK_ATTEMPTS = 5;
+  const UNLOCK_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+  function checkUnlockRateLimit(ip: string): boolean {
+    const now = Date.now();
+    const attempt = unlockAttempts.get(ip);
+
+    if (!attempt || now > attempt.resetAt) {
+      unlockAttempts.set(ip, { count: 1, resetAt: now + UNLOCK_LOCKOUT_MS });
+      return true;
+    }
+
+    if (attempt.count >= MAX_UNLOCK_ATTEMPTS) {
+      return false; // Rate limited
+    }
+
+    attempt.count++;
+    return true;
+  }
+
+  function resetUnlockRateLimit(ip: string): void {
+    unlockAttempts.delete(ip);
+  }
+
+  // Audit logging helper
+  function auditLog(operation: string, details: Record<string, any>): void {
+    log.info(`[Secrets Vault Audit] ${operation}`, details);
+    // TODO: Persist audit logs to database for compliance
+  }
+
+  // GET /api/secrets/status - Check vault initialization and lock status
+  app.get("/api/secrets/status", async (req, res) => {
+    try {
+      if (!storage || !storage.getMasterKey) {
+        return res.status(501).json({ error: "Secrets vault not available" });
+      }
+
+      const { secretsService } = await import('../secrets/secrets-service.js');
+      
+      const isInitialized = await secretsService.isVaultInitialized(
+        () => storage.getMasterKey!()
+      );
+      
+      const isUnlocked = secretsService.isVaultUnlocked();
+
+      res.json({
+        initialized: isInitialized,
+        unlocked: isUnlocked,
+      });
+    } catch (error: any) {
+      log.error("Error checking secrets vault status", error);
+      res.status(500).json({ error: "Failed to check vault status" });
+    }
+  });
+
+  // POST /api/secrets/initialize - Initialize vault with master seed
+  app.post("/api/secrets/initialize", async (req, res) => {
+    try {
+      if (!storage || !storage.getMasterKey || !storage.saveMasterKey) {
+        return res.status(501).json({ error: "Secrets vault not available" });
+      }
+
+      const { masterSeed } = req.body;
+
+      if (!masterSeed || typeof masterSeed !== 'string') {
+        return res.status(400).json({
+          error: "Master seed is required",
+        });
+      }
+
+      // Check if vault is already initialized
+      const existing = await storage.getMasterKey();
+      if (existing) {
+        return res.status(400).json({
+          error: "Vault is already initialized - use reset to start over",
+        });
+      }
+
+      const { secretsService } = await import('../secrets/secrets-service.js');
+
+      const { recoveryCode } = await secretsService.initializeVault(
+        masterSeed,
+        (data) => storage.saveMasterKey!(data)
+      );
+
+      auditLog("VAULT_INITIALIZED", {
+        timestamp: new Date().toISOString(),
+        ip: req.ip,
+      });
+
+      res.json({
+        ok: true,
+        recoveryCode,
+        warning: "Store this recovery code securely - you cannot recover it later. Loss of master seed means permanent data loss.",
+      });
+    } catch (error: any) {
+      log.error("Error initializing secrets vault", error);
+      auditLog("VAULT_INIT_FAILED", {
+        error: error.message,
+        ip: req.ip,
+      });
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/secrets/unlock - Unlock vault with master seed (rate limited)
+  app.post("/api/secrets/unlock", async (req, res) => {
+    try {
+      if (!storage || !storage.getMasterKey) {
+        return res.status(501).json({ error: "Secrets vault not available" });
+      }
+
+      const clientIp = req.ip || 'unknown';
+
+      // Rate limiting
+      if (!checkUnlockRateLimit(clientIp)) {
+        auditLog("UNLOCK_RATE_LIMITED", {
+          ip: clientIp,
+          timestamp: new Date().toISOString(),
+        });
+        return res.status(429).json({
+          error: `Too many unlock attempts. Please try again in 15 minutes.`,
+        });
+      }
+
+      const { masterSeed } = req.body;
+
+      if (!masterSeed || typeof masterSeed !== 'string') {
+        return res.status(400).json({
+          error: "Master seed is required",
+        });
+      }
+
+      const { secretsService } = await import('../secrets/secrets-service.js');
+
+      const unlocked = await secretsService.unlockVault(
+        masterSeed,
+        () => storage.getMasterKey!()
+      );
+
+      if (!unlocked) {
+        auditLog("UNLOCK_FAILED", {
+          ip: clientIp,
+          timestamp: new Date().toISOString(),
+          reason: "Invalid master seed",
+        });
+        return res.status(401).json({
+          error: "Invalid master seed",
+        });
+      }
+
+      // Reset rate limit on successful unlock
+      resetUnlockRateLimit(clientIp);
+
+      auditLog("VAULT_UNLOCKED", {
+        ip: clientIp,
+        timestamp: new Date().toISOString(),
+      });
+
+      res.json({
+        ok: true,
+        message: "Vault unlocked successfully",
+      });
+    } catch (error: any) {
+      log.error("Error unlocking secrets vault", error);
+      auditLog("UNLOCK_ERROR", {
+        error: error.message,
+        ip: req.ip,
+      });
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/secrets/lock - Lock vault
+  app.post("/api/secrets/lock", async (req, res) => {
+    try {
+      const { secretsService } = await import('../secrets/secrets-service.js');
+      secretsService.lockVault();
+
+      auditLog("VAULT_LOCKED", {
+        ip: req.ip,
+        timestamp: new Date().toISOString(),
+      });
+
+      res.json({
+        ok: true,
+        message: "Vault locked successfully",
+      });
+    } catch (error: any) {
+      log.error("Error locking secrets vault", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/secrets - List all secrets (metadata only, no payloads)
+  app.get("/api/secrets", async (req, res) => {
+    try {
+      if (!storage || !storage.listSecrets) {
+        return res.status(501).json({ error: "Secrets vault not available" });
+      }
+
+      const { secretsService } = await import('../secrets/secrets-service.js');
+
+      if (!secretsService.isVaultUnlocked()) {
+        return res.status(403).json({
+          error: "Vault is locked - please unlock first",
+        });
+      }
+
+      const integrationType = req.query.type as any;
+      const secrets = await storage.listSecrets(integrationType);
+
+      // Return metadata only (no encrypted payloads)
+      const safeSecrets = secrets.map(s => ({
+        id: s.id,
+        integrationType: s.integrationType,
+        label: s.label,
+        metadata: s.metadata,
+        enabled: s.enabled,
+        lastRotatedAt: s.lastRotatedAt,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+      }));
+
+      res.json(safeSecrets);
+    } catch (error: any) {
+      log.error("Error listing secrets", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/secrets/:id - Get secret with decrypted payload
+  app.get("/api/secrets/:id", async (req, res) => {
+    try {
+      if (!storage || !storage.getSecret) {
+        return res.status(501).json({ error: "Secrets vault not available" });
+      }
+
+      const { secretsService } = await import('../secrets/secrets-service.js');
+
+      if (!secretsService.isVaultUnlocked()) {
+        return res.status(403).json({
+          error: "Vault is locked - please unlock first",
+        });
+      }
+
+      const vaultEntry = await storage.getSecret(req.params.id);
+
+      if (!vaultEntry) {
+        return res.status(404).json({
+          error: "Secret not found",
+        });
+      }
+
+      // Decrypt payload
+      const payload = await secretsService.retrieveSecret(vaultEntry);
+
+      auditLog("SECRET_RETRIEVED", {
+        secretId: vaultEntry.id,
+        integrationType: vaultEntry.integrationType,
+        ip: req.ip,
+        timestamp: new Date().toISOString(),
+      });
+
+      res.json({
+        id: vaultEntry.id,
+        integrationType: vaultEntry.integrationType,
+        label: vaultEntry.label,
+        metadata: vaultEntry.metadata,
+        payload, // Decrypted
+        enabled: vaultEntry.enabled,
+        createdAt: vaultEntry.createdAt,
+        updatedAt: vaultEntry.updatedAt,
+      });
+    } catch (error: any) {
+      log.error("Error retrieving secret", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/secrets - Create new secret
+  app.post("/api/secrets", async (req, res) => {
+    try {
+      if (!storage || !storage.saveSecret) {
+        return res.status(501).json({ error: "Secrets vault not available" });
+      }
+
+      const { secretsService } = await import('../secrets/secrets-service.js');
+
+      if (!secretsService.isVaultUnlocked()) {
+        return res.status(403).json({
+          error: "Vault is locked - please unlock first",
+        });
+      }
+
+      const { integrationType, label, payload, metadata } = req.body;
+
+      if (!integrationType || !label || !payload) {
+        return res.status(400).json({
+          error: "integrationType, label, and payload are required",
+        });
+      }
+
+      // TODO: Validate payload against integration type schema
+
+      const vaultEntry = await secretsService.storeSecret(
+        integrationType,
+        label,
+        payload,
+        metadata,
+        (data) => storage.saveSecret!(data)
+      );
+
+      auditLog("SECRET_CREATED", {
+        secretId: vaultEntry.id,
+        integrationType: vaultEntry.integrationType,
+        label: vaultEntry.label,
+        ip: req.ip,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Return without encrypted payload
+      const { encryptedPayload, iv, authTag, ...safeEntry } = vaultEntry;
+
+      res.status(201).json({
+        ok: true,
+        secret: safeEntry,
+      });
+    } catch (error: any) {
+      log.error("Error creating secret", error);
+      auditLog("SECRET_CREATE_FAILED", {
+        error: error.message,
+        ip: req.ip,
+      });
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // PUT /api/secrets/:id - Update existing secret
+  app.put("/api/secrets/:id", async (req, res) => {
+    try {
+      if (!storage || !storage.updateSecret) {
+        return res.status(501).json({ error: "Secrets vault not available" });
+      }
+
+      const { secretsService } = await import('../secrets/secrets-service.js');
+
+      if (!secretsService.isVaultUnlocked()) {
+        return res.status(403).json({
+          error: "Vault is locked - please unlock first",
+        });
+      }
+
+      const { payload, metadata } = req.body;
+
+      if (!payload) {
+        return res.status(400).json({
+          error: "payload is required",
+        });
+      }
+
+      const updated = await secretsService.updateSecret(
+        req.params.id,
+        payload,
+        metadata,
+        (id, data) => storage.updateSecret!(id, data)
+      );
+
+      if (!updated) {
+        return res.status(404).json({
+          error: "Secret not found",
+        });
+      }
+
+      auditLog("SECRET_UPDATED", {
+        secretId: updated.id,
+        integrationType: updated.integrationType,
+        ip: req.ip,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Return without encrypted payload
+      const { encryptedPayload, iv, authTag, ...safeEntry } = updated;
+
+      res.json({
+        ok: true,
+        secret: safeEntry,
+      });
+    } catch (error: any) {
+      log.error("Error updating secret", error);
+      auditLog("SECRET_UPDATE_FAILED", {
+        secretId: req.params.id,
+        error: error.message,
+        ip: req.ip,
+      });
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/secrets/:id - Delete secret
+  app.delete("/api/secrets/:id", async (req, res) => {
+    try {
+      if (!storage || !storage.deleteSecret) {
+        return res.status(501).json({ error: "Secrets vault not available" });
+      }
+
+      const { secretsService } = await import('../secrets/secrets-service.js');
+
+      if (!secretsService.isVaultUnlocked()) {
+        return res.status(403).json({
+          error: "Vault is locked - please unlock first",
+        });
+      }
+
+      const deleted = await secretsService.deleteSecret(
+        req.params.id,
+        (id) => storage.deleteSecret!(id)
+      );
+
+      if (!deleted) {
+        return res.status(404).json({
+          error: "Secret not found",
+        });
+      }
+
+      auditLog("SECRET_DELETED", {
+        secretId: req.params.id,
+        ip: req.ip,
+        timestamp: new Date().toISOString(),
+      });
+
+      res.json({
+        ok: true,
+        message: "Secret deleted successfully",
+      });
+    } catch (error: any) {
+      log.error("Error deleting secret", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/secrets/reset - Reset vault (destructive - requires confirmation)
+  app.post("/api/secrets/reset", async (req, res) => {
+    try {
+      if (!storage || !storage.clearAllSecrets || !storage.clearMasterKey) {
+        return res.status(501).json({ error: "Secrets vault not available" });
+      }
+
+      const { confirmation } = req.body;
+
+      if (confirmation !== "DELETE_ALL_SECRETS") {
+        return res.status(400).json({
+          error: 'Please provide confirmation: "DELETE_ALL_SECRETS"',
+        });
+      }
+
+      const { secretsService } = await import('../secrets/secrets-service.js');
+
+      await secretsService.resetVault(
+        () => storage.clearAllSecrets!(),
+        () => storage.clearMasterKey!()
+      );
+
+      auditLog("VAULT_RESET", {
+        ip: req.ip,
+        timestamp: new Date().toISOString(),
+        warning: "ALL SECRETS PERMANENTLY DELETED",
+      });
+
+      res.json({
+        ok: true,
+        message: "Vault reset successfully - all secrets permanently deleted",
+      });
+    } catch (error: any) {
+      log.error("Error resetting vault", error);
+      auditLog("VAULT_RESET_FAILED", {
+        error: error.message,
+        ip: req.ip,
+      });
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   log.info("REST routes registered");
 }

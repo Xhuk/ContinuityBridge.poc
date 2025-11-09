@@ -204,6 +204,30 @@ export async function ensureTables() {
       CREATE INDEX IF NOT EXISTS idx_secrets_vault_master_key_id ON secrets_vault(master_key_id)
     `);
 
+    // Create audit_logs table (for compliance and security tracking)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        timestamp TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        resource_type TEXT,
+        resource_id TEXT,
+        user_ip TEXT,
+        success INTEGER NOT NULL DEFAULT 1,
+        error_message TEXT,
+        details TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_operation ON audit_logs(operation)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp)
+    `);
+
     console.log("[Database] Tables initialized successfully");
   } catch (error) {
     console.error("[Database] Error creating tables:", error);

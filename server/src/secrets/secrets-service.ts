@@ -51,6 +51,7 @@ export class SecretsService {
       argonMemory: number;
       argonIterations: number;
       argonParallelism: number;
+      recoveryCodeHash: string | null;
     }) => Promise<SecretsMasterKey>
   ): Promise<{ recoveryCode: string }> {
     if (masterSeed.length < 12) {
@@ -72,6 +73,14 @@ export class SecretsService {
     // Generate recovery code (user must save this)
     const recoveryCode = this.generateRecoveryCode();
 
+    // Hash recovery code for storage (never store plaintext)
+    const recoveryCodeHash = await argon2.hash(recoveryCode, {
+      type: argon2.argon2id,
+      memoryCost: this.ARGON_MEMORY,
+      timeCost: this.ARGON_ITERATIONS,
+      parallelism: this.ARGON_PARALLELISM,
+    });
+
     // Save master key metadata to database
     await saveMasterKey({
       id: this.MASTER_KEY_ID,
@@ -80,6 +89,7 @@ export class SecretsService {
       argonMemory: this.ARGON_MEMORY,
       argonIterations: this.ARGON_ITERATIONS,
       argonParallelism: this.ARGON_PARALLELISM,
+      recoveryCodeHash,
     });
 
     // Unlock the vault with the new seed
@@ -362,6 +372,26 @@ export class SecretsService {
     );
 
     return code.join('-');
+  }
+
+  /**
+   * Verify recovery code (for vault recovery flow)
+   */
+  async verifyRecoveryCode(
+    recoveryCode: string,
+    getMasterKey: () => Promise<SecretsMasterKey | undefined>
+  ): Promise<boolean> {
+    const masterKeyData = await getMasterKey();
+    
+    if (!masterKeyData || !masterKeyData.recoveryCodeHash) {
+      throw new Error('No recovery code configured for this vault');
+    }
+
+    try {
+      return await argon2.verify(masterKeyData.recoveryCodeHash, recoveryCode);
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
