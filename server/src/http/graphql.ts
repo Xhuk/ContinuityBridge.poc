@@ -2,15 +2,17 @@ import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { resolvers } from "./resolvers.js";
+import { createResolvers } from "./resolvers.js";
+import type { Pipeline } from "../core/pipeline.js";
 import { logger } from "../core/logger.js";
 
 const log = logger.child("GraphQL");
 
 let graphqlServer: any = null;
 
-export async function registerGraphQLServer(): Promise<void> {
+export async function registerGraphQLServer(pipeline: Pipeline): Promise<void> {
   const typeDefs = readFileSync(join(process.cwd(), "schema.graphql"), "utf-8");
+  const resolvers = createResolvers(pipeline);
 
   const server = new ApolloServer({
     typeDefs,

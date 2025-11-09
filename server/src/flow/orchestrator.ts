@@ -294,4 +294,3 @@ export class FlowOrchestrator {
 }
 
 // Export singleton instance
-export const flowOrchestrator = new FlowOrchestrator();

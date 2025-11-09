@@ -1,124 +1,127 @@
 import { randomUUID } from "crypto";
 import { metricsCollector } from "../core/metrics.js";
-import { Pipeline } from "../core/pipeline.js";
+import type { Pipeline } from "../core/pipeline.js";
 import { getWorkerInstance } from "../workers/worker.js";
 import { getQueueProvider, getCurrentBackend } from "../serverQueue.js";
 import { getEventStorage, getDecisionStorage, getPayloadStorage } from "./rest.js";
 
-const pipeline = new Pipeline();
+/**
+ * Create GraphQL resolvers with injected dependencies
+ */
+export function createResolvers(pipeline: Pipeline) {
+  return {
+    Query: {
+      kpis: () => {
+        return metricsCollector.getSnapshot();
+      },
 
-export const resolvers = {
-  Query: {
-    kpis: () => {
-      return metricsCollector.getSnapshot();
+      recentEvents: (_: any, { limit }: { limit?: number }) => {
+        const events = getEventStorage();
+        const eventLimit = limit || 20;
+        return events.slice(-eventLimit).reverse();
+      },
+
+      decisions: () => {
+        const decisions = getDecisionStorage();
+        return decisions.slice(-50).reverse();
+      },
     },
 
-    recentEvents: (_: any, { limit }: { limit?: number }) => {
-      const events = getEventStorage();
-      const eventLimit = limit || 20;
-      return events.slice(-eventLimit).reverse();
-    },
+    Mutation: {
+      processItemIFD: async (_: any, { xml }: { xml: string }) => {
+        const traceId = randomUUID();
 
-    decisions: () => {
-      const decisions = getDecisionStorage();
-      return decisions.slice(-50).reverse();
-    },
-  },
+        try {
+          const validation = pipeline.validateXML(xml);
+          if (!validation.valid) {
+            return {
+              ok: false,
+              traceId,
+              error: `XML validation failed: ${validation.error}`,
+            };
+          }
 
-  Mutation: {
-    processItemIFD: async (_: any, { xml }: { xml: string }) => {
-      const traceId = randomUUID();
+          const queueProvider = getQueueProvider();
+          await queueProvider.enqueue(
+            "items.inbound",
+            JSON.stringify({ xml, traceId })
+          );
 
-      try {
-        const validation = pipeline.validateXML(xml);
-        if (!validation.valid) {
+          // Store payload for potential replay
+          const payloads = getPayloadStorage();
+          payloads.set(traceId, xml);
+
+          // Return immediately - worker will process
+          return {
+            ok: true,
+            traceId,
+            canonical: null,
+            error: null,
+          };
+        } catch (error: any) {
           return {
             ok: false,
             traceId,
-            error: `XML validation failed: ${validation.error}`,
+            error: error.message,
           };
         }
+      },
 
+      replayEvent: async (_: any, { id }: { id: string }) => {
+        const events = getEventStorage();
+        const payloads = getPayloadStorage();
+        
+        const event = events.find((e) => e.id === id);
+        if (!event) return false;
+
+        // Get original XML payload
+        const xml = payloads.get(event.traceId);
+        if (!xml) return false;
+
+        // Re-enqueue with original XML
         const queueProvider = getQueueProvider();
+        const newTraceId = randomUUID();
         await queueProvider.enqueue(
           "items.inbound",
-          JSON.stringify({ xml, traceId })
+          JSON.stringify({ xml, traceId: newTraceId })
         );
 
-        // Store payload for potential replay
-        const payloads = getPayloadStorage();
-        payloads.set(traceId, xml);
+        // Store payload for new trace
+        payloads.set(newTraceId, xml);
 
-        // Return immediately - worker will process
-        return {
-          ok: true,
-          traceId,
-          canonical: null,
-          error: null,
-        };
-      } catch (error: any) {
-        return {
-          ok: false,
-          traceId,
-          error: error.message,
-        };
-      }
-    },
+        return true;
+      },
 
-    replayEvent: async (_: any, { id }: { id: string }) => {
-      const events = getEventStorage();
-      const payloads = getPayloadStorage();
-      
-      const event = events.find((e) => e.id === id);
-      if (!event) return false;
+      setWorker: async (
+        _: any,
+        { enabled, concurrency }: { enabled: boolean; concurrency?: number }
+      ) => {
+        const worker = getWorkerInstance();
 
-      // Get original XML payload
-      const xml = payloads.get(event.traceId);
-      if (!xml) return false;
-
-      // Re-enqueue with original XML
-      const queueProvider = getQueueProvider();
-      const newTraceId = randomUUID();
-      await queueProvider.enqueue(
-        "items.inbound",
-        JSON.stringify({ xml, traceId: newTraceId })
-      );
-
-      // Store payload for new trace
-      payloads.set(newTraceId, xml);
-
-      return true;
-    },
-
-    setWorker: async (
-      _: any,
-      { enabled, concurrency }: { enabled: boolean; concurrency?: number }
-    ) => {
-      const worker = getWorkerInstance();
-
-      if (enabled) {
-        if (concurrency) {
-          worker.setConfig({ concurrency });
+        if (enabled) {
+          if (concurrency) {
+            worker.setConfig({ concurrency });
+          }
+          await worker.start();
+        } else {
+          await worker.stop();
         }
-        await worker.start();
-      } else {
-        await worker.stop();
-      }
 
-      return worker.getStatus();
+        return worker.getStatus();
+      },
+
+      setQueueBackend: async (_: any, { backend }: { backend: string }) => {
+        // Note: This would require restarting the application
+        // For now, just return current config
+        const worker = getWorkerInstance();
+        const status = worker.getStatus();
+
+        return {
+          backend: getCurrentBackend(),
+          workerEnabled: status.enabled,
+          concurrency: status.concurrency,
+        };
+      },
     },
-
-    setQueueBackend: async (_: any, { backend }: { backend: string }) => {
-      // Note: This would require restarting the application
-      // For now, just return current config
-      const worker = getWorkerInstance();
-      const status = worker.getStatus();
-
-      return {
-        backend: getCurrentBackend(),
-        workerEnabled: status.enabled,
-        concurrency: status.concurrency,
-      };
-    },
-  },
-};
+  };
+}

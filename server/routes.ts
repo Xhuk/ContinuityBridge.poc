@@ -25,8 +25,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Register REST API routes
     registerRESTRoutes(app, pipeline, orchestrator);
 
-    // Register GraphQL server (standalone on port 4000)
-    registerGraphQLServer().catch((err) => {
+    // Register GraphQL server (standalone on port 4000) with shared pipeline
+    registerGraphQLServer(pipeline).catch((err) => {
       log.error("Failed to start GraphQL server", err);
     });
 
