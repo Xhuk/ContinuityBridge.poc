@@ -5,7 +5,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { flowDefinitions, flowRuns } from "./schema";
+import { flowDefinitions, flowRuns, type FlowDefinition, type FlowRun } from "./schema";
 import { eq, desc } from "drizzle-orm";
 import { IStorage } from "./storage";
 
@@ -33,16 +33,16 @@ export class DatabaseStorage implements IStorage {
       updatedAt: now,
     };
 
-    await db.insert(flowDefinitions).values({
+    await (db.insert(flowDefinitions) as any).values({
       id: flow.id,
       name: flow.name,
-      description: flow.description,
-      nodes: JSON.stringify(flow.nodes),
-      edges: JSON.stringify(flow.edges),
+      description: flow.description || null,
+      nodes: flow.nodes as any,
+      edges: flow.edges as any,
       version: flow.version,
       enabled: flow.enabled ? 1 : 0,
-      tags: flow.tags ? JSON.stringify(flow.tags) : null,
-      metadata: flow.metadata ? JSON.stringify(flow.metadata) : null,
+      tags: flow.tags as any,
+      metadata: flow.metadata as any,
       createdAt: flow.createdAt,
       updatedAt: flow.updatedAt,
     });
@@ -51,19 +51,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getFlow(id: string): Promise<SchemaFlowDefinition | undefined> {
-    const result = await db.select().from(flowDefinitions).where(eq(flowDefinitions.id, id)).limit(1);
+    const result = await (db.select() as any).from(flowDefinitions).where(eq(flowDefinitions.id, id)).limit(1);
     
     if (result.length === 0) {
       return undefined;
     }
 
-    const row = result[0];
+    const row: any = result[0];
     return this.mapFlowFromDb(row);
   }
 
   async getFlows(): Promise<SchemaFlowDefinition[]> {
-    const results = await db.select().from(flowDefinitions).orderBy(desc(flowDefinitions.createdAt));
-    return results.map(row => this.mapFlowFromDb(row));
+    const results = await (db.select() as any).from(flowDefinitions).orderBy(desc(flowDefinitions.createdAt));
+    return results.map((row: any) => this.mapFlowFromDb(row));
   }
 
   async updateFlow(
@@ -83,16 +83,16 @@ export class DatabaseStorage implements IStorage {
       updatedAt: new Date().toISOString(),
     };
 
-    await db.update(flowDefinitions)
+    await (db.update(flowDefinitions) as any)
       .set({
         name: updatedFlow.name,
-        description: updatedFlow.description,
-        nodes: JSON.stringify(updatedFlow.nodes),
-        edges: JSON.stringify(updatedFlow.edges),
+        description: updatedFlow.description || null,
+        nodes: updatedFlow.nodes as any,
+        edges: updatedFlow.edges as any,
         version: updatedFlow.version,
         enabled: updatedFlow.enabled ? 1 : 0,
-        tags: updatedFlow.tags ? JSON.stringify(updatedFlow.tags) : null,
-        metadata: updatedFlow.metadata ? JSON.stringify(updatedFlow.metadata) : null,
+        tags: updatedFlow.tags as any,
+        metadata: updatedFlow.metadata as any,
         updatedAt: updatedFlow.updatedAt,
       })
       .where(eq(flowDefinitions.id, id));
@@ -101,8 +101,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteFlow(id: string): Promise<boolean> {
-    const result = await db.delete(flowDefinitions).where(eq(flowDefinitions.id, id));
-    return true; // SQLite doesn't return affected rows count
+    await (db.delete(flowDefinitions) as any).where(eq(flowDefinitions.id, id));
+    return true;
   }
 
   // ============================================================================
@@ -116,7 +116,7 @@ export class DatabaseStorage implements IStorage {
       id,
     };
 
-    await db.insert(flowRuns).values({
+    await (db.insert(flowRuns) as any).values({
       id: run.id,
       flowId: run.flowId,
       flowName: run.flowName,
@@ -139,7 +139,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getFlowRun(id: string): Promise<SchemaFlowRun | undefined> {
-    const result = await db.select().from(flowRuns).where(eq(flowRuns.id, id)).limit(1);
+    const result = await (db.select() as any).from(flowRuns).where(eq(flowRuns.id, id)).limit(1);
     
     if (result.length === 0) {
       return undefined;
@@ -149,7 +149,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getFlowRuns(): Promise<SchemaFlowRun[]> {
-    const results = await db.select().from(flowRuns).orderBy(desc(flowRuns.startedAt));
+    const results = await (db.select() as any).from(flowRuns).orderBy(desc(flowRuns.startedAt));
     return results.map(row => this.mapFlowRunFromDb(row));
   }
 
@@ -177,7 +177,7 @@ export class DatabaseStorage implements IStorage {
       id,
     };
 
-    await db.update(flowRuns)
+    await (db.update(flowRuns) as any)
       .set({
         status: updated.status,
         completedAt: updated.completedAt || null,
