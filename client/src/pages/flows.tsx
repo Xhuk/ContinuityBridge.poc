@@ -83,10 +83,28 @@ const NODE_TYPES = [
     color: "hsl(37 91% 55%)",
   },
   {
-    type: "interface_call",
-    label: "Interface Call",
-    category: "action",
+    type: "interface_source",
+    label: "Interface Source",
+    category: "trigger",
+    color: "hsl(142 71% 45%)",
+  },
+  {
+    type: "interface_destination",
+    label: "Interface Destination",
+    category: "output",
     color: "hsl(0 72% 51%)",
+  },
+  {
+    type: "csv_parser",
+    label: "CSV Parser",
+    category: "parser",
+    color: "hsl(200 83% 53%)",
+  },
+  {
+    type: "validation",
+    label: "Validation",
+    category: "transformer",
+    color: "hsl(280 65% 55%)",
   },
 ];
 
@@ -564,7 +582,7 @@ function NodeConfigForm({
           </div>
         );
 
-      case "interface_call":
+      case "interface_source":
         return (
           <div className="space-y-4">
             <div>
@@ -593,11 +611,125 @@ function NodeConfigForm({
                 <SelectContent>
                   <SelectItem value="GET">GET</SelectItem>
                   <SelectItem value="POST">POST</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="path">API Path (optional)</Label>
+              <Input
+                id="path"
+                value={config.path || ""}
+                onChange={(e) =>
+                  setConfig({ ...config, path: e.target.value })
+                }
+                placeholder="/api/orders"
+                data-testid="input-path"
+              />
+            </div>
+          </div>
+        );
+
+      case "interface_destination":
+        return (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="interfaceId">Interface ID</Label>
+              <Input
+                id="interfaceId"
+                value={config.interfaceId || ""}
+                onChange={(e) =>
+                  setConfig({ ...config, interfaceId: e.target.value })
+                }
+                placeholder="interface-id"
+                data-testid="input-interface-id"
+              />
+            </div>
+            <div>
+              <Label htmlFor="method">HTTP Method</Label>
+              <Select
+                value={config.method || "POST"}
+                onValueChange={(value) =>
+                  setConfig({ ...config, method: value })
+                }
+              >
+                <SelectTrigger data-testid="select-method">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="POST">POST</SelectItem>
                   <SelectItem value="PUT">PUT</SelectItem>
                   <SelectItem value="PATCH">PATCH</SelectItem>
                   <SelectItem value="DELETE">DELETE</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label htmlFor="path">API Path (optional)</Label>
+              <Input
+                id="path"
+                value={config.path || ""}
+                onChange={(e) =>
+                  setConfig({ ...config, path: e.target.value })
+                }
+                placeholder="/api/orders"
+                data-testid="input-path"
+              />
+            </div>
+          </div>
+        );
+
+      case "csv_parser":
+        return (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="delimiter">Delimiter</Label>
+              <Input
+                id="delimiter"
+                value={config.delimiter || ","}
+                onChange={(e) =>
+                  setConfig({ ...config, delimiter: e.target.value })
+                }
+                placeholder=","
+                maxLength={1}
+                data-testid="input-delimiter"
+              />
+            </div>
+            <div>
+              <Label htmlFor="hasHeader">Has Header Row</Label>
+              <Select
+                value={config.hasHeader !== false ? "true" : "false"}
+                onValueChange={(value) =>
+                  setConfig({ ...config, hasHeader: value === "true" })
+                }
+              >
+                <SelectTrigger data-testid="select-has-header">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">Yes</SelectItem>
+                  <SelectItem value="false">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        );
+
+      case "validation":
+        return (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="rules">Validation Rules (YAML)</Label>
+              <Textarea
+                id="rules"
+                value={config.rules || ""}
+                onChange={(e) =>
+                  setConfig({ ...config, rules: e.target.value })
+                }
+                placeholder="field_name:\n  type: string\n  required: true"
+                className="font-mono text-sm"
+                rows={8}
+                data-testid="input-validation-rules"
+              />
             </div>
           </div>
         );
