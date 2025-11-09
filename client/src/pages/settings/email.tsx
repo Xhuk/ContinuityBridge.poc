@@ -37,7 +37,7 @@ const smtpSchema = z.object({
 
 type SmtpFormData = z.infer<typeof smtpSchema>;
 
-export default function Settings() {
+export default function EmailSettings() {
   const { toast } = useToast();
 
   const { data: smtpData, isLoading } = useQuery({

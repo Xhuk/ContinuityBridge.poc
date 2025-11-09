@@ -4,7 +4,7 @@
 ContinuityBridge is a configurable bi-directional integration hub designed to connect diverse enterprise systems such as WMS, Oracle, Manhattan, Amazon, and Last Mile. It ingests payloads from multiple sources (SFTP, Azure Blob, REST APIs), transforms them using configurable mappings, applies warehouse routing logic, and dispatches them to various destinations with swappable queue backends. The project aims to provide a robust, scalable, and observable solution for complex data integration challenges, supporting both linear transformation flows and advanced orchestration.
 
 ## Recent Changes (November 2025)
-- **Phase 2.6 In Progress**: Unified Secrets Vault with Master Seed Encryption
+- **Phase 2.6 Complete**: Unified Secrets Vault with Master Seed Encryption & Settings UI
   - Implemented Argon2id-based master seed system for all integration credentials
   - Created SecretService with AES-256-GCM encryption (session-based unlock)
   - Database schema: secrets_master_keys + secrets_vault with foreign key constraints
@@ -17,6 +17,10 @@ ContinuityBridge is a configurable bi-directional integration hub designed to co
   - Foreign key enforcement: secrets_vault.master_key_id → secrets_master_keys.id
   - Migration path planned from legacy SMTP_ENCRYPTION_KEY to unified vault
   - Customer self-service: manage SMTP, Azure, SFTP passwords without admin access
+  - **Settings UI with tree navigation**: Tabbed interface for Email, Secrets Vault, Queue, Security
+  - **Secrets Vault UI**: Complete onboarding flow with security warnings, session-based unlock, recovery code display
+  - **Passphrase generator**: Built-in secure passphrase generator (5-word format) + external password generator link
+  - **KPI endpoint**: GET /api/secrets/kpi returns vault metrics (secret counts by type, 24h activity, failed attempts, health status)
 - **Phase 2.5 Complete**: Interface-Scoped Conditional Logic System
   - Implemented interface-scoped conditional logic to prevent mixing logic between adapters (e.g., Amazon conditions only work with Amazon interfaces)
   - Added conditionSchema to InterfaceTemplate type with field definitions (name, type, description, enum values) and rule presets

@@ -1,4 +1,4 @@
-import { Home, List, Settings, Upload, Database, Network, Workflow, Mail } from "lucide-react";
+import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -27,7 +27,7 @@ const menuItems = [
   {
     title: "Queue & Worker",
     url: "/queue",
-    icon: Settings,
+    icon: SettingsIcon,
   },
   {
     title: "Data Sources",
@@ -52,7 +52,7 @@ const menuItems = [
   {
     title: "Settings",
     url: "/settings",
-    icon: Mail,
+    icon: Cog,
   },
 ];
 

@@ -1160,6 +1160,68 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
     }
   });
 
+  // GET /api/secrets/kpi - Get vault KPIs and metrics
+  app.get("/api/secrets/kpi", async (req, res) => {
+    try {
+      if (!storage || !storage.getMasterKey) {
+        return res.status(501).json({ error: "Secrets vault not available" });
+      }
+
+      const { secretsService } = await import('../secrets/secrets-service.js');
+      
+      const isInitialized = await secretsService.isVaultInitialized(
+        () => storage.getMasterKey!()
+      );
+      
+      const isUnlocked = secretsService.isVaultUnlocked();
+      
+      // Get all secrets (metadata only) to count by type
+      let secretsByType: Record<string, number> = {};
+      let totalSecrets = 0;
+      
+      if (isUnlocked && storage.getSecrets) {
+        const secrets = await storage.getSecrets();
+        totalSecrets = secrets.length;
+        
+        // Count by integration type
+        secretsByType = secrets.reduce((acc, secret) => {
+          acc[secret.integrationType] = (acc[secret.integrationType] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+      }
+
+      // Get audit log summary (last 24 hours)
+      let recentActivity = 0;
+      let failedAttempts = 0;
+      
+      if (storage.getAuditLogs) {
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const auditLogs = await storage.getAuditLogs({ since: oneDayAgo, limit: 1000 });
+        
+        recentActivity = auditLogs.length;
+        failedAttempts = auditLogs.filter(log => 
+          log.action === 'UNLOCK_FAILED' || log.action === 'SECRET_DELETE_FAILED'
+        ).length;
+      }
+
+      res.json({
+        initialized: isInitialized,
+        unlocked: isUnlocked,
+        totalSecrets,
+        secretsByType,
+        metrics: {
+          recentActivity24h: recentActivity,
+          failedAttempts24h: failedAttempts,
+          vaultHealth: failedAttempts > 5 ? 'warning' : 'healthy',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      log.error("Error getting vault KPIs", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // POST /api/secrets/initialize - Initialize vault with master seed
   app.post("/api/secrets/initialize", async (req, res) => {
     try {
