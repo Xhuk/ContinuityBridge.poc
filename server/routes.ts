@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { Pipeline } from "./src/core/pipeline.js";
 import { FlowOrchestrator } from "./src/flow/orchestrator.js";
-import { registerRESTRoutes } from "./src/http/rest.js";
+import { registerRESTRoutes, registerAuthRoutes } from "./src/http/rest.js";
 import { registerGraphQLServer } from "./src/http/graphql.js";
 import { initializeQueue } from "./src/serverQueue.js";
 import { Worker, setWorkerInstance } from "./src/workers/worker.js";
@@ -12,6 +12,7 @@ import { ensureTables } from "./migrate.js";
 import { secretsService } from "./src/secrets/secrets-service.js";
 import { TokenLifecycleService } from "./src/auth/token-lifecycle-service.js";
 import { BackgroundTokenRefreshJob } from "./src/auth/background-token-refresh.js";
+import { createInboundAuthMiddleware } from "./src/auth/inbound-auth-middleware.js";
 
 const log = logger.child("Server");
 
@@ -42,6 +43,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Initialize queue provider with storage and secrets service for backend config
     await initializeQueue(storage, secretsService);
 
+    // Initialize token lifecycle service (shared)
+    const tokenLifecycle = new TokenLifecycleService(storage, secretsService);
+
+    // Initialize inbound auth middleware
+    const { middleware: inboundAuthMiddleware, reloadPolicies } = createInboundAuthMiddleware({
+      storage,
+      tokenLifecycle,
+      secretsService,
+    });
+
+    // TODO: Apply inbound auth middleware selectively to protected routes
+    // app.use(inboundAuthMiddleware);
+
     // Create flow orchestrator (shared across pipeline and REST routes)
     const orchestrator = new FlowOrchestrator(storage);
 
@@ -50,6 +64,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Register REST API routes with storage
     registerRESTRoutes(app, pipeline, orchestrator, storage);
+
+    // Register auth adapter and policy routes
+    registerAuthRoutes(app, storage, tokenLifecycle, secretsService, reloadPolicies);
 
     // Register GraphQL server (standalone on port 4000) with shared pipeline
     registerGraphQLServer(pipeline).catch((err) => {
@@ -62,7 +79,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await worker.start();
 
     // Initialize and start background token refresh job
-    const tokenLifecycle = new TokenLifecycleService(storage, secretsService);
     const tokenRefreshJob = new BackgroundTokenRefreshJob(
       storage,
       tokenLifecycle,

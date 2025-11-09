@@ -1985,3 +1985,378 @@ async function testKafkaConnection(credentials: any): Promise<any> {
   }
 }
 
+/**
+ * Register authentication adapter and policy routes
+ */
+export function registerAuthRoutes(
+  app: Express,
+  storage: IStorage,
+  tokenLifecycle: any,
+  secretsService: any,
+  reloadPolicies: () => Promise<void>
+): void {
+  const authLog = logger.child("AuthRoutes");
+
+  // ============================================================================
+  // Auth Adapters CRUD
+  // ============================================================================
+
+  // GET /api/auth/adapters - List all auth adapters
+  app.get("/api/auth/adapters", async (req, res) => {
+    try {
+      const adapters = await storage.getAuthAdapters?.() || [];
+      res.json(adapters);
+    } catch (error: any) {
+      authLog.error("Failed to list auth adapters", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/auth/adapters/:id - Get single auth adapter
+  app.get("/api/auth/adapters/:id", async (req, res) => {
+    try {
+      const adapter = await storage.getAuthAdapter?.(req.params.id);
+      if (!adapter) {
+        return res.status(404).json({ error: "Auth adapter not found" });
+      }
+      res.json(adapter);
+    } catch (error: any) {
+      authLog.error("Failed to get auth adapter", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/auth/adapters - Create auth adapter
+  app.post("/api/auth/adapters", async (req, res) => {
+    try {
+      const adapter = await storage.createAuthAdapter?.(req.body);
+      if (!adapter) {
+        return res.status(500).json({ error: "Failed to create auth adapter" });
+      }
+      
+      // Log audit event
+      await storage.addAuditLog?.({
+        event_type: "auth_adapter_created",
+        resource_type: "authAdapter",
+        resource_id: adapter.id,
+        actor: "system", // TODO: Add user from session
+        status: "success",
+        metadata: { name: adapter.name, type: adapter.type },
+      });
+
+      res.json(adapter);
+    } catch (error: any) {
+      authLog.error("Failed to create auth adapter", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PUT /api/auth/adapters/:id - Update auth adapter
+  app.put("/api/auth/adapters/:id", async (req, res) => {
+    try {
+      const adapter = await storage.updateAuthAdapter?.(req.params.id, req.body);
+      if (!adapter) {
+        return res.status(404).json({ error: "Auth adapter not found" });
+      }
+
+      // Log audit event
+      await storage.addAuditLog?.({
+        event_type: "auth_adapter_updated",
+        resource_type: "authAdapter",
+        resource_id: adapter.id,
+        actor: "system",
+        status: "success",
+        metadata: { name: adapter.name },
+      });
+
+      res.json(adapter);
+    } catch (error: any) {
+      authLog.error("Failed to update auth adapter", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/auth/adapters/:id - Delete auth adapter
+  app.delete("/api/auth/adapters/:id", async (req, res) => {
+    try {
+      await storage.deleteAuthAdapter?.(req.params.id);
+
+      // Log audit event
+      await storage.addAuditLog?.({
+        event_type: "auth_adapter_deleted",
+        resource_type: "authAdapter",
+        resource_id: req.params.id,
+        actor: "system",
+        status: "success",
+      });
+
+      res.json({ ok: true });
+    } catch (error: any) {
+      authLog.error("Failed to delete auth adapter", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================================================
+  // Auth Adapter Actions
+  // ============================================================================
+
+  // POST /api/auth/adapters/:id/test - Test adapter connection
+  app.post("/api/auth/adapters/:id/test", async (req, res) => {
+    try {
+      const adapter = await storage.getAuthAdapter?.(req.params.id);
+      if (!adapter) {
+        return res.status(404).json({ error: "Auth adapter not found" });
+      }
+
+      if (!adapter.activated) {
+        return res.status(400).json({ error: "Adapter is not activated" });
+      }
+
+      // Log test attempt
+      await storage.addAuditLog?.({
+        event_type: "auth_adapter_test_started",
+        resource_type: "authAdapter",
+        resource_id: adapter.id,
+        actor: "system",
+        status: "pending",
+      });
+
+      // Test based on adapter type
+      let testResult: any;
+      if (adapter.type === "oauth2") {
+        // Import and test OAuth2 adapter
+        const { OAuth2Adapter } = await import("../auth/adapters/oauth2-adapter.js");
+        const oauth2 = new OAuth2Adapter(adapter, storage, tokenLifecycle, secretsService);
+        const result = await oauth2.provideOutbound();
+        testResult = { 
+          success: true, 
+          hasToken: !!result.token,
+          placement: result.placement 
+        };
+      } else if (adapter.type === "jwt") {
+        // Import and test JWT adapter
+        const { JWTAdapter } = await import("../auth/adapters/jwt-adapter.js");
+        const jwt = new JWTAdapter(adapter, storage, tokenLifecycle, secretsService);
+        const result = await jwt.provideOutbound();
+        testResult = { 
+          success: true, 
+          hasToken: !!result.token,
+          placement: result.placement 
+        };
+      } else if (adapter.type === "cookie") {
+        // Cookie adapter needs a real session - return mock success
+        testResult = { 
+          success: true, 
+          message: "Cookie adapter configured - requires active session to test" 
+        };
+      } else {
+        return res.status(400).json({ error: "Unknown adapter type" });
+      }
+
+      // Update last tested timestamp
+      await storage.updateAuthAdapter?.(adapter.id, {
+        lastTestedAt: new Date().toISOString(),
+      });
+
+      // Log success
+      await storage.addAuditLog?.({
+        event_type: "auth_adapter_test_completed",
+        resource_type: "authAdapter",
+        resource_id: adapter.id,
+        actor: "system",
+        status: "success",
+        metadata: testResult,
+      });
+
+      res.json({ ok: true, result: testResult });
+    } catch (error: any) {
+      authLog.error("Auth adapter test failed", error);
+      
+      // Log failure
+      await storage.addAuditLog?.({
+        event_type: "auth_adapter_test_failed",
+        resource_type: "authAdapter",
+        resource_id: req.params.id,
+        actor: "system",
+        status: "failure",
+        metadata: { error: error.message },
+      });
+
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // POST /api/auth/adapters/:id/refresh - Force token refresh
+  app.post("/api/auth/adapters/:id/refresh", async (req, res) => {
+    try {
+      const adapter = await storage.getAuthAdapter?.(req.params.id);
+      if (!adapter) {
+        return res.status(404).json({ error: "Auth adapter not found" });
+      }
+
+      if (!adapter.activated) {
+        return res.status(400).json({ error: "Adapter is not activated" });
+      }
+
+      // Invalidate all tokens for this adapter
+      await tokenLifecycle.invalidateToken(adapter.id);
+
+      // Log refresh
+      await storage.addAuditLog?.({
+        event_type: "auth_adapter_refresh_forced",
+        resource_type: "authAdapter",
+        resource_id: adapter.id,
+        actor: "system",
+        status: "success",
+      });
+
+      res.json({ ok: true, message: "Token cache invalidated - will refresh on next use" });
+    } catch (error: any) {
+      authLog.error("Failed to refresh adapter tokens", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/auth/adapters/:id/status - Get token status
+  app.get("/api/auth/adapters/:id/status", async (req, res) => {
+    try {
+      const adapter = await storage.getAuthAdapter?.(req.params.id);
+      if (!adapter) {
+        return res.status(404).json({ error: "Auth adapter not found" });
+      }
+
+      // Get cached token info (without exposing token itself)
+      const cached = await tokenLifecycle.get(adapter.id, "access");
+      
+      const status = {
+        adapterId: adapter.id,
+        name: adapter.name,
+        type: adapter.type,
+        activated: adapter.activated,
+        hasCachedToken: !!cached,
+        tokenExpired: cached ? tokenLifecycle.isExpired(cached.expiresAt) : null,
+        expiresAt: cached?.expiresAt || null,
+        lastUsed: adapter.lastUsedAt || null,
+        lastTested: adapter.lastTestedAt || null,
+      };
+
+      res.json(status);
+    } catch (error: any) {
+      authLog.error("Failed to get adapter status", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================================================
+  // Inbound Auth Policies CRUD
+  // ============================================================================
+
+  // GET /api/auth/policies - List all policies
+  app.get("/api/auth/policies", async (req, res) => {
+    try {
+      const policies = await storage.getInboundAuthPolicies?.() || [];
+      res.json(policies);
+    } catch (error: any) {
+      authLog.error("Failed to list policies", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/auth/policies/:id - Get single policy
+  app.get("/api/auth/policies/:id", async (req, res) => {
+    try {
+      const policies = await storage.getInboundAuthPolicies?.() || [];
+      const policy = policies.find((p: any) => p.id === req.params.id);
+      if (!policy) {
+        return res.status(404).json({ error: "Policy not found" });
+      }
+      res.json(policy);
+    } catch (error: any) {
+      authLog.error("Failed to get policy", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/auth/policies - Create policy
+  app.post("/api/auth/policies", async (req, res) => {
+    try {
+      const policy = await storage.createInboundAuthPolicy?.(req.body);
+      if (!policy) {
+        return res.status(500).json({ error: "Failed to create policy" });
+      }
+
+      // Reload middleware policy cache
+      await reloadPolicies();
+
+      // Log audit event
+      await storage.addAuditLog?.({
+        event_type: "inbound_policy_created",
+        resource_type: "inboundAuthPolicy",
+        resource_id: policy.id,
+        actor: "system",
+        status: "success",
+        metadata: { routePattern: policy.routePattern, httpMethod: policy.httpMethod },
+      });
+
+      res.json(policy);
+    } catch (error: any) {
+      authLog.error("Failed to create policy", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PUT /api/auth/policies/:id - Update policy
+  app.put("/api/auth/policies/:id", async (req, res) => {
+    try {
+      const policy = await storage.updateInboundAuthPolicy?.(req.params.id, req.body);
+      if (!policy) {
+        return res.status(404).json({ error: "Policy not found" });
+      }
+
+      // Reload middleware policy cache
+      await reloadPolicies();
+
+      // Log audit event
+      await storage.addAuditLog?.({
+        event_type: "inbound_policy_updated",
+        resource_type: "inboundAuthPolicy",
+        resource_id: policy.id,
+        actor: "system",
+        status: "success",
+      });
+
+      res.json(policy);
+    } catch (error: any) {
+      authLog.error("Failed to update policy", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/auth/policies/:id - Delete policy
+  app.delete("/api/auth/policies/:id", async (req, res) => {
+    try {
+      await storage.deleteInboundAuthPolicy?.(req.params.id);
+
+      // Reload middleware policy cache
+      await reloadPolicies();
+
+      // Log audit event
+      await storage.addAuditLog?.({
+        event_type: "inbound_policy_deleted",
+        resource_type: "inboundAuthPolicy",
+        resource_id: req.params.id,
+        actor: "system",
+        status: "success",
+      });
+
+      res.json({ ok: true });
+    } catch (error: any) {
+      authLog.error("Failed to delete policy", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  authLog.info("Auth routes registered successfully");
+}
+
