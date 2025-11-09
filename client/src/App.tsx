@@ -12,6 +12,7 @@ import Ingest from "@/pages/ingest";
 import DataSources from "@/pages/datasources";
 import Interfaces from "@/pages/interfaces";
 import Flows from "@/pages/flows";
+import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 import type { QueueConfig } from "@shared/schema";
 
@@ -43,6 +44,7 @@ function Router() {
               <Route path="/interfaces" component={Interfaces} />
               <Route path="/flows" component={Flows} />
               <Route path="/ingest" component={Ingest} />
+              <Route path="/settings" component={Settings} />
               <Route component={NotFound} />
             </Switch>
           </main>

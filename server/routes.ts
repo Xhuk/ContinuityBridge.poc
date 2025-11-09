@@ -22,8 +22,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     // Initialize email service with stored SMTP settings
     const { emailService } = await import("./src/notifications/index.js");
-    const smtpSettings = await storage.getSmtpSettings();
-    if (smtpSettings) {
+    const smtpSettings = storage.getSmtpSettingsForService 
+      ? await storage.getSmtpSettingsForService() 
+      : await storage.getSmtpSettings();
+    if (smtpSettings && smtpSettings.password) {
       try {
         await emailService.configure(smtpSettings);
         log.info("Email service initialized with stored SMTP settings");

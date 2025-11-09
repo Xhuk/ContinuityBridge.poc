@@ -28,6 +28,7 @@ export interface IStorage {
 
   // SMTP Settings Management (single instance)
   getSmtpSettings(): Promise<SmtpSettings | undefined>;
+  getSmtpSettingsForService?(): Promise<SmtpSettings | undefined>; // Optional: includes encrypted password
   upsertSmtpSettings(settings: InsertSmtpSettings): Promise<SmtpSettings>;
   deleteSmtpSettings(): Promise<boolean>;
 }

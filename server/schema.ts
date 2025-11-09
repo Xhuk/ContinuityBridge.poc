@@ -152,7 +152,7 @@ export type InsertSmtpSettings = typeof smtpSettings.$inferInsert;
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Validation schema for SMTP settings
+// Validation schema for SMTP settings (create)
 export const insertSmtpSettingsSchema = createInsertSchema(smtpSettings, {
   host: z.string().min(1, "SMTP host is required"),
   port: z.number().int().min(1).max(65535, "Port must be between 1 and 65535"),
@@ -168,6 +168,11 @@ export const insertSmtpSettingsSchema = createInsertSchema(smtpSettings, {
     { message: "All alert recipients must be valid email addresses" }
   ),
 }).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Validation schema for SMTP settings (update - password optional)
+export const updateSmtpSettingsSchema = insertSmtpSettingsSchema.extend({
+  password: z.string().optional(), // Password is optional on update
+});
 
 // Adapter Licenses Table (for marketplace business model)
 export const adapterLicenses = sqliteTable("adapter_licenses", {

@@ -1,4 +1,4 @@
-import { Home, List, Settings, Upload, Database, Network, Workflow } from "lucide-react";
+import { Home, List, Settings, Upload, Database, Network, Workflow, Mail } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -48,6 +48,11 @@ const menuItems = [
     title: "Ingest XML",
     url: "/ingest",
     icon: Upload,
+  },
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Mail,
   },
 ];
 

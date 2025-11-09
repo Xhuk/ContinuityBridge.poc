@@ -303,14 +303,13 @@ export class DatabaseStorage implements IStorage {
     return true;
   }
 
-  private mapSmtpFromDb(row: any): SchemaSmtpSettings {
-    return {
+  private mapSmtpFromDb(row: any, includePassword: boolean = false): SchemaSmtpSettings {
+    const settings: any = {
       id: row.id,
       host: row.host,
       port: row.port,
       secure: Boolean(row.secure),
       username: row.username,
-      password: row.password,
       fromAddress: row.fromAddress,
       fromName: row.fromName || undefined,
       notifyOnFlowError: Boolean(row.notifyOnFlowError),
@@ -322,5 +321,24 @@ export class DatabaseStorage implements IStorage {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
+    
+    if (includePassword) {
+      settings.password = row.password;
+    } else {
+      settings.password = ''; // Required by type but never exposed
+    }
+    
+    return settings;
+  }
+
+  async getSmtpSettingsForService(): Promise<SchemaSmtpSettings | undefined> {
+    const result = await (db.select() as any).from(smtpSettings).limit(1);
+    
+    if (result.length === 0) {
+      return undefined;
+    }
+
+    const row: any = result[0];
+    return this.mapSmtpFromDb(row, true); // Include password for service configuration
   }
 }

@@ -956,16 +956,17 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
         return res.json({ configured: false });
       }
 
-      // Don't send password to client
+      // Never send password to client
       const { password, ...safeSettings } = settings;
       
       res.json({
         configured: true,
+        hasPassword: true,
         settings: safeSettings,
       });
     } catch (error: any) {
       log.error("Error fetching SMTP settings", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: "Failed to fetch SMTP settings" });
     }
   });
 
@@ -976,9 +977,12 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
         return res.status(501).json({ error: "Storage not initialized" });
       }
 
-      // Validate request body with Zod
-      const { insertSmtpSettingsSchema } = await import('../../schema.js');
-      const validation = insertSmtpSettingsSchema.safeParse(req.body);
+      const existing = await storage.getSmtpSettingsForService?.() || await storage.getSmtpSettings();
+      
+      // Use appropriate schema based on whether this is update or create
+      const { insertSmtpSettingsSchema, updateSmtpSettingsSchema } = await import('../../schema.js');
+      const schema = existing ? updateSmtpSettingsSchema : insertSmtpSettingsSchema;
+      const validation = schema.safeParse(req.body);
       
       if (!validation.success) {
         return res.status(400).json({
@@ -989,9 +993,21 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
 
       const settingsData = validation.data;
       
-      // Encrypt password before storing
+      // Handle password encryption
       const { encryptPassword } = await import('../notifications/crypto.js');
-      const encryptedPassword = encryptPassword(settingsData.password);
+      let encryptedPassword: string;
+      
+      if (settingsData.password) {
+        // New password provided
+        encryptedPassword = encryptPassword(settingsData.password);
+      } else if (existing && existing.password) {
+        // Keep existing password
+        encryptedPassword = existing.password;
+      } else {
+        return res.status(400).json({
+          error: "Password is required for initial setup",
+        });
+      }
 
       const settings = await storage.upsertSmtpSettings({
         ...settingsData,
