@@ -250,7 +250,7 @@ export const secretsVault = sqliteTable("secrets_vault", {
   
   // Integration type and label
   integrationType: text("integration_type").notNull().$type<
-    "smtp" | "azure_blob" | "sftp" | "ftp" | "database" | "api_key" | "rabbitmq" | "kafka" | "custom"
+    "smtp" | "azure_blob" | "sftp" | "ftp" | "database" | "api_key" | "rabbitmq" | "kafka" | "oauth2" | "jwt" | "cookie" | "custom"
   >(),
   label: text("label").notNull(), // User-friendly name (e.g., "Production SMTP")
   
@@ -462,6 +462,56 @@ export const createKafkaSecretSchema = z.object({
   }),
 });
 
+export const createOAuth2SecretSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  metadata: z.object({
+    serviceName: z.string().optional(),
+    description: z.string().optional(),
+  }).optional(),
+  payload: z.object({
+    clientId: z.string().min(1, "Client ID is required"),
+    clientSecret: z.string().min(1, "Client Secret is required"),
+    tokenUrl: z.string().url("Token URL must be a valid URL").optional(),
+    authorizationUrl: z.string().url("Authorization URL must be a valid URL").optional(),
+    scope: z.string().optional(),
+    redirectUri: z.string().url("Redirect URI must be a valid URL").optional(),
+  }),
+});
+
+export const createJWTSecretSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  metadata: z.object({
+    serviceName: z.string().optional(),
+    description: z.string().optional(),
+  }).optional(),
+  payload: z.object({
+    secret: z.string().optional(),           // For HS256/HS512
+    privateKey: z.string().optional(),       // For RS256/RS512 (PEM format)
+    publicKey: z.string().optional(),        // For RS256/RS512 verification (PEM format)
+    algorithm: z.enum(["HS256", "HS512", "RS256", "RS512"]).default("HS256"),
+    issuer: z.string().optional(),
+    audience: z.string().optional(),
+  }).refine(
+    (data) => data.secret || data.privateKey,
+    { message: "Either secret (for HMAC) or private key (for RSA) is required" }
+  ),
+});
+
+export const createCookieSecretSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  metadata: z.object({
+    serviceName: z.string().optional(),
+    description: z.string().optional(),
+  }).optional(),
+  payload: z.object({
+    cookieName: z.string().min(1, "Cookie name is required"),
+    cookieSecret: z.string().optional(),     // For signing cookies
+    sessionSecret: z.string().optional(),    // For session validation
+    domain: z.string().optional(),
+    path: z.string().optional().default("/"),
+  }),
+});
+
 export const createCustomSecretSchema = z.object({
   label: z.string().min(1, "Label is required"),
   metadata: z.object({
@@ -497,9 +547,9 @@ export type InsertQueueBackendConfig = typeof queueBackendConfig.$inferInsert;
 export const auditLogs = sqliteTable("audit_logs", {
   id: text("id").primaryKey(),
   timestamp: text("timestamp").notNull(),
-  operation: text("operation").notNull(), // e.g., "VAULT_INITIALIZED", "SECRET_CREATED"
+  operation: text("operation").notNull(), // e.g., "VAULT_INITIALIZED", "SECRET_CREATED", "AUTH_ADAPTER_ACTIVATED"
   resource_type: text("resource_type").$type<
-    "vault" | "secret" | "smtp" | "queue" | "flow" | "interface"
+    "vault" | "secret" | "smtp" | "queue" | "flow" | "interface" | "auth_adapter"
   >(),
   resource_id: text("resource_id"), // ID of affected resource
   user_ip: text("user_ip"),
@@ -511,3 +561,82 @@ export const auditLogs = sqliteTable("audit_logs", {
 
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = typeof auditLogs.$inferInsert;
+
+// Auth Adapters Table (for inbound/outbound authentication)
+export const authAdapters = sqliteTable("auth_adapters", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  
+  // Adapter type and direction
+  type: text("type").notNull().$type<"oauth2" | "jwt" | "cookie">(),
+  direction: text("direction").notNull().$type<"inbound" | "outbound" | "bidirectional">(),
+  
+  // User ownership (for user-level secrets)
+  userId: text("user_id"), // Optional: tracks which user created/owns this adapter
+  
+  // Vault secret reference
+  secretId: text("secret_id").references(() => secretsVault.id, { onDelete: "set null" }),
+  
+  // Configuration for token placement/extraction
+  config: text("config", { mode: "json" }).notNull().$type<{
+    // Inbound configuration (where to find tokens)
+    inbound?: {
+      headerName?: string;           // e.g., "Authorization", "X-Auth-Token"
+      headerPrefix?: string;          // e.g., "Bearer ", "Token "
+      cookieName?: string;            // e.g., "session_token"
+      queryParam?: string;            // e.g., "access_token"
+      bodyField?: string;             // e.g., "token" for form-encoded
+      
+      // JWT-specific
+      jwtAlgorithm?: string;          // e.g., "HS256", "RS256"
+      jwtIssuer?: string;
+      jwtAudience?: string;
+      
+      // OAuth2-specific
+      introspectionUrl?: string;
+      introspectionClientId?: string;
+    };
+    
+    // Outbound configuration (where to place tokens)
+    outbound?: {
+      placement: "header" | "cookie" | "query" | "body";
+      headerName?: string;            // e.g., "Authorization"
+      headerPrefix?: string;          // e.g., "Bearer "
+      cookieName?: string;
+      cookieOptions?: {
+        httpOnly?: boolean;
+        secure?: boolean;
+        sameSite?: "strict" | "lax" | "none";
+      };
+      queryParam?: string;
+      bodyField?: string;
+      bodyEncoding?: "json" | "form";  // application/json vs application/x-www-form-urlencoded
+      
+      // OAuth2-specific
+      tokenUrl?: string;
+      grantType?: "client_credentials" | "authorization_code" | "refresh_token";
+      scope?: string;
+      
+      // JWT-specific
+      jwtAlgorithm?: string;
+      jwtExpiresIn?: string;          // e.g., "1h", "30m"
+      jwtClaims?: Record<string, unknown>;
+    };
+  }>(),
+  
+  // Status
+  activated: integer("activated", { mode: "boolean" }).notNull().default(false),
+  lastTestedAt: text("last_tested_at"),
+  lastUsedAt: text("last_used_at"),
+  
+  // Metadata
+  tags: text("tags", { mode: "json" }).$type<string[]>(),
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type AuthAdapter = typeof authAdapters.$inferSelect;
+export type InsertAuthAdapter = typeof authAdapters.$inferInsert;

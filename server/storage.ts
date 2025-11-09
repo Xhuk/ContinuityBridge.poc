@@ -2,16 +2,18 @@ import {
   type FlowDefinition,
   type InsertFlowDefinition,
   type FlowRun,
-  type SmtpSettings,
-  type InsertSmtpSettings,
 } from "@shared/schema";
 import type {
+  SmtpSettings,
+  InsertSmtpSettings,
   QueueBackendConfig,
   InsertQueueBackendConfig,
   SecretsVaultEntry,
   InsertSecretsVaultEntry,
   SecretsMasterKey,
   InsertSecretsMasterKey,
+  AuthAdapter,
+  InsertAuthAdapter,
 } from "./schema";
 import { randomUUID } from "crypto";
 
@@ -55,6 +57,18 @@ export interface IStorage {
   // Queue Backend Configuration (singleton config for backend switching)
   getQueueBackendConfig?(): Promise<QueueBackendConfig | undefined>;
   saveQueueBackendConfig?(config: InsertQueueBackendConfig): Promise<QueueBackendConfig>;
+
+  // Auth Adapter Management (for inbound/outbound authentication)
+  listAuthAdapters?(userId?: string): Promise<AuthAdapter[]>;
+  getAuthAdapter?(id: string): Promise<AuthAdapter | undefined>;
+  saveAuthAdapter?(data: InsertAuthAdapter): Promise<AuthAdapter>;
+  updateAuthAdapter?(id: string, data: Partial<InsertAuthAdapter>): Promise<AuthAdapter | undefined>;
+  deleteAuthAdapter?(id: string): Promise<boolean>;
+  getActiveAuthAdapters?(direction?: 'inbound' | 'outbound'): Promise<AuthAdapter[]>;
+
+  // Audit Logs
+  getAuditLogs?(filters?: { since?: string; limit?: number; resourceType?: string }): Promise<any[]>;
+  addAuditLog?(log: any): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -62,12 +76,16 @@ export class MemStorage implements IStorage {
   private flowRuns: Map<string, FlowRun>;
   private smtp: SmtpSettings | undefined;
   private queueBackendConfig: QueueBackendConfig | undefined;
+  private authAdapters: Map<string, AuthAdapter>;
+  private auditLogs: any[];
 
   constructor() {
     this.flows = new Map();
     this.flowRuns = new Map();
     this.smtp = undefined;
     this.queueBackendConfig = undefined;
+    this.authAdapters = new Map();
+    this.auditLogs = [];
   }
 
   // ============================================================================
@@ -189,11 +207,19 @@ export class MemStorage implements IStorage {
     this.smtp = {
       ...settings,
       id,
+      port: settings.port !== undefined ? settings.port : 587,
+      secure: settings.secure !== undefined ? settings.secure : false,
+      enabled: settings.enabled !== undefined ? settings.enabled : true,
+      fromName: settings.fromName || null,
+      notifyOnFlowError: settings.notifyOnFlowError !== undefined ? settings.notifyOnFlowError : true,
+      notifyOnValidationError: settings.notifyOnValidationError !== undefined ? settings.notifyOnValidationError : false,
+      notifyOnAckFailure: settings.notifyOnAckFailure !== undefined ? settings.notifyOnAckFailure : true,
+      lastTestedAt: settings.lastTestedAt || null,
       createdAt: this.smtp?.createdAt || now,
       updatedAt: now,
     };
     
-    return this.smtp;
+    return this.smtp!;
   }
 
   async deleteSmtpSettings(): Promise<boolean> {
@@ -216,12 +242,126 @@ export class MemStorage implements IStorage {
     const now = new Date().toISOString();
     
     this.queueBackendConfig = {
-      ...config,
-      id: 'singleton', // Always singleton
+      id: 'singleton',
+      currentBackend: config.currentBackend || 'inmemory',
+      currentSecretId: config.currentSecretId || null,
+      previousBackend: config.previousBackend || null,
+      previousSecretId: config.previousSecretId || null,
+      lastChangeAt: config.lastChangeAt || null,
+      changePending: config.changePending !== undefined ? config.changePending : false,
+      lastError: config.lastError || null,
       updatedAt: now,
     };
 
-    return this.queueBackendConfig;
+    return this.queueBackendConfig!;
+  }
+
+  // ============================================================================
+  // Auth Adapter Management
+  // ============================================================================
+
+  async listAuthAdapters(userId?: string): Promise<AuthAdapter[]> {
+    const adapters = Array.from(this.authAdapters.values());
+    if (userId) {
+      return adapters.filter(a => a.userId === userId);
+    }
+    return adapters;
+  }
+
+  async getAuthAdapter(id: string): Promise<AuthAdapter | undefined> {
+    return this.authAdapters.get(id);
+  }
+
+  async saveAuthAdapter(data: InsertAuthAdapter): Promise<AuthAdapter> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    
+    const adapter: AuthAdapter = {
+      ...data,
+      id,
+      description: data.description || null,
+      userId: data.userId || null,
+      secretId: data.secretId || null,
+      tags: data.tags || null,
+      metadata: data.metadata || null,
+      activated: data.activated !== undefined ? data.activated : false,
+      lastTestedAt: null,
+      lastUsedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    
+    this.authAdapters.set(id, adapter);
+    return adapter;
+  }
+
+  async updateAuthAdapter(id: string, data: Partial<InsertAuthAdapter>): Promise<AuthAdapter | undefined> {
+    const existing = this.authAdapters.get(id);
+    if (!existing) {
+      return undefined;
+    }
+
+    const updated: AuthAdapter = {
+      ...existing,
+      ...data,
+      id,
+      createdAt: existing.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.authAdapters.set(id, updated);
+    return updated;
+  }
+
+  async deleteAuthAdapter(id: string): Promise<boolean> {
+    return this.authAdapters.delete(id);
+  }
+
+  async getActiveAuthAdapters(direction?: 'inbound' | 'outbound'): Promise<AuthAdapter[]> {
+    const adapters = Array.from(this.authAdapters.values())
+      .filter(a => a.activated);
+    
+    if (direction) {
+      return adapters.filter(a => 
+        a.direction === direction || a.direction === 'bidirectional'
+      );
+    }
+    
+    return adapters;
+  }
+
+  // ============================================================================
+  // Audit Logs
+  // ============================================================================
+
+  async getAuditLogs(filters?: { since?: string; limit?: number; resourceType?: string }): Promise<any[]> {
+    let logs = [...this.auditLogs];
+    
+    if (filters?.since) {
+      const sinceDate = new Date(filters.since);
+      logs = logs.filter(log => new Date(log.timestamp) >= sinceDate);
+    }
+    
+    if (filters?.resourceType) {
+      logs = logs.filter(log => log.resource_type === filters.resourceType);
+    }
+    
+    // Sort by timestamp descending
+    logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    
+    if (filters?.limit) {
+      logs = logs.slice(0, filters.limit);
+    }
+    
+    return logs;
+  }
+
+  async addAuditLog(log: any): Promise<void> {
+    this.auditLogs.push({
+      ...log,
+      id: randomUUID(),
+      created_at: new Date().toISOString(),
+    });
   }
 }
 
