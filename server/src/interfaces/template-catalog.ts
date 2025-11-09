@@ -58,6 +58,19 @@ const interfaceTemplateSchema = z.object({
   // Tags and metadata
   tags: z.array(z.string()).optional(),
   metadata: z.record(z.unknown()).optional(),
+  
+  // Pricing and licensing (for marketplace)
+  tier: z.enum(["free", "premium"]).default("premium"),
+  pricing: z.object({
+    monthly: z.number().optional(), // USD per month
+    yearly: z.number().optional(), // USD per year
+    lifetime: z.number().optional(), // USD one-time
+    currency: z.string().default("USD"),
+  }).optional(),
+  
+  // Feature highlights (for marketplace UI)
+  features: z.array(z.string()).optional(),
+  limitations: z.array(z.string()).optional(),
 });
 
 export type InterfaceTemplate = z.infer<typeof interfaceTemplateSchema>;

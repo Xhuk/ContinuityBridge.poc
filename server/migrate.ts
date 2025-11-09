@@ -92,6 +92,28 @@ export async function ensureTables() {
       )
     `);
 
+    // Create adapter_licenses table (for marketplace licensing)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS adapter_licenses (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL DEFAULT 'default',
+        adapter_id TEXT NOT NULL,
+        license_type TEXT NOT NULL,
+        subscription_status TEXT,
+        expires_at TEXT,
+        purchased_at TEXT NOT NULL,
+        purchase_price REAL,
+        billing_interval TEXT,
+        payment_provider TEXT,
+        payment_id TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(customer_id, adapter_id)
+      )
+    `);
+
     // Create indices for common queries
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS idx_flow_runs_flow_id ON flow_runs(flow_id)
@@ -107,6 +129,14 @@ export async function ensureTables() {
 
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS idx_integration_events_timestamp ON integration_events(timestamp)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_adapter_licenses_adapter_id ON adapter_licenses(adapter_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_adapter_licenses_customer_id ON adapter_licenses(customer_id)
     `);
 
     console.log("[Database] Tables initialized successfully");

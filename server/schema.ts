@@ -112,3 +112,42 @@ export type InsertInterface = typeof interfaces.$inferInsert;
 
 export type IntegrationEvent = typeof integrationEvents.$inferSelect;
 export type InsertIntegrationEvent = typeof integrationEvents.$inferInsert;
+
+// Adapter Licenses Table (for marketplace business model)
+export const adapterLicenses = sqliteTable("adapter_licenses", {
+  id: text("id").primaryKey(),
+  
+  // Customer/organization identifier (for multi-tenancy in future)
+  customerId: text("customer_id").notNull().default("default"),
+  
+  // Adapter/template ID (e.g., "amazon-sp-api", "mercadolibre-api")
+  adapterId: text("adapter_id").notNull(),
+  
+  // License type
+  licenseType: text("license_type").notNull().$type<"free" | "subscription" | "lifetime">(),
+  
+  // Subscription details
+  subscriptionStatus: text("subscription_status").$type<"active" | "expired" | "canceled" | "trial">(),
+  expiresAt: text("expires_at"), // null for lifetime licenses
+  
+  // Purchase metadata
+  purchasedAt: text("purchased_at").notNull(),
+  purchasePrice: real("purchase_price"), // in USD
+  billingInterval: text("billing_interval").$type<"monthly" | "yearly" | "lifetime">(),
+  
+  // External payment system reference
+  paymentProvider: text("payment_provider").$type<"stripe" | "manual" | "trial">(),
+  paymentId: text("payment_id"), // Stripe subscription/payment ID
+  
+  // Status
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  
+  // Metadata
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type AdapterLicense = typeof adapterLicenses.$inferSelect;
+export type InsertAdapterLicense = typeof adapterLicenses.$inferInsert;
