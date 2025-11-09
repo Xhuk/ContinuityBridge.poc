@@ -1,13 +1,17 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Lock, Shield, KeyRound, Plus, Eye, EyeOff, Trash2, Edit2, CheckCircle, XCircle, AlertCircle, Sparkles, ExternalLink } from "lucide-react";
+import { Lock, Shield, KeyRound, Plus, Eye, EyeOff, Trash2, Edit2, CheckCircle, XCircle, AlertCircle, Sparkles, ExternalLink, Mail, Cloud, Server, HardDrive, Key, Box, Database } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +21,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import {
   Alert,
   AlertDescription,
@@ -46,6 +59,136 @@ function generateSecurePassphrase(): string {
   
   return words.join("-");
 }
+
+// Secret Type Registry - centralizes metadata for all integration types
+type IntegrationType = "Smtp" | "AzureBlob" | "Sftp" | "Ftp" | "Database" | "ApiKey" | "Custom";
+
+const smtpSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  host: z.string().optional(),
+  username: z.string().optional(),
+  description: z.string().optional(),
+  password: z.string().min(1, "Password is required"),
+});
+
+const azureBlobSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  accountName: z.string().min(1, "Account name is required"),
+  accountKey: z.string().min(1, "Account key is required"),
+  sasUrl: z.string().optional(),
+  description: z.string().optional(),
+});
+
+const sftpSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  host: z.string().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  privateKey: z.string().optional(),
+  passphrase: z.string().optional(),
+  description: z.string().optional(),
+}).refine((data) => data.password || data.privateKey, {
+  message: "Either password or private key is required",
+  path: ["password"],
+});
+
+const ftpSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  host: z.string().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  privateKey: z.string().optional(),
+  passphrase: z.string().optional(),
+  description: z.string().optional(),
+}).refine((data) => data.password || data.privateKey, {
+  message: "Either password or private key is required",
+  path: ["password"],
+});
+
+const databaseSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  host: z.string().optional(),
+  connectionString: z.string().optional(),
+  password: z.string().optional(),
+  description: z.string().optional(),
+}).refine((data) => data.connectionString || data.password, {
+  message: "Either connection string or password is required",
+  path: ["connectionString"],
+});
+
+const apiKeySchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  serviceName: z.string().optional(),
+  apiKey: z.string().min(1, "API key is required"),
+  apiSecret: z.string().optional(),
+  description: z.string().optional(),
+});
+
+const customSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  description: z.string().optional(),
+  secretData: z.string().min(1, "Secret data is required"),
+});
+
+interface SecretTypeConfig {
+  icon: any;
+  label: string;
+  description: string;
+  schema: z.ZodSchema;
+  sensitiveFields: string[];
+}
+
+const secretTypeConfig: Record<IntegrationType, SecretTypeConfig> = {
+  Smtp: {
+    icon: Mail,
+    label: "SMTP Email",
+    description: "Email server credentials",
+    schema: smtpSchema,
+    sensitiveFields: ["password"],
+  },
+  AzureBlob: {
+    icon: Cloud,
+    label: "Azure Blob Storage",
+    description: "Azure storage account keys",
+    schema: azureBlobSchema,
+    sensitiveFields: ["accountKey", "sasUrl"],
+  },
+  Sftp: {
+    icon: Server,
+    label: "SFTP",
+    description: "Secure file transfer protocol",
+    schema: sftpSchema,
+    sensitiveFields: ["password", "privateKey", "passphrase"],
+  },
+  Ftp: {
+    icon: HardDrive,
+    label: "FTP",
+    description: "File transfer protocol",
+    schema: ftpSchema,
+    sensitiveFields: ["password", "privateKey", "passphrase"],
+  },
+  Database: {
+    icon: Database,
+    label: "Database",
+    description: "Database connection credentials",
+    schema: databaseSchema,
+    sensitiveFields: ["connectionString", "password"],
+  },
+  ApiKey: {
+    icon: Key,
+    label: "API Key",
+    description: "Third-party API keys",
+    schema: apiKeySchema,
+    sensitiveFields: ["apiKey", "apiSecret"],
+  },
+  Custom: {
+    icon: Box,
+    label: "Custom Secret",
+    description: "Custom encrypted data",
+    schema: customSchema,
+    sensitiveFields: ["secretData"],
+  },
+};
 
 export default function SecretsVault() {
   const { toast } = useToast();
