@@ -5,9 +5,9 @@ import type { OutboundAuthResult } from "./base-auth-adapter";
 import { OAuth2Adapter } from "./adapters/oauth2-adapter";
 import { JWTAdapter } from "./adapters/jwt-adapter";
 import { CookieAdapter } from "./adapters/cookie-adapter";
-import { logger } from "../../utils/logger";
+import { logger } from "../core/logger";
 
-const log = logger.child({ module: "OutboundTokenProvider" });
+const log = logger.child("OutboundTokenProvider");
 
 /**
  * OutboundTokenProvider

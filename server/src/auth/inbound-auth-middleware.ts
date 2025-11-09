@@ -6,10 +6,10 @@ import { OAuth2Adapter } from "./adapters/oauth2-adapter";
 import { JWTAdapter } from "./adapters/jwt-adapter";
 import { CookieAdapter } from "./adapters/cookie-adapter";
 import type { InboundAuthPolicy } from "../../schema";
-import { logger } from "../../utils/logger";
+import { logger } from "../core/logger";
 import { match as pathMatch } from "path-to-regexp";
 
-const log = logger.child({ module: "InboundAuthMiddleware" });
+const log = logger.child("InboundAuthMiddleware");
 
 export interface InboundAuthMiddlewareOptions {
   storage: IStorage;

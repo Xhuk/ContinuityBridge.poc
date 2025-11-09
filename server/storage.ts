@@ -391,12 +391,13 @@ export class MemStorage implements IStorage {
   // ============================================================================
 
   async getInboundAuthPolicies(): Promise<InboundAuthPolicy[]> {
-    return Array.from(this.inboundAuthPolicies.values());
+    return [...this.inboundAuthPolicies.values()];
   }
 
   async getInboundAuthPolicy(routePattern: string, httpMethod?: string): Promise<InboundAuthPolicy | undefined> {
     // Find policy matching route pattern and HTTP method
-    for (const policy of this.inboundAuthPolicies.values()) {
+    const policies = [...this.inboundAuthPolicies.values()];
+    for (const policy of policies) {
       if (policy.routePattern === routePattern) {
         // If policy specifies ALL or matches the requested method
         if (policy.httpMethod === "ALL" || !httpMethod || policy.httpMethod === httpMethod) {
@@ -411,13 +412,16 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const now = new Date().toISOString();
     const policy: InboundAuthPolicy = {
-      ...insertPolicy,
       id,
+      routePattern: insertPolicy.routePattern,
       httpMethod: insertPolicy.httpMethod || "ALL",
-      enforcementMode: insertPolicy.enforcementMode || "required",
-      multiTenant: insertPolicy.multiTenant || false,
+      description: insertPolicy.description || null,
+      metadata: insertPolicy.metadata || null,
       createdAt: now,
       updatedAt: now,
+      adapterId: insertPolicy.adapterId || null,
+      enforcementMode: insertPolicy.enforcementMode || "required",
+      multiTenant: insertPolicy.multiTenant || false,
     };
     this.inboundAuthPolicies.set(id, policy);
     return policy;

@@ -617,6 +617,7 @@ export const authAdapters = sqliteTable("auth_adapters", {
       tokenUrl?: string;
       grantType?: "client_credentials" | "authorization_code" | "refresh_token";
       scope?: string;
+      audience?: string;
       
       // JWT-specific
       jwtAlgorithm?: string;
