@@ -133,7 +133,10 @@ function SourceCard({ source, history }: { source: DataSourceConfig; history: Pu
   const { toast } = useToast();
 
   const testMutation = useMutation({
-    mutationFn: () => apiRequest(`/api/datasources/${source.id}/test`, { method: "POST" }),
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/datasources/${source.id}/test`);
+      return await res.json();
+    },
     onSuccess: (data: any) => {
       if (data.success) {
         toast({ title: "Connection Successful", description: data.message });
@@ -144,7 +147,10 @@ function SourceCard({ source, history }: { source: DataSourceConfig; history: Pu
   });
 
   const pullMutation = useMutation({
-    mutationFn: () => apiRequest(`/api/datasources/${source.id}/pull`, { method: "POST" }),
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/datasources/${source.id}/pull`);
+      return await res.json();
+    },
     onSuccess: (data: any) => {
       if (data.success) {
         toast({ title: "Pull Successful", description: `Processed ${data.history.itemsProcessed} files` });
@@ -157,7 +163,10 @@ function SourceCard({ source, history }: { source: DataSourceConfig; history: Pu
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => apiRequest(`/api/datasources/${source.id}`, { method: "DELETE" }),
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", `/api/datasources/${source.id}`);
+      return await res.json();
+    },
     onSuccess: () => {
       toast({ title: "Source Deleted" });
       queryClient.invalidateQueries({ queryKey: ["/api/datasources"] });
@@ -246,7 +255,10 @@ function SftpForm({ onSuccess }: { onSuccess: () => void }) {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("/api/datasources", { method: "POST", body: JSON.stringify(data) }),
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/datasources", data);
+      return await res.json();
+    },
     onSuccess: () => {
       toast({ title: "SFTP Source Created" });
       queryClient.invalidateQueries({ queryKey: ["/api/datasources"] });
@@ -413,7 +425,10 @@ function AzureBlobForm({ onSuccess }: { onSuccess: () => void }) {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("/api/datasources", { method: "POST", body: JSON.stringify(data) }),
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/datasources", data);
+      return await res.json();
+    },
     onSuccess: () => {
       toast({ title: "Azure Blob Source Created" });
       queryClient.invalidateQueries({ queryKey: ["/api/datasources"] });

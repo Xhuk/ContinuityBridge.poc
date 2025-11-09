@@ -6,6 +6,7 @@ import { getQueueProvider } from "../serverQueue.js";
 import { getWorkerInstance } from "../workers/worker.js";
 import { logger } from "../core/logger.js";
 import { getCurrentBackend } from "../serverQueue.js";
+import { getDataSourceManager } from "../datasources/manager.js";
 
 const log = logger.child("REST-API");
 
@@ -201,7 +202,6 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline): void {
   // GET /api/datasources - Get all data sources
   app.get("/api/datasources", (req, res) => {
     try {
-      const { getDataSourceManager } = require("../datasources/manager.js");
       const manager = getDataSourceManager();
       const sources = manager.getAllSources();
       res.json(sources);
@@ -214,7 +214,6 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline): void {
   // GET /api/datasources/:id - Get specific data source
   app.get("/api/datasources/:id", (req, res) => {
     try {
-      const { getDataSourceManager } = require("../datasources/manager.js");
       const manager = getDataSourceManager();
       const source = manager.getSource(req.params.id);
       
@@ -244,7 +243,6 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline): void {
       }
       secret.sourceId = config.id;
 
-      const { getDataSourceManager } = require("../datasources/manager.js");
       const manager = getDataSourceManager();
       manager.createSource(config, secret);
       
@@ -264,7 +262,6 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline): void {
         return res.status(400).json({ error: "Config is required" });
       }
 
-      const { getDataSourceManager } = require("../datasources/manager.js");
       const manager = getDataSourceManager();
       manager.updateSource(req.params.id, config, secret);
       
@@ -278,7 +275,6 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline): void {
   // DELETE /api/datasources/:id - Delete data source
   app.delete("/api/datasources/:id", (req, res) => {
     try {
-      const { getDataSourceManager } = require("../datasources/manager.js");
       const manager = getDataSourceManager();
       manager.deleteSource(req.params.id);
       
@@ -292,7 +288,6 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline): void {
   // POST /api/datasources/:id/test - Test connection
   app.post("/api/datasources/:id/test", async (req, res) => {
     try {
-      const { getDataSourceManager } = require("../datasources/manager.js");
       const manager = getDataSourceManager();
       const result = await manager.testConnection(req.params.id);
       
@@ -310,7 +305,6 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline): void {
   // POST /api/datasources/:id/pull - Trigger manual pull
   app.post("/api/datasources/:id/pull", async (req, res) => {
     try {
-      const { getDataSourceManager } = require("../datasources/manager.js");
       const manager = getDataSourceManager();
       const result = await manager.pullFiles(req.params.id);
       
@@ -328,7 +322,6 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline): void {
   app.get("/api/datasources/history", (req, res) => {
     try {
       const { sourceId } = req.query;
-      const { getDataSourceManager } = require("../datasources/manager.js");
       const manager = getDataSourceManager();
       const history = manager.getPullHistory(sourceId as string | undefined);
       
