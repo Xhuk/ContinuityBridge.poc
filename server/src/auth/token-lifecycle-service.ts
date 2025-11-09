@@ -31,12 +31,15 @@ export class TokenLifecycleService {
    * Get a valid token for the given adapter.
    * If token is expired or doesn't exist, triggers refresh.
    * If refresh is already in flight, waits and retries.
+   * 
+   * @param idleTimeoutMinutes - Optional idle timeout in minutes (for cookie sessions)
    */
   async getValidToken(
     adapterId: string,
     tokenType: TokenCache['tokenType'] = 'access',
-    scope?: string
-  ): Promise<{ token: string; expiresAt?: string } | null> {
+    scope?: string,
+    idleTimeoutMinutes?: number
+  ): Promise<{ token: string; expiresAt?: string; sessionData?: Record<string, unknown> } | null> {
     const cached = await this.storage.getTokenCache?.(adapterId, tokenType, scope);
 
     if (!cached) {
@@ -44,11 +47,24 @@ export class TokenLifecycleService {
       return null;
     }
 
-    // Check if token is expired
+    // Check if token is expired (hard expiration)
     if (cached.expiresAt && new Date(cached.expiresAt) <= new Date()) {
       // Token expired, invalidate and return null (adapter will refresh)
       await this.storage.deleteTokenCache?.(cached.id);
       return null;
+    }
+
+    // Check idle timeout (for cookie sessions)
+    if (idleTimeoutMinutes && cached.lastUsedAt) {
+      const lastUsed = new Date(cached.lastUsedAt);
+      const now = new Date();
+      const idleMinutes = (now.getTime() - lastUsed.getTime()) / (1000 * 60);
+
+      if (idleMinutes > idleTimeoutMinutes) {
+        // Session idle timeout exceeded, invalidate and return null
+        await this.storage.deleteTokenCache?.(cached.id);
+        return null;
+      }
     }
 
     // Check if refresh is in flight (another worker is refreshing)
@@ -65,7 +81,8 @@ export class TokenLifecycleService {
       } else {
         // Refresh in flight, wait 500ms and retry
         await new Promise(resolve => setTimeout(resolve, 500));
-        return this.getValidToken(adapterId, tokenType, scope);
+        // ✅ Propagate idleTimeoutMinutes through recursive call
+        return this.getValidToken(adapterId, tokenType, scope, idleTimeoutMinutes);
       }
     }
 
@@ -83,9 +100,23 @@ export class TokenLifecycleService {
       lastUsedAt: new Date().toISOString(),
     });
 
+    // Parse sessionData if present
+    let sessionData: Record<string, unknown> | undefined;
+    if (cached.sessionData) {
+      try {
+        sessionData = typeof cached.sessionData === 'string'
+          ? JSON.parse(cached.sessionData)
+          : cached.sessionData;
+      } catch {
+        // Ignore parse errors
+        sessionData = undefined;
+      }
+    }
+
     return {
       token: decrypted,
       expiresAt: cached.expiresAt || undefined,
+      sessionData,
     };
   }
 
