@@ -250,7 +250,7 @@ export const secretsVault = sqliteTable("secrets_vault", {
   
   // Integration type and label
   integrationType: text("integration_type").notNull().$type<
-    "smtp" | "azure_blob" | "sftp" | "ftp" | "database" | "api_key" | "custom"
+    "smtp" | "azure_blob" | "sftp" | "ftp" | "database" | "api_key" | "rabbitmq" | "kafka" | "custom"
   >(),
   label: text("label").notNull(), // User-friendly name (e.g., "Production SMTP")
   
@@ -316,6 +316,21 @@ export interface ApiKeySecretPayload {
   additionalHeaders?: Record<string, string>;
 }
 
+export interface RabbitMQSecretPayload {
+  url: string; // amqp://user:pass@host:port
+  queueIn?: string;
+  queueOut?: string;
+}
+
+export interface KafkaSecretPayload {
+  brokers: string; // Comma-separated list: host1:9092,host2:9092
+  user?: string;
+  password?: string;
+  groupId?: string;
+  topicIn?: string;
+  topicOut?: string;
+}
+
 export interface CustomSecretPayload {
   [key: string]: string;
 }
@@ -327,6 +342,8 @@ export type SecretPayload =
   | FtpSecretPayload
   | DatabaseSecretPayload 
   | ApiKeySecretPayload 
+  | RabbitMQSecretPayload
+  | KafkaSecretPayload
   | CustomSecretPayload;
 
 // Validation schemas for secret creation
@@ -417,6 +434,34 @@ export const createApiKeySecretSchema = z.object({
   }),
 });
 
+export const createRabbitMQSecretSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  metadata: z.object({
+    host: z.string().optional(),
+    description: z.string().optional(),
+  }).optional(),
+  payload: z.object({
+    url: z.string().min(1, "RabbitMQ URL is required (e.g., amqp://user:pass@localhost:5672)"),
+    queueIn: z.string().optional(),
+    queueOut: z.string().optional(),
+  }),
+});
+
+export const createKafkaSecretSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  metadata: z.object({
+    description: z.string().optional(),
+  }).optional(),
+  payload: z.object({
+    brokers: z.string().min(1, "Kafka brokers are required (e.g., localhost:9092,host2:9092)"),
+    user: z.string().optional(),
+    password: z.string().optional(),
+    groupId: z.string().optional(),
+    topicIn: z.string().optional(),
+    topicOut: z.string().optional(),
+  }),
+});
+
 export const createCustomSecretSchema = z.object({
   label: z.string().min(1, "Label is required"),
   metadata: z.object({
@@ -424,6 +469,29 @@ export const createCustomSecretSchema = z.object({
   }).optional(),
   payload: z.record(z.string().min(1)),
 });
+
+// Queue Backend Configuration Table (tracks current + previous for rollback)
+export const queueBackendConfig = sqliteTable("queue_backend_config", {
+  id: text("id").primaryKey().default("singleton"), // Always single row
+  
+  // Current backend
+  currentBackend: text("current_backend").notNull().$type<"inmemory" | "rabbitmq" | "kafka">().default("inmemory"),
+  currentSecretId: text("current_secret_id"), // Reference to secretsVault entry
+  
+  // Previous backend (for rollback)
+  previousBackend: text("previous_backend").$type<"inmemory" | "rabbitmq" | "kafka">(),
+  previousSecretId: text("previous_secret_id"), // Reference to secretsVault entry
+  
+  // Status flags
+  lastChangeAt: text("last_change_at"),
+  changePending: integer("change_pending", { mode: "boolean" }).notNull().default(false),
+  lastError: text("last_error"),
+  
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type QueueBackendConfig = typeof queueBackendConfig.$inferSelect;
+export type InsertQueueBackendConfig = typeof queueBackendConfig.$inferInsert;
 
 // Audit Logs Table (for compliance and security tracking)
 export const auditLogs = sqliteTable("audit_logs", {
