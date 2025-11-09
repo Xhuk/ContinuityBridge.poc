@@ -1,13 +1,25 @@
 # ContinuityBridge - Project Overview
 
-## Status: Phase 1 Complete ✅
+## Status: Phase 2.1 Complete ✅
 
-Interface Registry system implemented and functional. Users can now add/manage WMS, Oracle, Manhattan, Amazon, Last Mile, and other enterprise system integrations through the UI. Full CRUD operations with connectivity testing.
+**Phase 1**: Interface Registry system implemented and functional
+**Phase 2.1**: Visual Flow Builder data models complete
+- Flow schemas (FlowDefinition, FlowRun, FlowNode, FlowEdge) with React Flow compatibility
+- YAML node catalog (8 core nodes: triggers, parsers, transforms, builders, outputs, logic)
+- Portable storage interface with in-memory implementation (offline-capable, Docker-ready)
 
 ## Purpose
 ContinuityBridge is a fully configurable bi-directional integration hub that connects WMS, Oracle, Manhattan, Amazon, Last Mile, and other enterprise systems. It receives payloads from multiple sources (SFTP, Azure Blob, REST APIs), transforms them via configurable per-source-destination mappings, applies warehouse routing logic, and dispatches to multiple destinations with swappable queue backends.
 
 ## Recent Changes
+- **2025-11-09**: Phase 2.1: Flow Builder Data Models Complete ✅
+  - **Flow Schemas**: FlowDefinition (36 node types), FlowNode, FlowEdge, FlowRun
+  - **Queue Trigger Support**: Flows can be triggered by queue, webhook, timer, manual, or interface
+  - **Node Execution Tracking**: Per-node status, timing, input/output capture with optional timestamps
+  - **YAML Node Catalog**: 8 initial nodes (interface_source, object_mapper, interface_destination, xml_parser, json_builder, custom_javascript, conditional, manual_trigger)
+  - **NodeCatalog Loader**: Singleton service loads/validates YAML definitions from server/src/flow/nodes/
+  - **Portable Storage**: IStorage interface + MemStorage implementation for flows/runs (offline-capable, swappable for Docker)
+  
 - **2025-11-09**: Phase 1: Interface Registry Complete ✅
   - **Interface Schema**: Production-ready schema supporting 7 interface types (WMS, ERP, Marketplace, TMS, 3PL, Last Mile, Custom)
   - **Protocol Support**: REST API, SOAP, GraphQL, SFTP, FTP, Webhook, Database, Message Queue
@@ -194,6 +206,36 @@ Access:
 ## Roadmap
 
 ### Phase 1: Interface Registry ✅ COMPLETE
+(See completed items below)
+
+### Phase 2.1: Flow Builder Data Models ✅ COMPLETE
+✅ FlowDefinition schema with React Flow structure (nodes, edges, positions)
+✅ FlowRun schema with node-level execution tracking
+✅ YAML node catalog with 8 core node types
+✅ NodeCatalog loader with schema validation
+✅ Storage interface extensions for Flow CRUD operations
+✅ Portable in-memory storage (offline-capable, Docker-ready)
+
+### Phase 2.2: Flow Orchestrator Backend (Next)
+- Install object-mapper package for field mapping
+- Create FlowOrchestrator service (loads flows, executes node chains)
+- Implement core node executors (InterfaceSource, ObjectMapper, InterfaceDestination, XmlParser, JsonBuilder)
+- Integrate orchestrator into existing Pipeline (replace XMLToCanonicalTransformer)
+
+### Phase 2.3: Flow REST APIs
+- FlowManager backend service (CRUD, test execution, history)
+- REST endpoints for flows (/api/flows/*)
+- Node catalog endpoint (/api/flows/node-types)
+
+### Phase 2.4: React Flow Visual Editor
+- Flow editor page with React Flow canvas
+- Dynamic node configuration forms from YAML definitions
+- Flow save/load/test functionality
+
+### Phase 2.5: Extended Node Library
+- SFTP operations, API calls, custom JS sandbox, conditional routing
+
+### Phase 1: Interface Registry ✅ COMPLETE (Previous)
 ✅ Interface schema supporting 7 types, 8 protocols, 7 auth methods
 ✅ Backend InterfaceManager with CRUD + test connectivity
 ✅ Data Sources manager for SFTP/Azure Blob

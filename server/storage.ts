@@ -1,37 +1,141 @@
-import { type User, type InsertUser } from "@shared/schema";
+import { 
+  type FlowDefinition,
+  type InsertFlowDefinition,
+  type FlowRun,
+} from "@shared/schema";
 import { randomUUID } from "crypto";
 
-// modify the interface with any CRUD methods
-// you might need
+// Storage interface for ContinuityBridge
+// Designed to be portable and support offline operation
+// Future: Can be swapped with file-based, SQLite, or database storage for Docker deployments
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  // Flow Definition Management
+  createFlow(flow: InsertFlowDefinition): Promise<FlowDefinition>;
+  getFlow(id: string): Promise<FlowDefinition | undefined>;
+  getFlows(): Promise<FlowDefinition[]>;
+  updateFlow(id: string, flow: Partial<InsertFlowDefinition>): Promise<FlowDefinition | undefined>;
+  deleteFlow(id: string): Promise<boolean>;
+
+  // Flow Run Management
+  createFlowRun(run: Omit<FlowRun, "id">): Promise<FlowRun>;
+  getFlowRun(id: string): Promise<FlowRun | undefined>;
+  getFlowRuns(): Promise<FlowRun[]>;
+  getFlowRunsByFlowId(flowId: string): Promise<FlowRun[]>;
+  updateFlowRun(id: string, updates: Partial<FlowRun>): Promise<FlowRun | undefined>;
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+  private flows: Map<string, FlowDefinition>;
+  private flowRuns: Map<string, FlowRun>;
 
   constructor() {
-    this.users = new Map();
+    this.flows = new Map();
+    this.flowRuns = new Map();
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
+  // ============================================================================
+  // Flow Definition Management
+  // ============================================================================
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async createFlow(insertFlow: InsertFlowDefinition): Promise<FlowDefinition> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+    const now = new Date().toISOString();
+    const flow: FlowDefinition = {
+      ...insertFlow,
+      id,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.flows.set(id, flow);
+    return flow;
+  }
+
+  async getFlow(id: string): Promise<FlowDefinition | undefined> {
+    return this.flows.get(id);
+  }
+
+  async getFlows(): Promise<FlowDefinition[]> {
+    return Array.from(this.flows.values());
+  }
+
+  async updateFlow(
+    id: string,
+    updates: Partial<InsertFlowDefinition>
+  ): Promise<FlowDefinition | undefined> {
+    const existing = this.flows.get(id);
+    if (!existing) {
+      return undefined;
+    }
+
+    // Merge updates over existing flow, preserving defaults for omitted fields
+    const updated: FlowDefinition = {
+      ...existing,          // Start with existing values (preserves defaults)
+      ...updates,           // Apply updates
+      id,                   // Preserve immutable ID
+      createdAt: existing.createdAt,  // Preserve immutable creation timestamp
+      updatedAt: new Date().toISOString(),  // Update modification timestamp
+    };
+
+    this.flows.set(id, updated);
+    return updated;
+  }
+
+  async deleteFlow(id: string): Promise<boolean> {
+    return this.flows.delete(id);
+  }
+
+  // ============================================================================
+  // Flow Run Management
+  // ============================================================================
+
+  async createFlowRun(runData: Omit<FlowRun, "id">): Promise<FlowRun> {
+    const id = randomUUID();
+    const run: FlowRun = {
+      ...runData,
+      id,
+    };
+    this.flowRuns.set(id, run);
+    return run;
+  }
+
+  async getFlowRun(id: string): Promise<FlowRun | undefined> {
+    return this.flowRuns.get(id);
+  }
+
+  async getFlowRuns(): Promise<FlowRun[]> {
+    return Array.from(this.flowRuns.values()).sort((a, b) => {
+      // Sort by startedAt descending (newest first)
+      return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
+    });
+  }
+
+  async getFlowRunsByFlowId(flowId: string): Promise<FlowRun[]> {
+    return Array.from(this.flowRuns.values())
+      .filter((run) => run.flowId === flowId)
+      .sort((a, b) => {
+        // Sort by startedAt descending (newest first)
+        return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
+      });
+  }
+
+  async updateFlowRun(
+    id: string,
+    updates: Partial<FlowRun>
+  ): Promise<FlowRun | undefined> {
+    const existing = this.flowRuns.get(id);
+    if (!existing) {
+      return undefined;
+    }
+
+    const updated: FlowRun = {
+      ...existing,
+      ...updates,
+      id, // Preserve original ID
+    };
+
+    this.flowRuns.set(id, updated);
+    return updated;
   }
 }
 
