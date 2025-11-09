@@ -1,10 +1,10 @@
 import type { CanonicalItem } from "@shared/schema";
 
-export interface PipelineInput {
-  xml?: string;
-  canonical?: CanonicalItem;
-  traceId: string;
-}
+// Discriminated union for pipeline input modes
+export type PipelineInput = 
+  | { mode: 'flow'; flowId: string; flowInput: unknown; traceId?: string }
+  | { mode: 'xml'; xml: string; traceId?: string }
+  | { mode: 'canonical'; canonical: CanonicalItem; traceId?: string };
 
 export interface PipelineResult {
   success: boolean;

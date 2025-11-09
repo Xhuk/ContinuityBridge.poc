@@ -4,38 +4,86 @@ import { OriginDecider } from "../decision/origin-decider.js";
 import { dispatchToReceivers } from "../receivers/dispatch.js";
 import { metricsCollector } from "./metrics.js";
 import { logger } from "./logger.js";
+import { FlowOrchestrator } from "../flow/orchestrator.js";
 import type { PipelineInput, PipelineResult } from "./types.js";
 import type { CanonicalItem } from "@shared/schema";
+import type { IStorage } from "../../storage.js";
 
 const log = logger.child("Pipeline");
+
+export interface PipelineOptions {
+  storage?: IStorage;
+  orchestrator?: FlowOrchestrator;
+}
 
 export class Pipeline {
   private transformer: XMLToCanonicalTransformer;
   private decider: OriginDecider;
+  private orchestrator: FlowOrchestrator | null;
 
-  constructor() {
+  constructor(options?: PipelineOptions) {
     this.transformer = new XMLToCanonicalTransformer();
     this.decider = new OriginDecider();
-    log.info("Pipeline initialized");
+    this.orchestrator = options?.orchestrator || null;
+    
+    const supportsFlows = !!this.orchestrator;
+    log.info(`Pipeline initialized`, { supportsFlows });
   }
 
   async runItemPipeline(input: PipelineInput): Promise<PipelineResult> {
     const startTime = Date.now();
     const traceId = input.traceId || randomUUID();
 
-    log.info(`Starting pipeline for trace ${traceId}`);
+    log.info(`Starting pipeline for trace ${traceId}`, { mode: input.mode });
 
     try {
-      // Step 1: Transform XML to canonical (if XML provided)
+      // Step 1: Transform to canonical format based on input mode
       let canonical: CanonicalItem;
 
-      if (input.xml) {
-        canonical = this.transformer.transform(input.xml);
-        log.debug(`XML transformed for trace ${traceId}`, { itemId: canonical.itemId });
-      } else if (input.canonical) {
-        canonical = input.canonical;
-      } else {
-        throw new Error("Either XML or canonical data must be provided");
+      switch (input.mode) {
+        case 'flow': {
+          if (!this.orchestrator) {
+            throw new Error("Flow orchestrator not initialized. Pipeline was created without storage.");
+          }
+          
+          log.debug(`Executing flow ${input.flowId} for trace ${traceId}`);
+          const flowResult = await this.orchestrator.executeFlow(input.flowId, input.flowInput);
+          
+          if (flowResult.status === "failed") {
+            throw new Error(flowResult.error || "Flow execution failed");
+          }
+          
+          // Get the final output from the last executed node
+          const lastExecution = flowResult.nodeExecutions[flowResult.nodeExecutions.length - 1];
+          if (!lastExecution?.output) {
+            throw new Error("Flow completed but produced no output");
+          }
+          
+          canonical = lastExecution.output as CanonicalItem;
+          log.debug(`Flow transformed for trace ${traceId}`, { 
+            flowId: input.flowId,
+            runId: flowResult.id,
+            itemId: canonical.itemId 
+          });
+          break;
+        }
+        
+        case 'xml': {
+          canonical = this.transformer.transform(input.xml);
+          log.debug(`XML transformed for trace ${traceId}`, { itemId: canonical.itemId });
+          break;
+        }
+        
+        case 'canonical': {
+          canonical = input.canonical;
+          log.debug(`Using provided canonical for trace ${traceId}`, { itemId: canonical.itemId });
+          break;
+        }
+        
+        default: {
+          const exhaustiveCheck: never = input;
+          throw new Error(`Unknown pipeline mode: ${JSON.stringify(exhaustiveCheck)}`);
+        }
       }
 
       // Step 2: Decide origin warehouse

@@ -18,8 +18,8 @@ export class Worker {
   private isRunning: boolean = false;
   private disposer: (() => void) | null = null;
 
-  constructor() {
-    this.pipeline = new Pipeline();
+  constructor(pipeline: Pipeline) {
+    this.pipeline = pipeline;
     this.config = {
       enabled: true,
       concurrency: parseInt(process.env.WORKER_CONCURRENCY || "3", 10),
@@ -51,9 +51,37 @@ export class Worker {
 
           try {
             const data = JSON.parse(payload);
-            log.debug("Processing message from queue", { traceId: data.traceId });
+            log.debug("Processing message from queue", { 
+              traceId: data.traceId,
+              mode: data.mode,
+              hasXml: !!data.xml,
+              hasFlowId: !!data.flowId 
+            });
 
-            const result = await this.pipeline.runItemPipeline(data);
+            // Transform legacy payload format to discriminated union
+            let pipelineInput;
+            if (data.mode) {
+              // New format with discriminated union
+              pipelineInput = data;
+            } else if (data.xml) {
+              // Legacy XML format
+              pipelineInput = {
+                mode: 'xml' as const,
+                xml: data.xml,
+                traceId: data.traceId,
+              };
+            } else if (data.canonical) {
+              // Legacy canonical format
+              pipelineInput = {
+                mode: 'canonical' as const,
+                canonical: data.canonical,
+                traceId: data.traceId,
+              };
+            } else {
+              throw new Error("Invalid queue message format: missing mode, xml, or canonical");
+            }
+
+            const result = await this.pipeline.runItemPipeline(pipelineInput);
             this.messagesProcessed++;
 
             // Store event, decision, and payload for successful processing
@@ -142,12 +170,16 @@ export class Worker {
   }
 }
 
-// Global worker instance
+// Global worker instance (initialized by composition root)
 let workerInstance: Worker | null = null;
+
+export function setWorkerInstance(worker: Worker): void {
+  workerInstance = worker;
+}
 
 export function getWorkerInstance(): Worker {
   if (!workerInstance) {
-    workerInstance = new Worker();
+    throw new Error("Worker not initialized. Call setWorkerInstance() first.");
   }
   return workerInstance;
 }

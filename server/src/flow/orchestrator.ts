@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { FlowDefinition, FlowNode, FlowRun } from "@shared/schema";
-import { storage } from "../../storage";
+import type { IStorage } from "../../storage";
 import { NodeExecutor, ExecutionContext, NodeExecutionResult } from "./executors/types";
 import { executeInterfaceSource } from "./executors/interface-source";
 import { executeObjectMapper } from "./executors/object-mapper";
@@ -23,9 +23,12 @@ import { executeManualTrigger } from "./executors/manual-trigger";
  * 6. Return final output or error
  */
 export class FlowOrchestrator {
+  private storage: IStorage;
   private executors: Map<string, NodeExecutor> = new Map();
 
-  constructor() {
+  constructor(storageInstance: IStorage) {
+    this.storage = storageInstance;
+    
     // Register node executors
     this.registerExecutor("executeInterfaceSource", executeInterfaceSource);
     this.registerExecutor("executeObjectMapper", executeObjectMapper);
@@ -52,7 +55,7 @@ export class FlowOrchestrator {
     inputData: unknown,
     triggeredBy: FlowRun["triggeredBy"] = "manual"
   ): Promise<FlowRun> {
-    const flow = await storage.getFlow(flowId);
+    const flow = await this.storage.getFlow(flowId);
     if (!flow) {
       throw new Error(`Flow not found: ${flowId}`);
     }
@@ -65,7 +68,7 @@ export class FlowOrchestrator {
     const startedAt = new Date().toISOString();
 
     // Create flow run record
-    const flowRun = await storage.createFlowRun({
+    const flowRun = await this.storage.createFlowRun({
       flowId: flow.id,
       flowName: flow.name,
       flowVersion: flow.version,
@@ -86,20 +89,20 @@ export class FlowOrchestrator {
       const completedAt = new Date().toISOString();
       const durationMs = new Date(completedAt).getTime() - new Date(startedAt).getTime();
 
-      await storage.updateFlowRun(flowRun.id, {
+      await this.storage.updateFlowRun(flowRun.id, {
         status: "completed",
         completedAt,
         durationMs,
         outputData: output,
       });
 
-      return (await storage.getFlowRun(flowRun.id))!;
+      return (await this.storage.getFlowRun(flowRun.id))!;
     } catch (error) {
       // Mark as failed
       const completedAt = new Date().toISOString();
       const durationMs = new Date(completedAt).getTime() - new Date(startedAt).getTime();
 
-      await storage.updateFlowRun(flowRun.id, {
+      await this.storage.updateFlowRun(flowRun.id, {
         status: "failed",
         completedAt,
         durationMs,
@@ -178,8 +181,8 @@ export class FlowOrchestrator {
         const nodeDurationMs = new Date(nodeCompletedAt).getTime() - new Date(nodeStartedAt).getTime();
 
         // Record node execution (including metadata)
-        const currentRun = await storage.getFlowRun(flowRun.id);
-        await storage.updateFlowRun(flowRun.id, {
+        const currentRun = await this.storage.getFlowRun(flowRun.id);
+        await this.storage.updateFlowRun(flowRun.id, {
           executedNodes,
           nodeExecutions: [
             ...(currentRun?.nodeExecutions || []),
@@ -243,8 +246,8 @@ export class FlowOrchestrator {
         const nodeDurationMs = new Date(nodeCompletedAt).getTime() - new Date(nodeStartedAt).getTime();
 
         // Record failed node execution
-        const currentRun = await storage.getFlowRun(flowRun.id);
-        await storage.updateFlowRun(flowRun.id, {
+        const currentRun = await this.storage.getFlowRun(flowRun.id);
+        await this.storage.updateFlowRun(flowRun.id, {
           executedNodes,
           nodeExecutions: [
             ...(currentRun?.nodeExecutions || []),

@@ -1,11 +1,13 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { Pipeline } from "./src/core/pipeline.js";
+import { FlowOrchestrator } from "./src/flow/orchestrator.js";
 import { registerRESTRoutes } from "./src/http/rest.js";
 import { registerGraphQLServer } from "./src/http/graphql.js";
 import { initializeQueue } from "./src/serverQueue.js";
-import { getWorkerInstance } from "./src/workers/worker.js";
+import { Worker, setWorkerInstance } from "./src/workers/worker.js";
 import { logger } from "./src/core/logger.js";
+import { storage } from "./storage.js";
 
 const log = logger.child("Server");
 
@@ -14,19 +16,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Initialize queue provider
     await initializeQueue();
 
-    // Create pipeline instance
-    const pipeline = new Pipeline();
+    // Create flow orchestrator (shared across pipeline and REST routes)
+    const orchestrator = new FlowOrchestrator(storage);
+
+    // Create pipeline instance with flow support
+    const pipeline = new Pipeline({ orchestrator });
 
     // Register REST API routes
-    registerRESTRoutes(app, pipeline);
+    registerRESTRoutes(app, pipeline, orchestrator);
 
     // Register GraphQL server (standalone on port 4000)
     registerGraphQLServer().catch((err) => {
       log.error("Failed to start GraphQL server", err);
     });
 
-    // Start worker (if enabled)
-    const worker = getWorkerInstance();
+    // Initialize and start worker with shared pipeline
+    const worker = new Worker(pipeline);
+    setWorkerInstance(worker);
     await worker.start();
 
     log.info("All routes and services registered successfully");

@@ -29,7 +29,9 @@ export function getPayloadStorage() {
   return payloads;
 }
 
-export function registerRESTRoutes(app: Express, pipeline: Pipeline): void {
+import type { FlowOrchestrator } from "../flow/orchestrator.js";
+
+export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrator?: FlowOrchestrator): void {
   // POST /api/items/ifd - Process XML IFD payload
   app.post("/api/items/ifd", async (req, res) => {
     try {
@@ -483,6 +485,96 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline): void {
     } catch (error: any) {
       log.error("Error fetching integration events", error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ========== FLOW EXECUTION ENDPOINTS ==========
+
+  // POST /api/flows/:id/execute - Execute a flow manually
+  app.post("/api/flows/:id/execute", async (req, res) => {
+    try {
+      if (!orchestrator) {
+        return res.status(501).json({
+          ok: false,
+          error: "Flow orchestrator is not initialized. Server was started without flow support.",
+        });
+      }
+
+      const flowId = req.params.id;
+      const { input, enqueue } = req.body;
+
+      // Option 1: Enqueue for worker processing
+      if (enqueue) {
+        const traceId = randomUUID();
+        const queueProvider = getQueueProvider();
+        await queueProvider.enqueue(
+          "items.inbound",
+          JSON.stringify({ 
+            mode: 'flow',
+            flowId, 
+            flowInput: input,
+            traceId 
+          })
+        );
+
+        return res.json({
+          ok: true,
+          traceId,
+          message: "Flow execution enqueued for processing",
+        });
+      }
+
+      // Option 2: Execute synchronously via pipeline
+      const traceId = randomUUID();
+      const result = await pipeline.runItemPipeline({
+        mode: 'flow',
+        flowId,
+        flowInput: input,
+        traceId,
+      });
+
+      res.json({
+        ok: result.success,
+        traceId: result.traceId,
+        output: result.canonical,
+        decision: result.decision,
+        error: result.error,
+        latencyMs: result.latencyMs,
+      });
+    } catch (error: any) {
+      log.error("Error executing flow", error);
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+      });
+    }
+  });
+
+  // POST /api/flows/:id/execute-direct - Execute flow directly (bypass pipeline)
+  app.post("/api/flows/:id/execute-direct", async (req, res) => {
+    try {
+      if (!orchestrator) {
+        return res.status(501).json({
+          ok: false,
+          error: "Flow orchestrator is not initialized.",
+        });
+      }
+
+      const flowId = req.params.id;
+      const { input } = req.body;
+
+      log.debug(`Executing flow ${flowId} directly`);
+      const flowRun = await orchestrator.executeFlow(flowId, input);
+
+      res.json({
+        ok: flowRun.status !== "failed",
+        run: flowRun,
+      });
+    } catch (error: any) {
+      log.error("Error executing flow directly", error);
+      res.status(500).json({
+        ok: false,
+        error: error.message });
     }
   });
 
