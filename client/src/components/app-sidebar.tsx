@@ -1,4 +1,4 @@
-import { Home, List, Settings, Upload, Database } from "lucide-react";
+import { Home, List, Settings, Upload, Database, Network } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -33,6 +33,11 @@ const menuItems = [
     title: "Data Sources",
     url: "/datasources",
     icon: Database,
+  },
+  {
+    title: "Interfaces",
+    url: "/interfaces",
+    icon: Network,
   },
   {
     title: "Ingest XML",
