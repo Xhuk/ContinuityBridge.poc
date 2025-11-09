@@ -179,7 +179,12 @@ export default function AuthenticationSettings() {
   });
 
   const onAdapterSubmit = (data: z.infer<typeof adapterFormSchema>) => {
-    createAdapterMutation.mutate(data);
+    // Add default empty config object (required by database schema)
+    const adapterData = {
+      ...data,
+      config: {},
+    };
+    createAdapterMutation.mutate(adapterData);
   };
 
   const onPolicySubmit = (data: z.infer<typeof policyFormSchema>) => {
