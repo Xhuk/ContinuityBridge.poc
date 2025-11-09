@@ -169,3 +169,83 @@ export const chartDataPointSchema = z.object({
 });
 
 export type ChartDataPoint = z.infer<typeof chartDataPointSchema>;
+
+// Data Source Configuration Schemas
+
+// SFTP Configuration
+export const sftpConfigSchema = z.object({
+  type: z.literal("sftp"),
+  id: z.string(),
+  name: z.string(),
+  host: z.string(),
+  port: z.number().default(22),
+  username: z.string(),
+  authType: z.enum(["password", "privateKey"]),
+  remotePath: z.string().default("/"),
+  filePattern: z.string().default("*.xml"),
+  enabled: z.boolean().default(true),
+});
+
+export type SftpConfig = z.infer<typeof sftpConfigSchema>;
+
+// Azure Blob Configuration
+export const azureBlobConfigSchema = z.object({
+  type: z.literal("azureBlob"),
+  id: z.string(),
+  name: z.string(),
+  connectionType: z.enum(["connectionString", "http"]),
+  containerName: z.string().optional(),
+  blobPrefix: z.string().default(""),
+  filePattern: z.string().default("*.xml"),
+  enabled: z.boolean().default(true),
+});
+
+export type AzureBlobConfig = z.infer<typeof azureBlobConfigSchema>;
+
+// Discriminated union for all data source types
+export const dataSourceConfigSchema = z.discriminatedUnion("type", [
+  sftpConfigSchema,
+  azureBlobConfigSchema,
+]);
+
+export type DataSourceConfig = z.infer<typeof dataSourceConfigSchema>;
+
+// Data Source Secret Schema
+export const dataSourceSecretSchema = z.object({
+  sourceId: z.string(),
+  // SFTP secrets
+  password: z.string().optional(),
+  privateKey: z.string().optional(),
+  // Azure secrets
+  connectionString: z.string().optional(),
+  httpUrl: z.string().optional(),
+});
+
+export type DataSourceSecret = z.infer<typeof dataSourceSecretSchema>;
+
+// Pull History Schema
+export const pullHistorySchema = z.object({
+  id: z.string(),
+  sourceId: z.string(),
+  sourceName: z.string(),
+  fileName: z.string(),
+  fileSize: z.number(),
+  fileHash: z.string(),
+  pulledAt: z.string(),
+  status: z.enum(["success", "failed", "partial"]),
+  itemsProcessed: z.number().default(0),
+  error: z.string().optional(),
+  traceIds: z.array(z.string()).default([]),
+});
+
+export type PullHistory = z.infer<typeof pullHistorySchema>;
+
+// Insert schemas for data sources
+export const insertSftpConfigSchema = sftpConfigSchema.omit({ id: true });
+export type InsertSftpConfig = z.infer<typeof insertSftpConfigSchema>;
+
+export const insertAzureBlobConfigSchema = azureBlobConfigSchema.omit({ id: true });
+export type InsertAzureBlobConfig = z.infer<typeof insertAzureBlobConfigSchema>;
+
+export const insertDataSourceSecretSchema = dataSourceSecretSchema;
+export type InsertDataSourceSecret = z.infer<typeof insertDataSourceSecretSchema>;

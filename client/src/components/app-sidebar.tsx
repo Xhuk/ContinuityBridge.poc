@@ -1,4 +1,4 @@
-import { Home, List, Settings, Upload } from "lucide-react";
+import { Home, List, Settings, Upload, Database } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -28,6 +28,11 @@ const menuItems = [
     title: "Queue & Worker",
     url: "/queue",
     icon: Settings,
+  },
+  {
+    title: "Data Sources",
+    url: "/datasources",
+    icon: Database,
   },
   {
     title: "Ingest XML",

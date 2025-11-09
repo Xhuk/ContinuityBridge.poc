@@ -9,6 +9,7 @@ import Dashboard from "@/pages/dashboard";
 import Events from "@/pages/events";
 import Queue from "@/pages/queue";
 import Ingest from "@/pages/ingest";
+import DataSources from "@/pages/datasources";
 import NotFound from "@/pages/not-found";
 import type { QueueConfig } from "@shared/schema";
 
@@ -36,6 +37,7 @@ function Router() {
               <Route path="/" component={Dashboard} />
               <Route path="/events" component={Events} />
               <Route path="/queue" component={Queue} />
+              <Route path="/datasources" component={DataSources} />
               <Route path="/ingest" component={Ingest} />
               <Route component={NotFound} />
             </Switch>

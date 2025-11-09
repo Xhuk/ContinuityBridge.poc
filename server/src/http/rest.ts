@@ -196,5 +196,148 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline): void {
     }
   });
 
+  // ==== DATA SOURCES API ====
+
+  // GET /api/datasources - Get all data sources
+  app.get("/api/datasources", (req, res) => {
+    try {
+      const { getDataSourceManager } = require("../datasources/manager.js");
+      const manager = getDataSourceManager();
+      const sources = manager.getAllSources();
+      res.json(sources);
+    } catch (error: any) {
+      log.error("Error fetching data sources", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/datasources/:id - Get specific data source
+  app.get("/api/datasources/:id", (req, res) => {
+    try {
+      const { getDataSourceManager } = require("../datasources/manager.js");
+      const manager = getDataSourceManager();
+      const source = manager.getSource(req.params.id);
+      
+      if (!source) {
+        return res.status(404).json({ error: "Data source not found" });
+      }
+      
+      res.json(source);
+    } catch (error: any) {
+      log.error("Error fetching data source", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/datasources - Create new data source
+  app.post("/api/datasources", (req, res) => {
+    try {
+      const { config, secret } = req.body;
+      
+      if (!config || !secret) {
+        return res.status(400).json({ error: "Config and secret are required" });
+      }
+
+      // Generate ID if not provided
+      if (!config.id) {
+        config.id = randomUUID();
+      }
+      secret.sourceId = config.id;
+
+      const { getDataSourceManager } = require("../datasources/manager.js");
+      const manager = getDataSourceManager();
+      manager.createSource(config, secret);
+      
+      res.json({ success: true, id: config.id });
+    } catch (error: any) {
+      log.error("Error creating data source", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PUT /api/datasources/:id - Update data source
+  app.put("/api/datasources/:id", (req, res) => {
+    try {
+      const { config, secret } = req.body;
+      
+      if (!config) {
+        return res.status(400).json({ error: "Config is required" });
+      }
+
+      const { getDataSourceManager } = require("../datasources/manager.js");
+      const manager = getDataSourceManager();
+      manager.updateSource(req.params.id, config, secret);
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      log.error("Error updating data source", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/datasources/:id - Delete data source
+  app.delete("/api/datasources/:id", (req, res) => {
+    try {
+      const { getDataSourceManager } = require("../datasources/manager.js");
+      const manager = getDataSourceManager();
+      manager.deleteSource(req.params.id);
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      log.error("Error deleting data source", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/datasources/:id/test - Test connection
+  app.post("/api/datasources/:id/test", async (req, res) => {
+    try {
+      const { getDataSourceManager } = require("../datasources/manager.js");
+      const manager = getDataSourceManager();
+      const result = await manager.testConnection(req.params.id);
+      
+      res.json(result);
+    } catch (error: any) {
+      log.error("Error testing connection", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Test failed",
+        error: error.message 
+      });
+    }
+  });
+
+  // POST /api/datasources/:id/pull - Trigger manual pull
+  app.post("/api/datasources/:id/pull", async (req, res) => {
+    try {
+      const { getDataSourceManager } = require("../datasources/manager.js");
+      const manager = getDataSourceManager();
+      const result = await manager.pullFiles(req.params.id);
+      
+      res.json(result);
+    } catch (error: any) {
+      log.error("Error pulling files", error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message 
+      });
+    }
+  });
+
+  // GET /api/datasources/history - Get pull history
+  app.get("/api/datasources/history", (req, res) => {
+    try {
+      const { sourceId } = req.query;
+      const { getDataSourceManager } = require("../datasources/manager.js");
+      const manager = getDataSourceManager();
+      const history = manager.getPullHistory(sourceId as string | undefined);
+      
+      res.json(history);
+    } catch (error: any) {
+      log.error("Error fetching pull history", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   log.info("REST routes registered");
 }
