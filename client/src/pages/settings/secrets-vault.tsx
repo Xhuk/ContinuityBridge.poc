@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Lock, Shield, KeyRound, Plus, Eye, EyeOff, Trash2, Edit2, CheckCircle, XCircle, AlertCircle, Sparkles, ExternalLink, Mail, Cloud, Server, HardDrive, Key, Box, Database } from "lucide-react";
+import { Lock, Shield, KeyRound, Plus, Eye, EyeOff, Trash2, Edit2, CheckCircle, XCircle, AlertCircle, Sparkles, ExternalLink, Mail, Cloud, Server, HardDrive, Key, Box, Database, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Form,
   FormControl,
@@ -61,7 +71,7 @@ function generateSecurePassphrase(): string {
 }
 
 // Secret Type Registry - centralizes metadata for all integration types
-type IntegrationType = "Smtp" | "AzureBlob" | "Sftp" | "Ftp" | "Database" | "ApiKey" | "Custom";
+type IntegrationType = "Smtp" | "AzureBlob" | "Sftp" | "Ftp" | "Database" | "ApiKey" | "RabbitMQ" | "Kafka" | "Custom";
 
 const smtpSchema = z.object({
   label: z.string().min(1, "Label is required"),
@@ -124,6 +134,23 @@ const apiKeySchema = z.object({
   description: z.string().optional(),
 });
 
+const rabbitmqSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  connectionUrl: z.string().min(1, "Connection URL is required (e.g., amqp://user:pass@host:5672)"),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  description: z.string().optional(),
+});
+
+const kafkaSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  brokers: z.string().min(1, "Broker URLs are required (comma-separated)"),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  saslMechanism: z.string().optional(),
+  description: z.string().optional(),
+});
+
 const customSchema = z.object({
   label: z.string().min(1, "Label is required"),
   description: z.string().optional(),
@@ -181,6 +208,20 @@ const secretTypeConfig: Record<IntegrationType, SecretTypeConfig> = {
     schema: apiKeySchema,
     sensitiveFields: ["apiKey", "apiSecret"],
   },
+  RabbitMQ: {
+    icon: Server,
+    label: "RabbitMQ",
+    description: "Message queue credentials",
+    schema: rabbitmqSchema,
+    sensitiveFields: ["connectionUrl", "password"],
+  },
+  Kafka: {
+    icon: Database,
+    label: "Kafka",
+    description: "Streaming platform credentials",
+    schema: kafkaSchema,
+    sensitiveFields: ["brokers", "password"],
+  },
   Custom: {
     icon: Box,
     label: "Custom Secret",
@@ -196,6 +237,8 @@ export default function SecretsVault() {
   const [showRecoveryCode, setShowRecoveryCode] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [showResetDialog, setShowResetDialog] = useState(false);
 
   // Check vault status
   const { data: vaultStatus } = useQuery<{
@@ -239,15 +282,55 @@ export default function SecretsVault() {
       queryClient.invalidateQueries({ queryKey: ["/api/secrets/status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/secrets"] });
       setMasterSeed("");
+      setFailedAttempts(0); // Reset counter on success
       toast({
         title: "Vault Unlocked",
         description: "You can now manage your secrets",
       });
     },
     onError: (error: any) => {
+      const newAttempts = failedAttempts + 1;
+      setFailedAttempts(newAttempts);
+      
+      if (newAttempts >= 5) {
+        toast({
+          title: "Multiple Failed Attempts",
+          description: "You've failed to unlock 5 times. Consider resetting the vault if you've lost your master seed.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Unlock Failed",
+          description: `${error.message || "Invalid master seed"} (Attempt ${newAttempts}/5)`,
+          variant: "destructive",
+        });
+      }
+    },
+  });
+
+  // Reset vault (destroys all secrets)
+  const resetVaultMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/secrets/reset", { 
+        confirmation: "DELETE_ALL_SECRETS" 
+      });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/secrets/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/secrets"] });
+      setMasterSeed("");
+      setFailedAttempts(0);
+      setShowResetDialog(false);
       toast({
-        title: "Unlock Failed",
-        description: error.message || "Invalid master seed",
+        title: "Vault Reset Complete",
+        description: "All secrets have been deleted. You can now initialize a new vault.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Reset Failed",
+        description: error.message || "Failed to reset vault",
         variant: "destructive",
       });
     },
@@ -493,8 +576,90 @@ export default function SecretsVault() {
             >
               {unlockMutation.isPending ? "Unlocking..." : "Unlock Vault"}
             </Button>
+
+            {failedAttempts >= 5 && (
+              <Alert variant="destructive" className="border-red-500/50 bg-red-500/10">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Too Many Failed Attempts</AlertTitle>
+                <AlertDescription className="space-y-3">
+                  <p className="text-sm">
+                    You've failed to unlock the vault {failedAttempts} times. If you've lost your master seed, 
+                    you can reset the vault to start over.
+                  </p>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowResetDialog(true)}
+                    data-testid="button-show-reset"
+                  >
+                    Reset Vault
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
           </CardContent>
         </Card>
+
+        <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-red-500/10 rounded-lg">
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                </div>
+                <AlertDialogTitle>Reset Secrets Vault</AlertDialogTitle>
+              </div>
+              <AlertDialogDescription className="space-y-3">
+                <div className="text-sm text-muted-foreground">
+                  This action will permanently delete all stored secrets and reset the vault to its initial state.
+                </div>
+                
+                <Alert variant="destructive" className="border-red-500/50 bg-red-500/10">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle className="text-sm">⚠️ PERMANENT DATA LOSS</AlertTitle>
+                  <AlertDescription className="space-y-2 text-xs">
+                    <p><strong>All the following will be PERMANENTLY DELETED:</strong></p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>All SMTP email credentials</li>
+                      <li>All Azure Blob storage keys</li>
+                      <li>All SFTP/FTP credentials</li>
+                      <li>All database connection strings</li>
+                      <li>All API keys and custom secrets</li>
+                      <li>Your master seed hash and recovery code</li>
+                    </ul>
+                    <p className="mt-2 font-bold">This action CANNOT be undone. There is NO recovery.</p>
+                  </AlertDescription>
+                </Alert>
+
+                <div className="text-sm text-muted-foreground">
+                  After reset, you will need to:
+                  <ol className="list-decimal list-inside mt-2 space-y-1 ml-2">
+                    <li>Create a new master seed</li>
+                    <li>Re-enter all your integration credentials</li>
+                    <li>Reconfigure any services using these secrets</li>
+                  </ol>
+                </div>
+
+                <div className="text-sm font-semibold text-muted-foreground">
+                  Are you absolutely sure you want to proceed?
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-cancel-reset">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => resetVaultMutation.mutate()}
+                disabled={resetVaultMutation.isPending}
+                data-testid="button-confirm-reset"
+                className="bg-red-500 hover:bg-red-600"
+              >
+                {resetVaultMutation.isPending ? "Resetting..." : "Yes, Delete All Secrets"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }

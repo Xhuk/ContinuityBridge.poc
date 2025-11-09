@@ -59,9 +59,9 @@ export async function initializeQueue(storage?: any, secretsService?: any): Prom
     switch (backend) {
       case "rabbitmq":
       case "rabbit":
-        if (credentials && credentials.url) {
+        if (credentials && credentials.connectionUrl) {
           // Set credentials as environment variables for RabbitQueue
-          process.env.RABBIT_URL = credentials.url;
+          process.env.RABBIT_URL = credentials.connectionUrl;
           if (credentials.queueIn) process.env.RABBIT_QUEUE_IN = credentials.queueIn;
           if (credentials.queueOut) process.env.RABBIT_QUEUE_OUT = credentials.queueOut;
         }
@@ -73,8 +73,9 @@ export async function initializeQueue(storage?: any, secretsService?: any): Prom
         if (credentials && credentials.brokers) {
           // Set credentials as environment variables for KafkaQueue
           process.env.KAFKA_BROKERS = credentials.brokers;
-          if (credentials.user) process.env.KAFKA_USER = credentials.user;
+          if (credentials.username) process.env.KAFKA_USER = credentials.username;
           if (credentials.password) process.env.KAFKA_PASS = credentials.password;
+          if (credentials.saslMechanism) process.env.KAFKA_SASL_MECHANISM = credentials.saslMechanism;
           if (credentials.groupId) process.env.KAFKA_GROUP_ID = credentials.groupId;
           if (credentials.topicIn) process.env.KAFKA_TOPIC_IN = credentials.topicIn;
           if (credentials.topicOut) process.env.KAFKA_TOPIC_OUT = credentials.topicOut;

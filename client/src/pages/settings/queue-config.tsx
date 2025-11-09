@@ -123,9 +123,14 @@ export default function QueueConfiguration() {
     enabled: selectedBackend !== null && selectedBackend !== "inmemory",
   });
 
-  // Filter secrets by selected backend
+  // Filter secrets by selected backend (map lowercase backend to capitalized integration type)
+  const integrationTypeMap: Record<string, string> = {
+    rabbitmq: "RabbitMQ",
+    kafka: "Kafka",
+  };
+  
   const filteredSecrets = secrets?.filter(s => 
-    s.integrationType === selectedBackend
+    selectedBackend && s.integrationType === integrationTypeMap[selectedBackend]
   ) || [];
 
   // Test connection mutation

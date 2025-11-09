@@ -1657,11 +1657,11 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
   // POST /api/queue/test-connection - Test RabbitMQ or Kafka connection
   app.post("/api/queue/test-connection", async (req, res) => {
     try {
-      const { backend, credentials } = req.body;
+      const { backend, secretId } = req.body;
 
-      if (!backend || !credentials) {
+      if (!backend) {
         return res.status(400).json({
-          error: "backend and credentials are required",
+          error: "backend is required",
         });
       }
 
@@ -1671,6 +1671,38 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
           error: "backend must be 'rabbitmq' or 'kafka'",
         });
       }
+
+      if (!secretId) {
+        return res.status(400).json({
+          error: "secretId is required - credentials must be stored in vault",
+        });
+      }
+
+      // Fetch credentials from secrets vault
+      const { secretsService } = await import('../secrets/secrets-service.js');
+      
+      // Check if vault is unlocked
+      if (!secretsService.isVaultUnlocked()) {
+        return res.status(423).json({
+          error: "Vault is locked. Please unlock the vault first to test queue connections.",
+          vaultLocked: true,
+        });
+      }
+
+      // Retrieve and decrypt the secret
+      if (!storage || !storage.getSecret) {
+        return res.status(501).json({ error: "Secrets vault not available" });
+      }
+
+      const encryptedSecret = await storage.getSecret(secretId);
+      if (!encryptedSecret) {
+        return res.status(404).json({
+          error: "Secret not found. Please select valid credentials from the vault.",
+        });
+      }
+
+      // Decrypt the secret payload using retrieveSecret
+      const credentials = await secretsService.retrieveSecret(encryptedSecret);
 
       // Test connection with timeout
       const timeout = 10000; // 10 seconds
@@ -1685,6 +1717,14 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
         ),
       ]);
 
+      auditLog("QUEUE_CONNECTION_TEST", {
+        backend,
+        success: true,
+        secretId,
+        ip: req.ip,
+        timestamp: new Date().toISOString(),
+      });
+
       res.json({
         ok: true,
         message: `Successfully connected to ${backend.toUpperCase()}`,
@@ -1692,6 +1732,11 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       });
     } catch (error: any) {
       log.error("Connection test failed", error);
+      auditLog("QUEUE_CONNECTION_TEST_FAILED", {
+        backend: req.body.backend,
+        error: error.message,
+        ip: req.ip,
+      });
       res.status(400).json({
         ok: false,
         error: error.message || "Connection test failed",
