@@ -1470,7 +1470,16 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
         });
       }
 
-      // TODO: Validate payload against integration type schema
+      // Validate payload against integration type schema
+      const { validateSecretPayload } = await import('../secrets/secret-validator.js');
+      const validation = validateSecretPayload(integrationType, payload);
+
+      if (!validation.success) {
+        return res.status(400).json({
+          error: "Secret validation failed",
+          errors: validation.errors,
+        });
+      }
 
       const vaultEntry = await secretsService.storeSecret(
         integrationType,
@@ -1525,6 +1534,25 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       if (!payload) {
         return res.status(400).json({
           error: "payload is required",
+        });
+      }
+
+      // Get existing secret to determine integration type
+      const existing = await storage.getSecret!(req.params.id);
+      if (!existing) {
+        return res.status(404).json({
+          error: "Secret not found",
+        });
+      }
+
+      // Validate payload against integration type schema
+      const { validateSecretPayload } = await import('../secrets/secret-validator.js');
+      const validation = validateSecretPayload(existing.integrationType, payload);
+
+      if (!validation.success) {
+        return res.status(400).json({
+          error: "Secret validation failed",
+          errors: validation.errors,
         });
       }
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Lock, Shield, KeyRound, Plus, Eye, EyeOff, Trash2, Edit2, CheckCircle, XCircle, AlertCircle, Sparkles, ExternalLink, Mail, Cloud, Server, HardDrive, Key, Box, Database, AlertTriangle } from "lucide-react";
+import { Lock, Shield, KeyRound, Plus, Eye, EyeOff, Trash2, Edit2, CheckCircle, XCircle, AlertCircle, Sparkles, ExternalLink, Mail, Cloud, Server, HardDrive, Key, Box, Database, AlertTriangle, Lock as LockIcon, FileKey, Cookie } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,7 +71,8 @@ function generateSecurePassphrase(): string {
 }
 
 // Secret Type Registry - centralizes metadata for all integration types
-type IntegrationType = "Smtp" | "AzureBlob" | "Sftp" | "Ftp" | "Database" | "ApiKey" | "RabbitMQ" | "Kafka" | "Custom";
+// IMPORTANT: Must match database schema (snake_case)
+type IntegrationType = "smtp" | "azure_blob" | "sftp" | "ftp" | "database" | "api_key" | "rabbitmq" | "kafka" | "oauth2" | "jwt" | "cookie" | "custom";
 
 const smtpSchema = z.object({
   label: z.string().min(1, "Label is required"),
@@ -157,6 +158,61 @@ const customSchema = z.object({
   secretData: z.string().min(1, "Secret data is required"),
 });
 
+const oauth2Schema = z.object({
+  label: z.string().min(1, "Label is required"),
+  clientId: z.string().min(1, "Client ID is required"),
+  clientSecret: z.string().min(1, "Client secret is required"),
+  tokenUrl: z.string().url("Token URL must be a valid URL"),
+  authorizationUrl: z.string().url("Authorization URL must be a valid URL").optional(),
+  scope: z.string().optional(),
+  redirectUri: z.string().url("Redirect URI must be a valid URL").optional(),
+  audience: z.string().optional(),
+  description: z.string().optional(),
+});
+
+const jwtSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  algorithm: z.enum(["HS256", "HS512", "RS256", "RS512"], {
+    errorMap: () => ({ message: "Algorithm must be HS256, HS512, RS256, or RS512" }),
+  }),
+  secret: z.string().optional(),
+  privateKey: z.string().optional(),
+  publicKey: z.string().optional(),
+  issuer: z.string().optional(),
+  audience: z.string().optional(),
+  keyId: z.string().optional(),
+  description: z.string().optional(),
+}).refine(
+  (data) => {
+    if (data.algorithm.startsWith('HS')) {
+      return !!data.secret;
+    }
+    if (data.algorithm.startsWith('RS')) {
+      return !!data.privateKey;
+    }
+    return false;
+  },
+  (data) => ({
+    message: data.algorithm.startsWith('HS')
+      ? "HS algorithms require 'secret' field"
+      : "RS algorithms require 'privateKey' field",
+    path: data.algorithm.startsWith('HS') ? ['secret'] : ['privateKey'],
+  })
+);
+
+const cookieSchema = z.object({
+  label: z.string().min(1, "Label is required"),
+  cookieName: z.string().min(1, "Cookie name is required"),
+  cookieSecret: z.string().min(1, "Cookie secret is required"),
+  sessionSecret: z.string().optional(),
+  domain: z.string().optional(),
+  path: z.string().default("/"),
+  secure: z.boolean().optional(),
+  httpOnly: z.boolean().optional(),
+  sameSite: z.enum(["strict", "lax", "none"]).optional(),
+  description: z.string().optional(),
+});
+
 interface SecretTypeConfig {
   icon: any;
   label: string;
@@ -166,63 +222,84 @@ interface SecretTypeConfig {
 }
 
 const secretTypeConfig: Record<IntegrationType, SecretTypeConfig> = {
-  Smtp: {
+  smtp: {
     icon: Mail,
     label: "SMTP Email",
     description: "Email server credentials",
     schema: smtpSchema,
     sensitiveFields: ["password"],
   },
-  AzureBlob: {
+  azure_blob: {
     icon: Cloud,
     label: "Azure Blob Storage",
     description: "Azure storage account keys",
     schema: azureBlobSchema,
     sensitiveFields: ["accountKey", "sasUrl"],
   },
-  Sftp: {
+  sftp: {
     icon: Server,
     label: "SFTP",
     description: "Secure file transfer protocol",
     schema: sftpSchema,
     sensitiveFields: ["password", "privateKey", "passphrase"],
   },
-  Ftp: {
+  ftp: {
     icon: HardDrive,
     label: "FTP",
     description: "File transfer protocol",
     schema: ftpSchema,
     sensitiveFields: ["password", "privateKey", "passphrase"],
   },
-  Database: {
+  database: {
     icon: Database,
     label: "Database",
     description: "Database connection credentials",
     schema: databaseSchema,
     sensitiveFields: ["connectionString", "password"],
   },
-  ApiKey: {
+  api_key: {
     icon: Key,
     label: "API Key",
     description: "Third-party API keys",
     schema: apiKeySchema,
     sensitiveFields: ["apiKey", "apiSecret"],
   },
-  RabbitMQ: {
+  rabbitmq: {
     icon: Server,
     label: "RabbitMQ",
     description: "Message queue credentials",
     schema: rabbitmqSchema,
     sensitiveFields: ["connectionUrl", "password"],
   },
-  Kafka: {
+  kafka: {
     icon: Database,
     label: "Kafka",
     description: "Streaming platform credentials",
     schema: kafkaSchema,
     sensitiveFields: ["brokers", "password"],
   },
-  Custom: {
+  oauth2: {
+    icon: LockIcon,
+    label: "OAuth2",
+    description: "OAuth2 authentication credentials",
+    schema: oauth2Schema,
+    sensitiveFields: ["clientSecret"],
+  },
+  jwt: {
+    icon: FileKey,
+    label: "JWT",
+    description: "JSON Web Token signing credentials",
+    schema: jwtSchema,
+    sensitiveFields: ["secret", "privateKey"],
+  },
+  cookie: {
+    icon: Cookie,
+    label: "Cookie",
+    description: "Cookie-based authentication",
+    schema: cookieSchema,
+    sensitiveFields: ["cookieSecret", "sessionSecret"],
+  },
+  custom: {
     icon: Box,
     label: "Custom Secret",
     description: "Custom encrypted data",
@@ -749,6 +826,33 @@ function AddSecretDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
       apiSecret: "",
       secretData: "",
       description: "",
+      // OAuth2 fields
+      clientId: "",
+      clientSecret: "",
+      tokenUrl: "",
+      authorizationUrl: "",
+      scope: "",
+      redirectUri: "",
+      audience: "",
+      // JWT fields
+      algorithm: "HS256",
+      secret: "",
+      publicKey: "",
+      issuer: "",
+      keyId: "",
+      // Cookie fields
+      cookieName: "",
+      cookieSecret: "",
+      sessionSecret: "",
+      domain: "",
+      path: "/",
+      secure: true,
+      httpOnly: true,
+      sameSite: "lax",
+      // RabbitMQ/Kafka fields
+      connectionUrl: "",
+      brokers: "",
+      saslMechanism: "",
     },
   });
 
@@ -770,7 +874,7 @@ function AddSecretDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
     });
 
     // Special handling for Custom type
-    if (selectedType === "Custom" && data.secretData) {
+    if (selectedType === "custom" && data.secretData) {
       try {
         payload.data = JSON.parse(data.secretData);
       } catch {
@@ -860,7 +964,7 @@ function AddSecretDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
               />
 
               {/* Type-specific fields */}
-              {selectedType === "Smtp" && (
+              {selectedType === "smtp" && (
                 <>
                   <FormField control={form.control} name="host" render={({ field }) => (
                     <FormItem>
@@ -893,7 +997,7 @@ function AddSecretDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
                 </>
               )}
 
-              {selectedType === "AzureBlob" && (
+              {selectedType === "azure_blob" && (
                 <>
                   <FormField control={form.control} name="accountName" render={({ field }) => (
                     <FormItem>
@@ -933,7 +1037,7 @@ function AddSecretDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
                 </>
               )}
 
-              {(selectedType === "Sftp" || selectedType === "Ftp") && (
+              {(selectedType === "sftp" || selectedType === "ftp") && (
                 <>
                   <FormField control={form.control} name="host" render={({ field }) => (
                     <FormItem>
@@ -980,7 +1084,7 @@ function AddSecretDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
                 </>
               )}
 
-              {selectedType === "Database" && (
+              {selectedType === "database" && (
                 <>
                   <FormField control={form.control} name="host" render={({ field }) => (
                     <FormItem>
@@ -1020,7 +1124,7 @@ function AddSecretDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
                 </>
               )}
 
-              {selectedType === "ApiKey" && (
+              {selectedType === "api_key" && (
                 <>
                   <FormField control={form.control} name="serviceName" render={({ field }) => (
                     <FormItem>
@@ -1060,7 +1164,277 @@ function AddSecretDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
                 </>
               )}
 
-              {selectedType === "Custom" && (
+              {selectedType === "rabbitmq" && (
+                <>
+                  <FormField control={form.control} name="connectionUrl" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Connection URL</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.connectionUrl ? "text" : "password"} placeholder="amqp://user:pass@host:5672" {...field} data-testid="input-connection-url" />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, connectionUrl: !showFields.connectionUrl })}>
+                            {showFields.connectionUrl ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="username" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Username (optional)</FormLabel>
+                      <FormControl><Input placeholder="admin" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="password" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password (optional)</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.password ? "text" : "password"} placeholder="••••••••" {...field} />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, password: !showFields.password })}>
+                            {showFields.password ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </>
+              )}
+
+              {selectedType === "kafka" && (
+                <>
+                  <FormField control={form.control} name="brokers" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Broker URLs</FormLabel>
+                      <FormControl><Input placeholder="broker1:9092,broker2:9092" {...field} data-testid="input-brokers" /></FormControl>
+                      <FormDescription>Comma-separated list of Kafka brokers</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="username" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Username (optional)</FormLabel>
+                      <FormControl><Input placeholder="kafka-user" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="password" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password (optional)</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.password ? "text" : "password"} placeholder="••••••••" {...field} />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, password: !showFields.password })}>
+                            {showFields.password ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="saslMechanism" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SASL Mechanism (optional)</FormLabel>
+                      <FormControl><Input placeholder="PLAIN, SCRAM-SHA-256" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </>
+              )}
+
+              {selectedType === "oauth2" && (
+                <>
+                  <FormField control={form.control} name="clientId" render={({ field}) => (
+                    <FormItem>
+                      <FormLabel>Client ID</FormLabel>
+                      <FormControl><Input placeholder="your-client-id" {...field} data-testid="input-client-id" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="clientSecret" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Client Secret</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.clientSecret ? "text" : "password"} placeholder="••••••••" {...field} data-testid="input-client-secret" />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, clientSecret: !showFields.clientSecret })}>
+                            {showFields.clientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="tokenUrl" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Token URL</FormLabel>
+                      <FormControl><Input type="url" placeholder="https://auth.example.com/oauth/token" {...field} data-testid="input-token-url" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="authorizationUrl" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Authorization URL (optional)</FormLabel>
+                      <FormControl><Input type="url" placeholder="https://auth.example.com/oauth/authorize" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="scope" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Scope (optional)</FormLabel>
+                      <FormControl><Input placeholder="read write" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="redirectUri" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Redirect URI (optional)</FormLabel>
+                      <FormControl><Input type="url" placeholder="https://yourapp.com/callback" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="audience" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Audience (optional)</FormLabel>
+                      <FormControl><Input placeholder="https://api.example.com" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </>
+              )}
+
+              {selectedType === "jwt" && (
+                <>
+                  <FormField control={form.control} name="algorithm" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Algorithm</FormLabel>
+                      <FormControl>
+                        <select {...field} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" data-testid="select-algorithm">
+                          <option value="HS256">HS256 (HMAC SHA-256)</option>
+                          <option value="HS512">HS512 (HMAC SHA-512)</option>
+                          <option value="RS256">RS256 (RSA SHA-256)</option>
+                          <option value="RS512">RS512 (RSA SHA-512)</option>
+                        </select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="secret" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Secret (for HS algorithms)</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.secret ? "text" : "password"} placeholder="your-secret-key" {...field} data-testid="input-jwt-secret" />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, secret: !showFields.secret })}>
+                            {showFields.secret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormDescription>Required for HS256/HS512</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="privateKey" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Private Key (for RS algorithms)</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="-----BEGIN RSA PRIVATE KEY-----" {...field} className="font-mono text-xs" rows={6} data-testid="input-private-key" />
+                      </FormControl>
+                      <FormDescription>Required for RS256/RS512</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="publicKey" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Public Key (optional)</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="-----BEGIN PUBLIC KEY-----" {...field} className="font-mono text-xs" rows={4} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="issuer" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Issuer (optional)</FormLabel>
+                      <FormControl><Input placeholder="https://yourapp.com" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="audience" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Audience (optional)</FormLabel>
+                      <FormControl><Input placeholder="https://api.example.com" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="keyId" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Key ID (optional)</FormLabel>
+                      <FormControl><Input placeholder="key-2024-01" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </>
+              )}
+
+              {selectedType === "cookie" && (
+                <>
+                  <FormField control={form.control} name="cookieName" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cookie Name</FormLabel>
+                      <FormControl><Input placeholder="session_id" {...field} data-testid="input-cookie-name" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="cookieSecret" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cookie Secret</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.cookieSecret ? "text" : "password"} placeholder="••••••••" {...field} data-testid="input-cookie-secret" />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, cookieSecret: !showFields.cookieSecret })}>
+                            {showFields.cookieSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="sessionSecret" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Session Secret (optional)</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.sessionSecret ? "text" : "password"} placeholder="••••••••" {...field} />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, sessionSecret: !showFields.sessionSecret })}>
+                            {showFields.sessionSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="domain" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Domain (optional)</FormLabel>
+                      <FormControl><Input placeholder=".example.com" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="path" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Path</FormLabel>
+                      <FormControl><Input placeholder="/" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </>
+              )}
+
+              {selectedType === "custom" && (
                 <FormField control={form.control} name="secretData" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Secret Data</FormLabel>
