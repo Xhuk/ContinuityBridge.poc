@@ -1,6 +1,16 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Server, Play, Pause, Activity, AlertCircle, RefreshCw, CheckCircle } from "lucide-react";
+import { 
+  Server, 
+  Play, 
+  Pause, 
+  Activity, 
+  AlertCircle, 
+  RefreshCw, 
+  CheckCircle,
+  ExternalLink,
+  AlertTriangle
+} from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -27,16 +37,18 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
+type QueueBackend = "inmemory" | "rabbitmq" | "kafka";
+
 export default function QueueConfiguration() {
   const { toast } = useToast();
   const [concurrency, setConcurrency] = useState(5);
   
   // Backend selection state
-  const [selectedBackend, setSelectedBackend] = useState<"inmemory" | "rabbitmq" | "kafka">("inmemory");
+  const [selectedBackend, setSelectedBackend] = useState<QueueBackend | null>(null);
   const [selectedSecretId, setSelectedSecretId] = useState<string>("");
   const [connectionTested, setConnectionTested] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message?: string } | null>(null);
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showRiskDialog, setShowRiskDialog] = useState(false);
 
   // Fetch queue configuration
   const { data: queueConfig, isLoading } = useQuery<{
@@ -86,7 +98,6 @@ export default function QueueConfiguration() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/queue/config"] });
-      // Set restart flag for configuration changes
       localStorage.setItem("app_needs_restart", "true");
       toast({
         title: "Concurrency Updated",
@@ -109,7 +120,7 @@ export default function QueueConfiguration() {
     integrationType: string;
   }>>({
     queryKey: ["/api/secrets"],
-    enabled: selectedBackend !== "inmemory",
+    enabled: selectedBackend !== null && selectedBackend !== "inmemory",
   });
 
   // Filter secrets by selected backend
@@ -131,7 +142,7 @@ export default function QueueConfiguration() {
       setTestResult({ success: true, message: data.message });
       toast({
         title: "Connection Successful",
-        description: data.message || `Successfully connected to ${selectedBackend.toUpperCase()}`,
+        description: data.message || `Successfully connected to ${selectedBackend?.toUpperCase()}`,
       });
     },
     onError: (error: any) => {
@@ -147,17 +158,20 @@ export default function QueueConfiguration() {
 
   // Save backend configuration mutation
   const saveBackendMutation = useMutation({
-    mutationFn: async (immediate: boolean) => {
+    mutationFn: async () => {
       const res = await apiRequest("POST", "/api/queue/change-backend", {
         backend: selectedBackend,
         secretId: selectedSecretId || null,
-        immediate,
+        immediate: true,
       });
       return await res.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/queue/config"] });
-      setShowSaveDialog(false);
+      setShowRiskDialog(false);
+      setSelectedBackend(null);
+      setConnectionTested(false);
+      setTestResult(null);
       localStorage.setItem("app_needs_restart", "true");
       toast({
         title: "Backend Configured",
@@ -183,21 +197,199 @@ export default function QueueConfiguration() {
     );
   }
 
-  const backend = queueConfig?.backend || "inmemory";
+  const currentBackend = queueConfig?.backend || "inmemory";
   const workerEnabled = queueConfig?.workerEnabled || false;
   const currentConcurrency = queueConfig?.concurrency || 5;
 
-  const getBackendBadge = (backend: string) => {
-    switch (backend.toLowerCase()) {
-      case "inmemory":
-        return <Badge variant="outline">InMemory</Badge>;
-      case "rabbitmq":
-        return <Badge variant="default">RabbitMQ</Badge>;
-      case "kafka":
-        return <Badge variant="secondary">Kafka</Badge>;
-      default:
-        return <Badge>{backend}</Badge>;
+  const handleCardSelect = (backend: QueueBackend) => {
+    if (selectedBackend === backend) {
+      // Deselect if clicking the same card
+      setSelectedBackend(null);
+      setSelectedSecretId("");
+      setConnectionTested(false);
+      setTestResult(null);
+    } else {
+      setSelectedBackend(backend);
+      setSelectedSecretId("");
+      setConnectionTested(false);
+      setTestResult(null);
     }
+  };
+
+  const handleApplyChanges = () => {
+    // Validate before showing risk dialog
+    if (selectedBackend === "inmemory") {
+      // InMemory doesn't need connection test
+      setShowRiskDialog(true);
+    } else if (!selectedSecretId) {
+      toast({
+        title: "Credentials Required",
+        description: `Please select ${selectedBackend?.toUpperCase()} credentials from the vault`,
+        variant: "destructive",
+      });
+    } else if (!connectionTested || !testResult?.success) {
+      toast({
+        title: "Connection Test Required",
+        description: "Please test the connection successfully before applying changes",
+        variant: "destructive",
+      });
+    } else {
+      setShowRiskDialog(true);
+    }
+  };
+
+  const renderBackendCard = (
+    backend: QueueBackend,
+    title: string,
+    description: string,
+    recommendation?: { name: string; url: string }
+  ) => {
+    const isCurrent = currentBackend === backend;
+    const isSelected = selectedBackend === backend;
+    const isExpanded = isSelected;
+
+    return (
+      <Card 
+        className={`cursor-pointer transition-all ${
+          isCurrent ? "border-primary ring-2 ring-primary/20" : 
+          isSelected ? "border-blue-500 ring-2 ring-blue-500/20" : 
+          "hover-elevate"
+        }`}
+        onClick={() => handleCardSelect(backend)}
+        data-testid={`card-backend-${backend}`}
+      >
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <CardTitle className="text-base">{title}</CardTitle>
+                {isCurrent && (
+                  <Badge variant="default" className="text-xs">Current</Badge>
+                )}
+                {isSelected && !isCurrent && (
+                  <Badge variant="secondary" className="text-xs">Selected</Badge>
+                )}
+              </div>
+              <CardDescription className="text-sm">{description}</CardDescription>
+              {recommendation && (
+                <a
+                  href={recommendation.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 mt-2 text-xs text-primary hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Recommended: {recommendation.name}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        
+        {isExpanded && (
+          <CardContent className="space-y-4 pt-4 border-t">
+            {backend !== "inmemory" && (
+              <>
+                <div className="space-y-3">
+                  <Label htmlFor={`secret-${backend}`}>
+                    {backend.toUpperCase()} Credentials
+                  </Label>
+                  <Select
+                    value={selectedSecretId}
+                    onValueChange={(value) => {
+                      setSelectedSecretId(value);
+                      setConnectionTested(false);
+                      setTestResult(null);
+                    }}
+                  >
+                    <SelectTrigger id={`secret-${backend}`} data-testid="select-secret">
+                      <SelectValue placeholder="Select credentials from vault" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredSecrets.length === 0 ? (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                          No {backend.toUpperCase()} credentials in vault
+                        </div>
+                      ) : (
+                        filteredSecrets.map((secret) => (
+                          <SelectItem key={secret.id} value={secret.id}>
+                            {secret.label}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Add credentials in the <strong>Secrets Vault</strong> tab first
+                  </p>
+                </div>
+
+                {testResult && (
+                  <Alert variant={testResult.success ? "default" : "destructive"}>
+                    {testResult.success ? (
+                      <CheckCircle className="h-4 w-4" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4" />
+                    )}
+                    <AlertTitle>
+                      {testResult.success ? "Connection Test Passed" : "Connection Test Failed"}
+                    </AlertTitle>
+                    <AlertDescription className="text-xs">
+                      {testResult.message}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    testConnectionMutation.mutate();
+                  }}
+                  disabled={testConnectionMutation.isPending || !selectedSecretId}
+                  data-testid="button-test-connection"
+                  className="w-full"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${testConnectionMutation.isPending ? "animate-spin" : ""}`} />
+                  {testConnectionMutation.isPending ? "Testing..." : "Test Connection"}
+                </Button>
+              </>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedBackend(null);
+                  setSelectedSecretId("");
+                  setConnectionTested(false);
+                  setTestResult(null);
+                }}
+                data-testid="button-cancel"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleApplyChanges();
+                }}
+                disabled={backend === currentBackend}
+                data-testid="button-apply-changes"
+                className="flex-1"
+              >
+                Apply Changes
+              </Button>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+    );
   };
 
   return (
@@ -206,65 +398,33 @@ export default function QueueConfiguration() {
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Queue Backend Configuration</AlertTitle>
         <AlertDescription>
-          Manage message queue settings for processing transformation flows. Backend changes require application restart.
+          Select a queue backend below to configure. Changes require application restart.
         </AlertDescription>
       </Alert>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-primary/10 rounded-lg">
-                <Server className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <CardTitle>Queue Backend</CardTitle>
-                <CardDescription>Current message queue provider</CardDescription>
-              </div>
-            </div>
-            {getBackendBadge(backend)}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card className={backend === "inmemory" ? "border-primary" : ""}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">InMemory</CardTitle>
-                <CardDescription className="text-xs">Fast, no persistence</CardDescription>
-              </CardHeader>
-              <CardContent className="pb-3">
-                <p className="text-xs text-muted-foreground">
-                  Best for development and testing. Data lost on restart.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className={backend === "rabbitmq" ? "border-primary" : ""}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">RabbitMQ</CardTitle>
-                <CardDescription className="text-xs">Reliable, persistent</CardDescription>
-              </CardHeader>
-              <CardContent className="pb-3">
-                <p className="text-xs text-muted-foreground">
-                  Production-ready with message persistence and delivery guarantees.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className={backend === "kafka" ? "border-primary" : ""}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Kafka</CardTitle>
-                <CardDescription className="text-xs">High throughput, scalable</CardDescription>
-              </CardHeader>
-              <CardContent className="pb-3">
-                <p className="text-xs text-muted-foreground">
-                  Enterprise-grade for high-volume data streaming.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <Label className="text-base">Select Queue Backend</Label>
+        <div className="grid gap-4 md:grid-cols-3">
+          {renderBackendCard(
+            "inmemory",
+            "InMemory",
+            "Fast, no persistence. Best for development and testing. Data lost on restart.",
+            undefined
+          )}
+          {renderBackendCard(
+            "rabbitmq",
+            "RabbitMQ",
+            "Reliable, persistent. Production-ready with message persistence and delivery guarantees.",
+            { name: "CloudAMQP", url: "https://www.cloudamqp.com/" }
+          )}
+          {renderBackendCard(
+            "kafka",
+            "Kafka",
+            "High throughput, scalable. Enterprise-grade for high-volume data streaming.",
+            { name: "Confluent Cloud", url: "https://www.confluent.io/confluent-cloud/" }
+          )}
+        </div>
+      </div>
 
       <Card>
         <CardHeader>
@@ -347,152 +507,52 @@ export default function QueueConfiguration() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-orange-500/10 rounded-lg">
-              <RefreshCw className="h-6 w-6 text-orange-500" />
-            </div>
-            <div>
-              <CardTitle>Change Queue Backend</CardTitle>
-              <CardDescription>Switch between InMemory, RabbitMQ, or Kafka</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-3">
-            <Label htmlFor="backend-select">Select Backend</Label>
-            <Select
-              value={selectedBackend}
-              onValueChange={(value: "inmemory" | "rabbitmq" | "kafka") => {
-                setSelectedBackend(value);
-                setSelectedSecretId("");
-                setConnectionTested(false);
-                setTestResult(null);
-              }}
-            >
-              <SelectTrigger id="backend-select" data-testid="select-backend">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="inmemory">InMemory (Development)</SelectItem>
-                <SelectItem value="rabbitmq">RabbitMQ (Production)</SelectItem>
-                <SelectItem value="kafka">Kafka (Enterprise)</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Current backend: <Badge variant="outline">{backend}</Badge>
-            </p>
-          </div>
-
-          {selectedBackend !== "inmemory" && (
-            <div className="space-y-3">
-              <Label htmlFor="secret-select">
-                {selectedBackend.toUpperCase()} Credentials
-              </Label>
-              <Select
-                value={selectedSecretId}
-                onValueChange={(value) => {
-                  setSelectedSecretId(value);
-                  setConnectionTested(false);
-                  setTestResult(null);
-                }}
-              >
-                <SelectTrigger id="secret-select" data-testid="select-secret">
-                  <SelectValue placeholder="Select credentials from vault" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredSecrets.length === 0 ? (
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                      No {selectedBackend.toUpperCase()} credentials in vault
-                    </div>
-                  ) : (
-                    filteredSecrets.map((secret) => (
-                      <SelectItem key={secret.id} value={secret.id}>
-                        {secret.label}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Configure credentials in the Secrets Vault tab first
-              </p>
-            </div>
-          )}
-
-          {testResult && (
-            <Alert variant={testResult.success ? "default" : "destructive"}>
-              {testResult.success ? (
-                <CheckCircle className="h-4 w-4" />
-              ) : (
-                <AlertCircle className="h-4 w-4" />
-              )}
-              <AlertTitle>
-                {testResult.success ? "Connection Test Passed" : "Connection Test Failed"}
-              </AlertTitle>
-              <AlertDescription>
-                {testResult.message}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => testConnectionMutation.mutate()}
-              disabled={
-                testConnectionMutation.isPending ||
-                (selectedBackend !== "inmemory" && !selectedSecretId)
-              }
-              data-testid="button-test-connection"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${testConnectionMutation.isPending ? "animate-spin" : ""}`} />
-              Test Connection
-            </Button>
-
-            <Button
-              onClick={() => setShowSaveDialog(true)}
-              disabled={
-                (selectedBackend !== "inmemory" && !selectedSecretId) ||
-                selectedBackend === backend
-              }
-              data-testid="button-save-backend"
-            >
-              Save Configuration
-            </Button>
-          </div>
-
-          {selectedBackend !== backend && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Restart Required</AlertTitle>
-              <AlertDescription>
-                Changing the queue backend requires an application restart to take effect.
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
-
-      <AlertDialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+      <AlertDialog open={showRiskDialog} onOpenChange={setShowRiskDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Backend Change</AlertDialogTitle>
-            <AlertDialogDescription>
-              You are about to change the queue backend from <Badge variant="outline">{backend}</Badge> to <Badge variant="outline">{selectedBackend}</Badge>.
-              {" "}This will require an application restart to take effect.
-              {" "}Previous backend configuration will be saved for rollback if needed.
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-orange-500/10 rounded-lg">
+                <AlertTriangle className="h-5 w-5 text-orange-500" />
+              </div>
+              <AlertDialogTitle>Confirm Queue Backend Change</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="space-y-3">
+              <div className="text-sm text-muted-foreground">
+                You are about to change the queue backend from{" "}
+                <Badge variant="outline" className="mx-1">{currentBackend}</Badge>
+                to
+                <Badge variant="outline" className="mx-1">{selectedBackend}</Badge>.
+              </div>
+              
+              <Alert variant="destructive" className="border-orange-500/50 bg-orange-500/10">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle className="text-sm">Important Warnings</AlertTitle>
+                <AlertDescription className="space-y-2 text-xs">
+                  <ul className="list-disc list-inside space-y-1">
+                    <li><strong>Application restart required</strong> - The server must be restarted for changes to take effect</li>
+                    <li><strong>Potential message loss</strong> - In-flight messages in the current queue may be lost if not using persistent storage</li>
+                    <li><strong>Previous backend saved</strong> - Your current <Badge variant="outline" className="text-xs mx-1">{currentBackend}</Badge> configuration will be saved for rollback if needed</li>
+                    <li><strong>Worker will be interrupted</strong> - Any currently processing jobs will be terminated during restart</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
+
+              <div className="text-sm text-muted-foreground">
+                Do you want to proceed with this change?
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-save">Cancel</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-risk">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => saveBackendMutation.mutate(true)}
+              onClick={() => saveBackendMutation.mutate()}
               disabled={saveBackendMutation.isPending}
-              data-testid="button-confirm-save"
+              data-testid="button-confirm-risk"
+              className="bg-orange-500 hover:bg-orange-600"
             >
-              {saveBackendMutation.isPending ? "Saving..." : "Save & Restart Later"}
+              {saveBackendMutation.isPending ? "Applying..." : "Yes, Apply Changes"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
