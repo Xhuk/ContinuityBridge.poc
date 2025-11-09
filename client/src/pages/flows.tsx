@@ -106,6 +106,12 @@ const NODE_TYPES = [
     category: "transformer",
     color: "hsl(280 65% 55%)",
   },
+  {
+    type: "conditional",
+    label: "Conditional",
+    category: "router",
+    color: "hsl(45 93% 47%)",
+  },
 ];
 
 // Custom node component
@@ -730,6 +736,29 @@ function NodeConfigForm({
                 rows={8}
                 data-testid="input-validation-rules"
               />
+            </div>
+          </div>
+        );
+
+      case "conditional":
+        return (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="conditions">Conditional Logic (YAML)</Label>
+              <Textarea
+                id="conditions"
+                value={config.conditions || ""}
+                onChange={(e) =>
+                  setConfig({ ...config, conditions: e.target.value })
+                }
+                placeholder="# Single condition:\nfield: status\noperator: equals\nvalue: shipped\n\n# Multiple conditions:\nconditions:\n  - field: quantity\n    operator: greater_than\n    value: 100\n  - field: region\n    operator: equals\n    value: US\nlogic: AND"
+                className="font-mono text-sm"
+                rows={12}
+                data-testid="input-conditions"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Operators: equals, not_equals, greater_than, less_than, in, contains, starts_with, ends_with
+              </p>
             </div>
           </div>
         );
