@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Server, Play, Pause, Activity, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,11 +24,12 @@ export default function QueueConfiguration() {
     refetchInterval: false,
   });
 
-  // Sync slider with fetched concurrency value
-  const currentConcurrency = queueConfig?.concurrency || 5;
-  if (concurrency === 5 && currentConcurrency !== 5) {
-    setConcurrency(currentConcurrency);
-  }
+  // Sync slider with fetched concurrency value on mount
+  useEffect(() => {
+    if (queueConfig?.concurrency) {
+      setConcurrency(queueConfig.concurrency);
+    }
+  }, [queueConfig?.concurrency]);
 
   // Toggle worker mutation
   const toggleWorkerMutation = useMutation({
