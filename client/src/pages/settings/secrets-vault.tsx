@@ -531,8 +531,407 @@ export default function SecretsVault() {
   );
 }
 
+// Add Secret Dialog - Two-step flow: type selection → dynamic form
+function AddSecretDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { toast } = useToast();
+  const [step, setStep] = useState<1 | 2>(1);
+  const [selectedType, setSelectedType] = useState<IntegrationType | null>(null);
+  const [showFields, setShowFields] = useState<Record<string, boolean>>({});
+
+  const createSecretMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/secrets", data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/secrets"] });
+      toast({
+        title: "Secret Added",
+        description: "Your secret has been securely stored",
+      });
+      onOpenChange(false);
+      setStep(1);
+      setSelectedType(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Add Secret",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const config = selectedType ? secretTypeConfig[selectedType] : null;
+  const form = useForm<any>({
+    resolver: config ? zodResolver(config.schema) : undefined,
+    defaultValues: {
+      label: "",
+      host: "",
+      username: "",
+      password: "",
+      accountName: "",
+      accountKey: "",
+      sasUrl: "",
+      privateKey: "",
+      passphrase: "",
+      connectionString: "",
+      serviceName: "",
+      apiKey: "",
+      apiSecret: "",
+      secretData: "",
+      description: "",
+    },
+  });
+
+  const onSubmit = (data: any) => {
+    if (!selectedType) return;
+
+    // Transform flat form data into nested payload structure
+    const { label, description, ...rest } = data;
+    const metadata: any = { description };
+    const payload: any = {};
+
+    // Extract metadata and payload based on type
+    Object.keys(rest).forEach((key) => {
+      if (config?.sensitiveFields.includes(key)) {
+        payload[key] = rest[key];
+      } else if (key !== "secretData") {
+        if (rest[key]) metadata[key] = rest[key];
+      }
+    });
+
+    // Special handling for Custom type
+    if (selectedType === "Custom" && data.secretData) {
+      try {
+        payload.data = JSON.parse(data.secretData);
+      } catch {
+        payload.data = { value: data.secretData };
+      }
+    }
+
+    createSecretMutation.mutate({
+      label,
+      integrationType: selectedType,
+      metadata,
+      payload,
+    });
+  };
+
+  const handleClose = () => {
+    onOpenChange(false);
+    setTimeout(() => {
+      setStep(1);
+      setSelectedType(null);
+      form.reset();
+    }, 200);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {step === 1 ? "Select Secret Type" : `Add ${config?.label}`}
+          </DialogTitle>
+          <DialogDescription>
+            {step === 1 
+              ? "Choose the type of integration secret you want to store"
+              : config?.description}
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === 1 ? (
+          <div className="grid grid-cols-2 gap-3">
+            {(Object.keys(secretTypeConfig) as IntegrationType[]).map((type) => {
+              const cfg = secretTypeConfig[type];
+              const Icon = cfg.icon;
+              return (
+                <Card
+                  key={type}
+                  className="cursor-pointer hover-elevate active-elevate-2"
+                  onClick={() => {
+                    setSelectedType(type);
+                    setStep(2);
+                  }}
+                  data-testid={`card-secret-type-${type.toLowerCase()}`}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <Icon className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium text-sm">{cfg.label}</h4>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {cfg.description}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="label"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Label</FormLabel>
+                    <FormControl>
+                      <Input placeholder="My Production SMTP" {...field} data-testid="input-secret-label" />
+                    </FormControl>
+                    <FormDescription>A friendly name for this secret</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Type-specific fields */}
+              {selectedType === "Smtp" && (
+                <>
+                  <FormField control={form.control} name="host" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SMTP Host (optional)</FormLabel>
+                      <FormControl><Input placeholder="smtp.gmail.com" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="username" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Username (optional)</FormLabel>
+                      <FormControl><Input placeholder="user@example.com" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="password" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.password ? "text" : "password"} placeholder="••••••••" {...field} data-testid="input-password" />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, password: !showFields.password })}>
+                            {showFields.password ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </>
+              )}
+
+              {selectedType === "AzureBlob" && (
+                <>
+                  <FormField control={form.control} name="accountName" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Account Name</FormLabel>
+                      <FormControl><Input placeholder="mystorageaccount" {...field} data-testid="input-account-name" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="accountKey" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Account Key</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.accountKey ? "text" : "password"} placeholder="••••••••" {...field} data-testid="input-account-key" />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, accountKey: !showFields.accountKey })}>
+                            {showFields.accountKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="sasUrl" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SAS URL (optional)</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.sasUrl ? "text" : "password"} placeholder="https://..." {...field} />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, sasUrl: !showFields.sasUrl })}>
+                            {showFields.sasUrl ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </>
+              )}
+
+              {(selectedType === "Sftp" || selectedType === "Ftp") && (
+                <>
+                  <FormField control={form.control} name="host" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Host (optional)</FormLabel>
+                      <FormControl><Input placeholder="ftp.example.com" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="username" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Username (optional)</FormLabel>
+                      <FormControl><Input placeholder="ftpuser" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="password" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password (optional)</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.password ? "text" : "password"} placeholder="••••••••" {...field} />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, password: !showFields.password })}>
+                            {showFields.password ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="privateKey" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Private Key (optional)</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2 flex-col">
+                          <Textarea placeholder="-----BEGIN RSA PRIVATE KEY-----" {...field} className="font-mono text-xs" rows={4} />
+                          <Button type="button" variant="outline" size="sm" onClick={() => setShowFields({ ...showFields, privateKey: !showFields.privateKey })}>
+                            {showFields.privateKey ? <><EyeOff className="h-4 w-4 mr-2" /> Hide</> : <><Eye className="h-4 w-4 mr-2" /> Show</>}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </>
+              )}
+
+              {selectedType === "Database" && (
+                <>
+                  <FormField control={form.control} name="host" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Host (optional)</FormLabel>
+                      <FormControl><Input placeholder="db.example.com" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="connectionString" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Connection String (optional)</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.connectionString ? "text" : "password"} placeholder="postgresql://..." {...field} />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, connectionString: !showFields.connectionString })}>
+                            {showFields.connectionString ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="password" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password (optional)</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.password ? "text" : "password"} placeholder="••••••••" {...field} />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, password: !showFields.password })}>
+                            {showFields.password ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </>
+              )}
+
+              {selectedType === "ApiKey" && (
+                <>
+                  <FormField control={form.control} name="serviceName" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Service Name (optional)</FormLabel>
+                      <FormControl><Input placeholder="OpenAI, Stripe, etc." {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="apiKey" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>API Key</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.apiKey ? "text" : "password"} placeholder="sk_..." {...field} data-testid="input-api-key" />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, apiKey: !showFields.apiKey })}>
+                            {showFields.apiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="apiSecret" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>API Secret (optional)</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input type={showFields.apiSecret ? "text" : "password"} placeholder="••••••••" {...field} />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setShowFields({ ...showFields, apiSecret: !showFields.apiSecret })}>
+                            {showFields.apiSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </>
+              )}
+
+              {selectedType === "Custom" && (
+                <FormField control={form.control} name="secretData" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Secret Data</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder='{"key": "value"}' {...field} className="font-mono text-xs" rows={6} data-testid="input-secret-data" />
+                    </FormControl>
+                    <FormDescription>JSON or plain text</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
+
+              <FormField control={form.control} name="description" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description (optional)</FormLabel>
+                  <FormControl><Input placeholder="Production environment credentials" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <DialogFooter className="gap-2">
+                <Button type="button" variant="outline" onClick={() => setStep(1)}>
+                  Back
+                </Button>
+                <Button type="submit" disabled={createSecretMutation.isPending} data-testid="button-save-secret">
+                  {createSecretMutation.isPending ? "Saving..." : "Save Secret"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SecretsManagement() {
   const { toast } = useToast();
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   const { data: secrets, isLoading } = useQuery({
     queryKey: ["/api/secrets"],
@@ -559,11 +958,13 @@ function SecretsManagement() {
             {secretsList.length} secret{secretsList.length !== 1 ? "s" : ""} configured
           </p>
         </div>
-        <Button data-testid="button-add-secret">
+        <Button onClick={() => setShowAddDialog(true)} data-testid="button-add-secret">
           <Plus className="h-4 w-4 mr-2" />
           Add Secret
         </Button>
       </div>
+
+      <AddSecretDialog open={showAddDialog} onOpenChange={setShowAddDialog} />
 
       {secretsList.length === 0 ? (
         <Card>
