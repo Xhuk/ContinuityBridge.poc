@@ -7,6 +7,7 @@ import { getWorkerInstance } from "../workers/worker.js";
 import { logger } from "../core/logger.js";
 import { getCurrentBackend } from "../serverQueue.js";
 import { getDataSourceManager } from "../datasources/manager.js";
+import { interfaceManager } from "../interfaces/manager.js";
 
 const log = logger.child("REST-API");
 
@@ -328,6 +329,159 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline): void {
       res.json(history);
     } catch (error: any) {
       log.error("Error fetching pull history", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================================================
+  // INTERFACE REGISTRY ROUTES
+  // ============================================================================
+
+  // GET /api/interfaces - List all interfaces
+  app.get("/api/interfaces", (req, res) => {
+    try {
+      const { type, direction } = req.query;
+      
+      let interfaces;
+      if (type) {
+        interfaces = interfaceManager.getInterfacesByType(type as string);
+      } else if (direction) {
+        interfaces = interfaceManager.getInterfacesByDirection(direction as string);
+      } else {
+        interfaces = interfaceManager.getAllInterfaces();
+      }
+      
+      res.json(interfaces);
+    } catch (error: any) {
+      log.error("Error fetching interfaces", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/interfaces - Create new interface
+  app.post("/api/interfaces", (req, res) => {
+    try {
+      const { config, secret } = req.body;
+      
+      if (!config) {
+        return res.status(400).json({ error: "Interface configuration is required" });
+      }
+      
+      const newInterface = interfaceManager.addInterface(config, secret);
+      res.status(201).json(newInterface);
+    } catch (error: any) {
+      log.error("Error creating interface", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/interfaces/:id - Get interface by ID
+  app.get("/api/interfaces/:id", (req, res) => {
+    try {
+      const iface = interfaceManager.getInterface(req.params.id);
+      
+      if (!iface) {
+        return res.status(404).json({ error: "Interface not found" });
+      }
+      
+      res.json(iface);
+    } catch (error: any) {
+      log.error("Error fetching interface", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PUT /api/interfaces/:id - Update interface
+  app.put("/api/interfaces/:id", (req, res) => {
+    try {
+      const { config } = req.body;
+      
+      if (!config) {
+        return res.status(400).json({ error: "Interface configuration is required" });
+      }
+      
+      const updated = interfaceManager.updateInterface(req.params.id, config);
+      
+      if (!updated) {
+        return res.status(404).json({ error: "Interface not found" });
+      }
+      
+      res.json(updated);
+    } catch (error: any) {
+      log.error("Error updating interface", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/interfaces/:id - Delete interface
+  app.delete("/api/interfaces/:id", (req, res) => {
+    try {
+      const success = interfaceManager.deleteInterface(req.params.id);
+      
+      if (!success) {
+        return res.status(404).json({ error: "Interface not found" });
+      }
+      
+      res.json({ success: true, message: "Interface deleted successfully" });
+    } catch (error: any) {
+      log.error("Error deleting interface", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/interfaces/:id/test - Test connectivity
+  app.post("/api/interfaces/:id/test", async (req, res) => {
+    try {
+      const result = await interfaceManager.testConnection(req.params.id);
+      
+      res.json(result);
+    } catch (error: any) {
+      log.error("Error testing interface connection", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Test failed",
+        error: error.message 
+      });
+    }
+  });
+
+  // POST /api/interfaces/:id/secret - Set interface secret
+  app.post("/api/interfaces/:id/secret", (req, res) => {
+    try {
+      const { secret } = req.body;
+      
+      if (!secret) {
+        return res.status(400).json({ error: "Secret data is required" });
+      }
+      
+      const success = interfaceManager.setInterfaceSecret(req.params.id, secret);
+      
+      if (!success) {
+        return res.status(404).json({ error: "Interface not found" });
+      }
+      
+      res.json({ success: true, message: "Secret saved successfully" });
+    } catch (error: any) {
+      log.error("Error setting interface secret", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/integration/events - Get integration events
+  app.get("/api/integration/events", (req, res) => {
+    try {
+      const { sourceInterfaceId, targetInterfaceId, status, limit } = req.query;
+      
+      const filters: any = {};
+      if (sourceInterfaceId) filters.sourceInterfaceId = sourceInterfaceId as string;
+      if (targetInterfaceId) filters.targetInterfaceId = targetInterfaceId as string;
+      if (status) filters.status = status as string;
+      if (limit) filters.limit = parseInt(limit as string);
+      
+      const events = interfaceManager.getEvents(filters);
+      res.json(events);
+    } catch (error: any) {
+      log.error("Error fetching integration events", error);
       res.status(500).json({ error: error.message });
     }
   });
