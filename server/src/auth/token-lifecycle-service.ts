@@ -188,7 +188,7 @@ export class TokenLifecycleService {
         refreshStartedAt: null,
         metadata: {
           ...cached.metadata,
-          lastRefreshError: null,
+          lastRefreshError: undefined,
         },
       });
 
@@ -265,12 +265,22 @@ export class TokenLifecycleService {
   }
 
   /**
-   * Invalidate cached token (on 401/403 errors)
+   * Invalidate (delete) cached tokens for an adapter.
+   * 
+   * If tokenType and scope are provided, deletes only that specific token.
+   * If tokenType/scope are omitted, deletes ALL tokens for the adapter (useful for auth errors).
    */
   async invalidateToken(adapterId: string, tokenType?: TokenCache['tokenType'], scope?: string): Promise<void> {
-    const cached = await this.storage.getTokenCache?.(adapterId, tokenType, scope);
-    if (cached) {
-      await this.storage.deleteTokenCache?.(cached.id);
+    if (tokenType !== undefined || scope !== undefined) {
+      // Specific token requested
+      const cached = await this.storage.getTokenCache?.(adapterId, tokenType, scope);
+      if (cached) {
+        await this.storage.deleteTokenCache?.(cached.id);
+      }
+    } else {
+      // No specific token - delete ALL tokens for this adapter
+      // This is useful when handling auth errors (401/403) where we don't know which token failed
+      await this.storage.deleteTokenCacheByAdapter?.(adapterId);
     }
   }
 
