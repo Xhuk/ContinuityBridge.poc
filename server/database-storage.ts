@@ -13,6 +13,8 @@ import {
   smtpSettings, 
   secretsMasterKeys,
   secretsVault,
+  authAdapters,
+  inboundAuthPolicies,
   type FlowDefinition, 
   type FlowRun, 
   type SmtpSettings,
@@ -20,6 +22,10 @@ import {
   type SecretsVaultEntry,
   type InsertSecretsMasterKey,
   type InsertSecretsVaultEntry,
+  type AuthAdapter,
+  type InsertAuthAdapter,
+  type InboundAuthPolicy,
+  type InsertInboundAuthPolicy,
 } from "./schema";
 import { eq, desc } from "drizzle-orm";
 import { IStorage } from "./storage";
@@ -456,5 +462,129 @@ export class DatabaseStorage implements IStorage {
 
   async clearAllSecrets(): Promise<void> {
     await (db.delete(secretsVault) as any);
+  }
+
+  // Auth Adapters CRUD
+  async getAuthAdapters(): Promise<AuthAdapter[]> {
+    const result = await (db.select() as any).from(authAdapters);
+    return result as AuthAdapter[];
+  }
+
+  async getAuthAdapter(id: string): Promise<AuthAdapter | undefined> {
+    const result = await (db.select() as any)
+      .from(authAdapters)
+      .where(eq(authAdapters.id, id));
+    
+    if (result.length === 0) {
+      return undefined;
+    }
+
+    return result[0] as AuthAdapter;
+  }
+
+  async createAuthAdapter(data: InsertAuthAdapter): Promise<AuthAdapter> {
+    const adapter = {
+      ...data,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await (db.insert(authAdapters) as any).values(adapter);
+
+    return adapter as AuthAdapter;
+  }
+
+  async updateAuthAdapter(
+    id: string,
+    data: Partial<InsertAuthAdapter>
+  ): Promise<AuthAdapter | undefined> {
+    const existing = await this.getAuthAdapter(id);
+    
+    if (!existing) {
+      return undefined;
+    }
+
+    const updated = {
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await (db.update(authAdapters) as any)
+      .set(updated)
+      .where(eq(authAdapters.id, id));
+
+    return { ...existing, ...updated } as AuthAdapter;
+  }
+
+  async deleteAuthAdapter(id: string): Promise<void> {
+    const existing = await this.getAuthAdapter(id);
+    
+    if (!existing) {
+      return;
+    }
+
+    await (db.delete(authAdapters) as any).where(eq(authAdapters.id, id));
+  }
+
+  // Inbound Auth Policies CRUD
+  async getInboundAuthPolicies(): Promise<InboundAuthPolicy[]> {
+    const result = await (db.select() as any).from(inboundAuthPolicies);
+    return result as InboundAuthPolicy[];
+  }
+
+  async getInboundAuthPolicy(id: string): Promise<InboundAuthPolicy | undefined> {
+    const result = await (db.select() as any)
+      .from(inboundAuthPolicies)
+      .where(eq(inboundAuthPolicies.id, id));
+    
+    if (result.length === 0) {
+      return undefined;
+    }
+
+    return result[0] as InboundAuthPolicy;
+  }
+
+  async createInboundAuthPolicy(data: InsertInboundAuthPolicy): Promise<InboundAuthPolicy> {
+    const policy = {
+      ...data,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await (db.insert(inboundAuthPolicies) as any).values(policy);
+
+    return policy as InboundAuthPolicy;
+  }
+
+  async updateInboundAuthPolicy(
+    id: string,
+    data: Partial<InsertInboundAuthPolicy>
+  ): Promise<InboundAuthPolicy | undefined> {
+    const existing = await this.getInboundAuthPolicy(id);
+    
+    if (!existing) {
+      return undefined;
+    }
+
+    const updated = {
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await (db.update(inboundAuthPolicies) as any)
+      .set(updated)
+      .where(eq(inboundAuthPolicies.id, id));
+
+    return { ...existing, ...updated } as InboundAuthPolicy;
+  }
+
+  async deleteInboundAuthPolicy(id: string): Promise<void> {
+    const existing = await this.getInboundAuthPolicy(id);
+    
+    if (!existing) {
+      return;
+    }
+
+    await (db.delete(inboundAuthPolicies) as any).where(eq(inboundAuthPolicies.id, id));
   }
 }
