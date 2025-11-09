@@ -780,6 +780,7 @@ export const flowRunSchema = z.object({
     input: z.unknown().optional(),
     output: z.unknown().optional(),
     error: z.string().optional(),
+    metadata: z.record(z.unknown()).optional(),  // ✅ Executor metadata (e.g., conditionMet, interfaceId)
   })).default([]),
   
   // Error information
