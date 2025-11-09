@@ -10,6 +10,8 @@ import { logger } from "./src/core/logger.js";
 import { DatabaseStorage } from "./database-storage.js";
 import { ensureTables } from "./migrate.js";
 import { secretsService } from "./src/secrets/secrets-service.js";
+import { TokenLifecycleService } from "./src/auth/token-lifecycle-service.js";
+import { BackgroundTokenRefreshJob } from "./src/auth/background-token-refresh.js";
 
 const log = logger.child("Server");
 
@@ -58,6 +60,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const worker = new Worker(pipeline);
     setWorkerInstance(worker);
     await worker.start();
+
+    // Initialize and start background token refresh job
+    const tokenLifecycle = new TokenLifecycleService(storage, secretsService);
+    const tokenRefreshJob = new BackgroundTokenRefreshJob(
+      storage,
+      tokenLifecycle,
+      secretsService,
+      1,  // Run every 1 minute
+      5   // Refresh tokens expiring in <5 minutes
+    );
+    tokenRefreshJob.start();
 
     log.info("All routes and services registered successfully");
 
