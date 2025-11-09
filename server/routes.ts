@@ -13,6 +13,7 @@ import { secretsService } from "./src/secrets/secrets-service.js";
 import { TokenLifecycleService } from "./src/auth/token-lifecycle-service.js";
 import { BackgroundTokenRefreshJob } from "./src/auth/background-token-refresh.js";
 import { createInboundAuthMiddleware } from "./src/auth/inbound-auth-middleware.js";
+import { createAuthGuard } from "./src/middleware/auth-guard.js";
 
 const log = logger.child("Server");
 
@@ -67,8 +68,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Register REST API routes with storage
     registerRESTRoutes(app, pipeline, orchestrator, storage);
 
-    // Register auth adapter and policy routes
-    registerAuthRoutes(app, storage, tokenLifecycle, secretsService, reloadPolicies);
+    // Create auth guard for protecting management endpoints
+    // For MVP: Auth guard disabled in development mode to allow Settings UI access
+    // TODO: Enable in production with proper session/API key validation
+    const authGuard = process.env.NODE_ENV === "production" ? createAuthGuard() : undefined;
+
+    // Register auth adapter and policy routes with optional auth guard
+    registerAuthRoutes(app, storage, tokenLifecycle, secretsService, reloadPolicies, authGuard);
 
     // Register GraphQL server (standalone on port 4000) with shared pipeline
     registerGraphQLServer(pipeline).catch((err) => {

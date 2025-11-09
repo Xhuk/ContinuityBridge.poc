@@ -82,7 +82,7 @@ export default function AuthenticationSettings() {
   // Create adapter mutation
   const createAdapterMutation = useMutation({
     mutationFn: async (data: z.infer<typeof adapterFormSchema>) =>
-      apiRequest("/api/auth/adapters", "POST", data),
+      apiRequest("POST", "/api/auth/adapters", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/adapters"] });
       setIsAdapterDialogOpen(false);
@@ -95,7 +95,7 @@ export default function AuthenticationSettings() {
 
   // Delete adapter mutation
   const deleteAdapterMutation = useMutation({
-    mutationFn: async (id: string) => apiRequest(`/api/auth/adapters/${id}`, "DELETE"),
+    mutationFn: async (id: string) => apiRequest("DELETE", `/api/auth/adapters/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/adapters"] });
       toast({ title: "Auth adapter deleted" });
@@ -107,10 +107,13 @@ export default function AuthenticationSettings() {
 
   // Test adapter mutation
   const testAdapterMutation = useMutation({
-    mutationFn: async (id: string) => apiRequest(`/api/auth/adapters/${id}/test`, "POST"),
-    onSuccess: (data) => {
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/auth/adapters/${id}/test`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/adapters"] });
-      toast({ title: "Test successful", description: data.message || "Adapter test passed" });
+      toast({ title: "Test successful", description: data?.message || "Adapter test passed" });
     },
     onError: (error: any) => {
       toast({ title: "Test failed", description: error.message, variant: "destructive" });
@@ -119,7 +122,7 @@ export default function AuthenticationSettings() {
 
   // Refresh adapter mutation
   const refreshAdapterMutation = useMutation({
-    mutationFn: async (id: string) => apiRequest(`/api/auth/adapters/${id}/refresh`, "POST"),
+    mutationFn: async (id: string) => apiRequest("POST", `/api/auth/adapters/${id}/refresh`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/adapters"] });
       toast({ title: "Token cache cleared", description: "Will refresh on next use" });
@@ -132,7 +135,7 @@ export default function AuthenticationSettings() {
   // Create policy mutation
   const createPolicyMutation = useMutation({
     mutationFn: async (data: z.infer<typeof policyFormSchema>) =>
-      apiRequest("/api/auth/policies", "POST", data),
+      apiRequest("POST", "/api/auth/policies", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/policies"] });
       setIsPolicyDialogOpen(false);
@@ -145,7 +148,7 @@ export default function AuthenticationSettings() {
 
   // Delete policy mutation
   const deletePolicyMutation = useMutation({
-    mutationFn: async (id: string) => apiRequest(`/api/auth/policies/${id}`, "DELETE"),
+    mutationFn: async (id: string) => apiRequest("DELETE", `/api/auth/policies/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/policies"] });
       toast({ title: "Policy deleted" });

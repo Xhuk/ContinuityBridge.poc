@@ -1993,9 +1993,19 @@ export function registerAuthRoutes(
   storage: IStorage,
   tokenLifecycle: any,
   secretsService: any,
-  reloadPolicies: () => Promise<void>
+  reloadPolicies: () => Promise<void>,
+  authGuard?: any
 ): void {
   const authLog = logger.child("AuthRoutes");
+
+  // Apply auth guard to all /api/auth/* routes if provided
+  // For MVP, this requires X-API-Key header, Bearer token, or session
+  if (authGuard) {
+    app.use("/api/auth", authGuard);
+    authLog.info("Auth guard applied to /api/auth/* endpoints");
+  } else {
+    authLog.warn("Auth routes registered WITHOUT authentication guard - INSECURE");
+  }
 
   // ============================================================================
   // Auth Adapters CRUD
