@@ -1,0 +1,93 @@
+You are an expert full-stack engineer. Generate a working POC called ContinuityBridge with the following requirements. Do not reinvent mappings: write the exact files below as-is and wire the code to use them.
+
+TECH STACK:
+- Backend: Node.js 18+ (ESM) + TypeScript, Express, fast-xml-parser, js-yaml, @apollo/server (GraphQL), amqplib, kafkajs.
+- Frontend: React + Vite (JS), Recharts for KPIs.
+- Queues (toggle by ENV): inmemory (default), rabbit, kafka.
+- Scripts: install-and-run.ps1 to install deps and start API, worker, and client.
+
+STRUCTURE:
+/server/src/core/{pipeline.ts,metrics.ts,types.ts,logger.ts}
+/server/src/transform/xml-to-canonical.ts
+/server/src/decision/origin-decider.ts
+/server/src/queue/{QueueProvider.ts,inmemory.ts,rabbit.ts,kafka.ts}
+/server/src/receivers/{sap.ts,threepl.ts,meli.ts,amazon.ts,dispatch.ts}
+/server/src/workers/worker.ts
+/server/src/http/{rest.ts,graphql.ts,resolvers.ts}
+/server/src/data/{warehouses.json,samples/item.sample.xml}
+/server/src/serverQueue.ts
+/server/src/server.ts
+/schema.graphql
+/mapping.yml
+/canonical.sample.json
+/examples/item.sample.xml
+/examples/item.sample.json
+/client/src/{main.jsx,App.jsx}
+/client/index.html
+/client/package.json
+/server/package.json
+/install-and-run.ps1
+/README.md
+
+FRONTEND PAGES:
+1. Dashboard (KPIs, backend name)
+2. Events (recent events, replay button)
+3. Queue/Worker (toggle, concurrency, queue depth)
+4. Ingest (textarea to POST XML)
+
+REST ENDPOINTS:
+/items/ifd POST → transforms XML→canonical JSON using mapping.yml, returns {ok, traceId, canonical} and enqueues to items.inbound
+/metrics GET → KPIs snapshot
+/decisions GET → last decisions
+
+GRAPHQL:
+/graphql with schema.graphql
+Queries: kpis, recentEvents(limit)
+Mutations: processItemIFD(xml), replayEvent(id), setWorker(enabled, concurrency), setQueueBackend(backend)
+
+QUEUE PROVIDERS:
+interface QueueProvider { enqueue(topic,payload):Promise<void>; consume(topic,handler,opts?):Promise<void> }
+inmemory: array-based polling
+rabbit: amqplib
+kafka: kafkajs
+Select via QUEUE_BACKEND env var.
+
+PIPELINE:
+runItemPipeline({xml?, canonical?, traceId}):
+1) XML→canonical via mapping.yml
+2) decide origin via warehouses.json
+3) dispatch to mock receivers
+4) record metrics (latency, TPS, queue depths)
+
+KPIs:
+avgLatencyMs, p95LatencyMs, tps, inDepth, outDepth, errors.
+
+ACCEPTANCE CRITERIA:
+- POST /items/ifd returns canonical matching canonical.sample.json structure
+- QUEUE_BACKEND switch preserves logic
+- Dashboard shows KPIs; /metrics OK; /graphql OK
+- install-and-run.ps1 runs all processes
+
+ENVIRONMENT VARIABLES:
+QUEUE_BACKEND=inmemory|rabbit|kafka
+RABBIT_URL=amqps://user:pass@host/vhost
+RABBIT_QUEUE_IN=items.inbound
+RABBIT_QUEUE_OUT=items.outbound
+KAFKA_BROKERS=host1:9092
+KAFKA_GROUP_ID=continuitybridge
+KAFKA_TOPIC_IN=items.inbound
+KAFKA_TOPIC_OUT=items.outbound
+
+NOTES:
+- InMemory: demo only; ~100k messages ≈ 1GB RAM.
+- Use Rabbit/LavinMQ or Kafka for >1M msgs or replay.
+
+FILES TO WRITE EXACTLY:
+(mapping.yml, canonical.sample.json, examples/item.sample.xml, examples/item.sample.json, schema.graphql, package.jsons, stubs from previous version).
+
+README.md:
+Include purpose, env setup, endpoints, run instructions, queue toggle, KPI notes, roadmap (DLQ, XSD+XLSX mapping, Fake-WMS UI, DSL rules, Docker/HA).
+
+GOAL:
+Deliver a local-running demo (POC) showing:
+XML→canonical→queue→dispatch→metrics visualized in dashboard, with togglable backends and minimal code coupling.

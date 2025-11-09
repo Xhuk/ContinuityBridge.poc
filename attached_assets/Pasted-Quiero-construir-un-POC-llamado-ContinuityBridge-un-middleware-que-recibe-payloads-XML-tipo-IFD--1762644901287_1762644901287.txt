@@ -1,0 +1,144 @@
+Quiero construir un POC llamado “ContinuityBridge”, un middleware que recibe payloads XML tipo IFD (de WMS JDA 2018), los convierte a JSON canónico, aplica una lógica de decisión de origen (warehouse / 3PL / marketplace) y los despacha a varios destinos (SAP, 3PL, Meli, Amazon).
+
+El sistema debe incluir:
+
+Backend Node.js (ESM + Express)
+
+Endpoint POST /items/ifd que recibe XML, lo valida y transforma a JSON canónico (usa fast-xml-parser).
+
+Lógica de decisión: elige el warehouse más cercano con stock (usa data/warehouses.json con lat/lon, SLA, stock, costo).
+
+Fan-out a destinos simulados (/receivers/sap, /receivers/3pl, /receivers/meli, /receivers/amazon).
+
+Métricas en GET /metrics (latencia, profundidad de cola, TPS, errores).
+
+Persistencia simple: SQLite (better-sqlite3) o JSON files para logs.
+
+Worker separado con procesamiento paralelo (concurrencia configurable).
+
+Cola conmutable (QueueProvider)
+Implementa un patrón Strategy con tres backends:
+
+InMemoryQueue: usa Map<string,string[]> (rápido, no persistente).
+
+RabbitQueue: usa amqplib (compatible con RabbitMQ/LavinMQ).
+
+KafkaQueue: usa kafkajs (compatible con Kafka/Confluent/Aiven).
+
+El backend se selecciona por variable de entorno:
+
+QUEUE_BACKEND=inmemory|rabbit|kafka
+
+
+Variables adicionales:
+
+Rabbit/LavinMQ:
+
+RABBIT_URL=amqps://user:pass@host/vhost
+RABBIT_QUEUE_IN=items.inbound
+RABBIT_QUEUE_OUT=items.outbound
+
+
+Kafka:
+
+KAFKA_BROKERS=host1:9092,host2:9092
+KAFKA_USER=...
+KAFKA_PASS=...
+KAFKA_TOPIC_IN=items.inbound
+KAFKA_TOPIC_OUT=items.outbound
+
+
+Frontend React (Vite)
+
+Dashboard con KPIs (latencia promedio, p95, TPS, profundidad de cola, errores).
+
+Tabla de eventos recientes (ID, SKU, warehouse elegido, motivo, tiempo).
+
+Botones para “Replay”, “Toggle Auto Worker”, “Cambiar Concurrency”.
+
+Vista inventario (warehouses + stock).
+
+Infraestructura
+
+Scripts de instalación y arranque en Windows (install-and-run.ps1).
+
+Postman collection (/postman/ContinuityBridge.postman_collection.json).
+
+Estructura modular con src/queue, src/decision, src/transform, src/workers, src/receivers.
+
+Requisitos funcionales
+
+El sistema debe funcionar con JSON como payload en todos los backends.
+
+Permitir cambiar la cola solo modificando QUEUE_BACKEND (sin tocar lógica).
+
+Validar XML y mostrar errores detallados (línea, mensaje).
+
+Generar métricas en memoria para dashboard y API /metrics.
+
+Guía de memoria
+
+En modo InMemory:
+
+1M mensajes (~1 KB cada uno) = ≈1 GB RAM (mínimo 2 GB recomendados).
+
+2 KB cada uno = ≈2 GB.
+
+Por estabilidad, no exceder 100 000 mensajes simultáneos.
+
+En producción → usar RabbitMQ/LavinMQ o Kafka (persistentes y durables).
+
+Criterios de aceptación
+
+POST /items/ifd transforma correctamente el XML de ejemplo.
+
+Cola InMemory procesa eventos y genera fan-out visible en receivers.
+
+Cambiando a RabbitMQ/Kafka por ENV el sistema sigue funcionando.
+
+Dashboard muestra métricas y lista de eventos.
+
+PowerShell install-and-run.ps1 instala y arranca todo en Windows.
+
+Archivos requeridos
+
+src/queue/QueueProvider.ts
+
+src/queue/inmemory.ts
+
+src/queue/rabbit.ts
+
+src/queue/kafka.ts
+
+src/transform/xml-to-canonical.ts
+
+src/decision/origin-decider.ts
+
+src/workers/worker.ts
+
+data/warehouses.json
+
+data/samples/item.sample.xml
+
+postman/ContinuityBridge.postman_collection.json
+
+install-and-run.ps1
+
+README.md con instrucciones rápidas.
+
+Modo demo (por defecto):
+
+QUEUE_BACKEND=inmemory
+
+PORT=5050, Dashboard en 5173.
+
+Demo data de /data/samples/.
+
+Al iniciar, mostrar:
+
+API Running: http://localhost:5050
+Dashboard:   http://localhost:5173
+Queue:       InMemory (non-persistent)
+
+
+Construye el proyecto completo con esta arquitectura y todos los archivos listos para ejecución local o en Replit.
