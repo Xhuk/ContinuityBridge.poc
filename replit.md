@@ -4,6 +4,15 @@
 ContinuityBridge is a configurable bi-directional integration hub designed to connect diverse enterprise systems such as WMS, Oracle, Manhattan, Amazon, and Last Mile. It ingests payloads from multiple sources (SFTP, Azure Blob, REST APIs), transforms them using configurable mappings, applies warehouse routing logic, and dispatches them to various destinations with swappable queue backends. The project aims to provide a robust, scalable, and observable solution for complex data integration challenges, supporting both linear transformation flows and advanced orchestration.
 
 ## Recent Changes (November 2025)
+- **Phase 2.3 Complete**: React Flow-Based Visual Flow Builder UI
+  - Implemented drag-and-drop flow canvas using React Flow (@xyflow/react)
+  - Built Node Palette with 5 node types (Manual Trigger, XML Parser, JSON Builder, Object Mapper, Interface Call)
+  - Created custom node components with color-coded styling and configuration indicators
+  - Added node configuration dialogs with type-specific form fields (XPath, JSON templates, YAML mappings, interface settings)
+  - Integrated flow controls: Save, Load, Execute, Clear canvas
+  - Connected to backend REST API for flow CRUD operations and execution
+  - Added Flow Builder navigation item to sidebar
+  - Verified smooth, responsive UI with end-to-end testing via Playwright
 - **RFC 7231 HTTP Methods Support**: Full REST API compliance
   - Implemented all RFC 7231 methods: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS
   - Added idempotent PUT for complete resource replacement
@@ -26,7 +35,7 @@ ContinuityBridge is a configurable bi-directional integration hub designed to co
 ## System Architecture
 
 ### UI/UX Decisions
-The frontend features a React application with a dashboard for KPIs, charts, and queue depth monitoring, an events history table, queue management, and dedicated pages for managing data sources and interfaces. A comprehensive sidebar provides navigation to all key areas.
+The frontend features a React application with a dashboard for KPIs, charts, and queue depth monitoring, an events history table, queue management, and dedicated pages for managing data sources and interfaces. A comprehensive sidebar provides navigation to all key areas. **Phase 2.3 added a visual Flow Builder** - a React Flow-based canvas where users can drag-and-drop nodes to create transformation flows, configure them via dialogs, connect them visually, and save/load/execute flows through REST API integration.
 
 ### Technical Implementations
 - **Flow Orchestrator**: A core service for executing node graphs, tracking per-node execution, and supporting conditional routing. It includes production-safe executors for manual triggers, interface operations, XML parsing, JSON building, and object mapping. Disabled executors (conditional, custom_javascript) are security hardened to prevent RCE attacks. **Now integrated with Pipeline for end-to-end flow execution.**
@@ -54,5 +63,6 @@ The frontend features a React application with a dashboard for KPIs, charts, and
 - **Apollo Server**: For GraphQL API implementation.
 - **Express**: For REST API implementation.
 - **TanStack Query**: For frontend data fetching and caching.
+- **React Flow (@xyflow/react)**: For visual flow builder canvas and node graph rendering.
 - **fast-xml-parser**: For XML syntax validation.
 - **object-mapper**: For field mapping within flows.
