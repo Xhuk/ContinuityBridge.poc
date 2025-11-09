@@ -741,27 +741,7 @@ function NodeConfigForm({
         );
 
       case "conditional":
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="conditions">Conditional Logic (YAML)</Label>
-              <Textarea
-                id="conditions"
-                value={config.conditions || ""}
-                onChange={(e) =>
-                  setConfig({ ...config, conditions: e.target.value })
-                }
-                placeholder="# Single condition:\nfield: status\noperator: equals\nvalue: shipped\n\n# Multiple conditions:\nconditions:\n  - field: quantity\n    operator: greater_than\n    value: 100\n  - field: region\n    operator: equals\n    value: US\nlogic: AND"
-                className="font-mono text-sm"
-                rows={12}
-                data-testid="input-conditions"
-              />
-              <p className="text-xs text-muted-foreground mt-2">
-                Operators: equals, not_equals, greater_than, less_than, in, contains, starts_with, ends_with
-              </p>
-            </div>
-          </div>
-        );
+        return <ConditionalNodeConfig config={config} setConfig={setConfig} />;
 
       default:
         return (
@@ -789,5 +769,234 @@ function NodeConfigForm({
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+function ConditionalNodeConfig({
+  config,
+  setConfig,
+}: {
+  config: Record<string, any>;
+  setConfig: (config: Record<string, any>) => void;
+}) {
+  const [mode, setMode] = useState<"simple" | "advanced">(config.conditions ? "advanced" : "simple");
+  
+  const { data: interfaces } = useQuery<any[]>({
+    queryKey: ["/api/interfaces"],
+  });
+  
+  const { data: templates } = useQuery<any[]>({
+    queryKey: ["/api/interface-templates"],
+  });
+  
+  const selectedInterface = interfaces?.find((i) => i.id === config.interfaceId);
+  const selectedTemplate = templates?.find((t) => t.id === selectedInterface?.templateId);
+  const conditionSchema = selectedTemplate?.conditionSchema;
+  const selectedField = conditionSchema?.fields?.find((f: any) => f.name === config.field);
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant={mode === "simple" ? "default" : "outline"}
+          onClick={() => setMode("simple")}
+        >
+          Simple Mode
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={mode === "advanced" ? "default" : "outline"}
+          onClick={() => setMode("advanced")}
+        >
+          Advanced Mode
+        </Button>
+      </div>
+      
+      {mode === "simple" ? (
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="interfaceId">Interface</Label>
+            <Select
+              value={config.interfaceId || ""}
+              onValueChange={(value) =>
+                setConfig({ ...config, interfaceId: value, field: "", operator: "", value: "" })
+              }
+            >
+              <SelectTrigger id="interfaceId" data-testid="select-interface">
+                <SelectValue placeholder="Select interface..." />
+              </SelectTrigger>
+              <SelectContent>
+                {interfaces?.map((iface) => (
+                  <SelectItem key={iface.id} value={iface.id}>
+                    {iface.name}
+                  </SelectItem>
+                ))}
+                {!interfaces?.length && (
+                  <SelectItem value="none" disabled>
+                    No interfaces available
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Select which interface's data to evaluate
+            </p>
+          </div>
+          
+          {conditionSchema && conditionSchema.rulePresets?.length > 0 && (
+            <div>
+              <Label htmlFor="preset">Quick Setup (Optional)</Label>
+              <Select
+                value=""
+                onValueChange={(value) => {
+                  const preset = conditionSchema.rulePresets.find((p: any) => p.name === value);
+                  if (preset) {
+                    setConfig({
+                      ...config,
+                      field: preset.condition.field,
+                      operator: preset.condition.operator,
+                      value: preset.condition.value,
+                    });
+                  }
+                }}
+              >
+                <SelectTrigger id="preset" data-testid="select-preset">
+                  <SelectValue placeholder="Choose a preset..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {conditionSchema.rulePresets.map((preset: any) => (
+                    <SelectItem key={preset.name} value={preset.name}>
+                      <div>
+                        <div className="font-medium">{preset.name}</div>
+                        {preset.description && (
+                          <div className="text-xs text-muted-foreground">
+                            {preset.description}
+                          </div>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          
+          {conditionSchema ? (
+            <>
+              <div>
+                <Label htmlFor="field">Field</Label>
+                <Select
+                  value={config.field || ""}
+                  onValueChange={(value) =>
+                    setConfig({ ...config, field: value })
+                  }
+                >
+                  <SelectTrigger id="field" data-testid="select-field">
+                    <SelectValue placeholder="Select field..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {conditionSchema.fields.map((field: any) => (
+                      <SelectItem key={field.name} value={field.name}>
+                        <div>
+                          <div>{field.name}</div>
+                          {field.description && (
+                            <div className="text-xs text-muted-foreground">
+                              {field.description}
+                            </div>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="operator">Operator</Label>
+                <Select
+                  value={config.operator || ""}
+                  onValueChange={(value) =>
+                    setConfig({ ...config, operator: value })
+                  }
+                >
+                  <SelectTrigger id="operator" data-testid="select-operator">
+                    <SelectValue placeholder="Select operator..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="equals">equals</SelectItem>
+                    <SelectItem value="not_equals">not equals</SelectItem>
+                    <SelectItem value="greater_than">greater than</SelectItem>
+                    <SelectItem value="less_than">less than</SelectItem>
+                    <SelectItem value="in">in (list)</SelectItem>
+                    <SelectItem value="contains">contains</SelectItem>
+                    <SelectItem value="starts_with">starts with</SelectItem>
+                    <SelectItem value="ends_with">ends with</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="value">Value</Label>
+                {selectedField?.values && selectedField.values.length > 0 ? (
+                  <Select
+                    value={config.value || ""}
+                    onValueChange={(value) =>
+                      setConfig({ ...config, value })
+                    }
+                  >
+                    <SelectTrigger id="value" data-testid="select-value">
+                      <SelectValue placeholder="Select value..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedField.values.map((val: string) => (
+                        <SelectItem key={val} value={val}>
+                          {val}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id="value"
+                    type={selectedField?.type === "number" ? "number" : "text"}
+                    value={config.value || ""}
+                    onChange={(e) =>
+                      setConfig({ ...config, value: e.target.value })
+                    }
+                    placeholder="Enter value..."
+                    data-testid="input-value"
+                  />
+                )}
+              </div>
+            </>
+          ) : config.interfaceId ? (
+            <div className="text-sm text-muted-foreground p-4 border rounded-md">
+              This interface doesn't have a condition schema defined. Switch to Advanced Mode to write custom YAML conditions.
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div>
+          <Label htmlFor="conditions">Conditional Logic (YAML)</Label>
+          <Textarea
+            id="conditions"
+            value={config.conditions || ""}
+            onChange={(e) =>
+              setConfig({ ...config, conditions: e.target.value })
+            }
+            placeholder="# Single condition:\nfield: status\noperator: equals\nvalue: shipped\n\n# Multiple conditions:\nconditions:\n  - field: quantity\n    operator: greater_than\n    value: 100\n  - field: region\n    operator: equals\n    value: US\nlogic: AND"
+            className="font-mono text-sm"
+            rows={12}
+            data-testid="input-conditions"
+          />
+          <p className="text-xs text-muted-foreground mt-2">
+            Operators: equals, not_equals, greater_than, less_than, in, contains, starts_with, ends_with
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
