@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Mail, Lock, Server, Shield } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card } from "@/components/ui/card";
 import EmailSettings from "./email";
 import SecretsVault from "./secrets-vault";
+import QueueConfiguration from "./queue-config";
+import SecuritySettings from "./security";
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("email");
@@ -47,25 +48,11 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="queue" className="space-y-4">
-            <Card className="p-8 text-center">
-              <Server className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-semibold mb-2">Queue Configuration</h3>
-              <p className="text-sm text-muted-foreground">
-                Configure message queue backends (InMemory, RabbitMQ, Kafka)
-              </p>
-              <p className="text-xs text-muted-foreground mt-4">Coming soon</p>
-            </Card>
+            <QueueConfiguration />
           </TabsContent>
 
           <TabsContent value="security" className="space-y-4">
-            <Card className="p-8 text-center">
-              <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-semibold mb-2">Security Settings</h3>
-              <p className="text-sm text-muted-foreground">
-                Audit logs, access control, and security policies
-              </p>
-              <p className="text-xs text-muted-foreground mt-4">Coming soon</p>
-            </Card>
+            <SecuritySettings />
           </TabsContent>
         </Tabs>
       </div>

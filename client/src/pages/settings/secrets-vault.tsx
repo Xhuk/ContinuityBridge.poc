@@ -198,7 +198,10 @@ export default function SecretsVault() {
   const [showPassword, setShowPassword] = useState(false);
 
   // Check vault status
-  const { data: vaultStatus } = useQuery({
+  const { data: vaultStatus } = useQuery<{
+    initialized: boolean;
+    unlocked: boolean;
+  }>({
     queryKey: ["/api/secrets/status"],
   });
 
