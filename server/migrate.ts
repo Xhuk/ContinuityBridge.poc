@@ -392,6 +392,20 @@ export async function ensureTables() {
       )
     `);
 
+    // Create system_instance_test_files table (for E2E testing and emulation)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS system_instance_test_files (
+        id TEXT PRIMARY KEY,
+        system_instance_id TEXT NOT NULL REFERENCES system_instances(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        media_type TEXT NOT NULL,
+        storage_key TEXT NOT NULL UNIQUE,
+        file_size INTEGER NOT NULL,
+        uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        metadata TEXT
+      )
+    `);
+
     // Migration: Add system_instance_id column to flow_definitions if it doesn't exist
     try {
       sqlite.exec(`
@@ -453,6 +467,11 @@ export async function ensureTables() {
 
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS idx_inbound_auth_policies_route_pattern ON inbound_auth_policies(route_pattern)
+    `);
+
+    // Create indices for test files table
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_system_instance_test_files_system_instance_id ON system_instance_test_files(system_instance_id)
     `);
 
     console.log("[Database] Tables initialized successfully");
