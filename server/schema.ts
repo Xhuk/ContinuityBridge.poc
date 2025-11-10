@@ -844,3 +844,84 @@ export const systemInstanceTestFiles = sqliteTable("system_instance_test_files",
 
 export type SystemInstanceTestFile = typeof systemInstanceTestFiles.$inferSelect;
 export type InsertSystemInstanceTestFile = typeof systemInstanceTestFiles.$inferInsert;
+
+// System Instance Authentication (per-system auth configs)
+export const systemInstanceAuth = sqliteTable("system_instance_auth", {
+  id: text("id").primaryKey(),
+  systemInstanceId: text("system_instance_id").notNull().references(() => systemInstances.id, { onDelete: "cascade" }),
+  
+  // Auth adapter configuration
+  name: text("name").notNull(), // e.g., "JDA OAuth", "Customer API Auth"
+  description: text("description"),
+  adapterType: text("adapter_type").notNull().$type<"oauth2" | "jwt" | "cookie" | "apikey">(),
+  direction: text("direction").notNull().$type<"inbound" | "outbound" | "bidirectional">(),
+  
+  // Vault secret reference (stores clientId, clientSecret, apiKey, etc.)
+  secretRef: text("secret_ref").references(() => secretsVault.id, { onDelete: "set null" }),
+  
+  // Configuration for token requests and placement
+  config: text("config", { mode: "json" }).notNull().$type<{
+    // Inbound configuration (validate incoming requests)
+    inbound?: {
+      headerName?: string;           // e.g., "Authorization", "X-Auth-Token"
+      headerPrefix?: string;          // e.g., "Bearer ", "Token "
+      cookieName?: string;
+      queryParam?: string;
+      bodyField?: string;
+      
+      // OAuth2-specific
+      introspectionUrl?: string;
+      introspectionMethod?: "POST" | "GET" | "PUT" | "PATCH" | "DELETE";
+      introspectionHeaders?: Record<string, string>;
+      
+      // JWT-specific
+      jwtAlgorithm?: string;          // e.g., "HS256", "RS256"
+      jwtIssuer?: string;
+      jwtAudience?: string;
+    };
+    
+    // Outbound configuration (attach auth to API calls)
+    outbound?: {
+      // Token endpoint configuration
+      tokenUrl?: string;              // Full URL with path/query params
+      tokenRequestMethod?: "POST" | "GET" | "PUT" | "PATCH" | "DELETE";
+      tokenRequestHeaders?: Record<string, string>; // Custom headers for token request
+      grantType?: "client_credentials" | "authorization_code" | "refresh_token";
+      scope?: string;
+      audience?: string;
+      
+      // Token placement in API calls
+      placement: "header" | "cookie" | "query" | "body";
+      headerName?: string;            // e.g., "Authorization"
+      headerPrefix?: string;          // e.g., "Bearer "
+      cookieName?: string;
+      cookieOptions?: {
+        httpOnly?: boolean;
+        secure?: boolean;
+        sameSite?: "strict" | "lax" | "none";
+      };
+      queryParam?: string;
+      bodyField?: string;
+      bodyEncoding?: "json" | "form";
+      
+      // JWT-specific
+      jwtAlgorithm?: string;
+      jwtExpiresIn?: string;          // e.g., "1h", "30m"
+      jwtClaims?: Record<string, unknown>;
+    };
+  }>(),
+  
+  // Status
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  lastTestedAt: text("last_tested_at"),
+  lastUsedAt: text("last_used_at"),
+  
+  // Metadata
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type SystemInstanceAuth = typeof systemInstanceAuth.$inferSelect;
+export type InsertSystemInstanceAuth = typeof systemInstanceAuth.$inferInsert;

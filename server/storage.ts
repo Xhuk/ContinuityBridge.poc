@@ -20,6 +20,8 @@ import type {
   InsertInboundAuthPolicy,
   SystemInstanceTestFile,
   InsertSystemInstanceTestFile,
+  SystemInstanceAuth,
+  InsertSystemInstanceAuth,
 } from "./schema";
 import { randomUUID } from "crypto";
 
@@ -108,6 +110,14 @@ export interface IStorage {
   ): Promise<{ storageKey: string; fileSize: number }>;
   readTestFileFromDisk?(storageKey: string): Promise<Buffer>;
   deleteTestFileFromDisk?(storageKey: string): Promise<void>;
+
+  // System Instance Authentication (per-system auth configs)
+  getSystemAuths?(systemInstanceId: string): Promise<SystemInstanceAuth[]>;
+  getSystemAuth?(id: string): Promise<SystemInstanceAuth | undefined>;
+  createSystemAuth?(auth: InsertSystemInstanceAuth): Promise<SystemInstanceAuth>;
+  updateSystemAuth?(id: string, auth: Partial<InsertSystemInstanceAuth>): Promise<SystemInstanceAuth | undefined>;
+  deleteSystemAuth?(id: string): Promise<boolean>;
+  getSystemAuthByType?(systemInstanceId: string, adapterType: SystemInstanceAuth['adapterType'], direction?: SystemInstanceAuth['direction']): Promise<SystemInstanceAuth | undefined>;
 }
 
 export class MemStorage implements IStorage {
