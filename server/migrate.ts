@@ -12,12 +12,95 @@ export async function ensureTables() {
   }
 
   try {
+    // Create hierarchy tables (Account → Tenant → Ecosystem → Environment → System Instance)
+    
+    // Create accounts table (Monetization layer)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS accounts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        license_tier TEXT NOT NULL DEFAULT 'free',
+        max_tenants INTEGER NOT NULL DEFAULT 1,
+        max_ecosystems INTEGER NOT NULL DEFAULT 5,
+        max_instances INTEGER NOT NULL DEFAULT 10,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        expires_at TEXT,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create tenants table (Organization/Client)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS tenants (
+        id TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create ecosystems table (Business domain)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS ecosystems (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        description TEXT,
+        type TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        tags TEXT,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create environments table (DEV/PROD/STAGING)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS environments (
+        id TEXT PRIMARY KEY,
+        ecosystem_id TEXT NOT NULL REFERENCES ecosystems(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        description TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create system_instances table (Billable endpoint)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS system_instances (
+        id TEXT PRIMARY KEY,
+        environment_id TEXT NOT NULL REFERENCES environments(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        description TEXT,
+        endpoint TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        tags TEXT,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create flow_definitions table
     sqlite.exec(`
       CREATE TABLE IF NOT EXISTS flow_definitions (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         description TEXT,
+        system_instance_id TEXT REFERENCES system_instances(id) ON DELETE SET NULL,
         nodes TEXT NOT NULL,
         edges TEXT NOT NULL,
         version TEXT NOT NULL DEFAULT '1.0.0',
@@ -307,6 +390,35 @@ export async function ensureTables() {
         last_error TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    // Create indices for hierarchy tables
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_tenants_account_id ON tenants(account_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_ecosystems_tenant_id ON ecosystems(tenant_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_ecosystems_type ON ecosystems(type)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_environments_ecosystem_id ON environments(ecosystem_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_environments_name ON environments(name)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_system_instances_environment_id ON system_instances(environment_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_flow_definitions_system_instance_id ON flow_definitions(system_instance_id)
     `);
 
     // Create indices for auth tables
