@@ -658,13 +658,14 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
 
   // ========== FLOW MANAGEMENT ENDPOINTS ==========
 
-  // GET /api/flows - List all flows
+  // GET /api/flows - List all flows (optionally filtered by systemInstanceId)
   app.get("/api/flows", async (req, res) => {
     try {
       if (!storage) {
         return res.status(501).json({ error: "Flow storage is not initialized" });
       }
-      const flows = await storage.getFlows();
+      const systemInstanceId = req.query.systemInstanceId as string | undefined;
+      const flows = await storage.getFlows(systemInstanceId);
       res.json(flows);
     } catch (error: any) {
       log.error("Error listing flows", error);

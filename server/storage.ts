@@ -29,7 +29,7 @@ export interface IStorage {
   // Flow Definition Management
   createFlow(flow: InsertFlowDefinition): Promise<FlowDefinition>;
   getFlow(id: string): Promise<FlowDefinition | undefined>;
-  getFlows(): Promise<FlowDefinition[]>;
+  getFlows(systemInstanceId?: string): Promise<FlowDefinition[]>;
   updateFlow(id: string, flow: Partial<InsertFlowDefinition>): Promise<FlowDefinition | undefined>;
   deleteFlow(id: string): Promise<boolean>;
 
@@ -131,8 +131,12 @@ export class MemStorage implements IStorage {
     return this.flows.get(id);
   }
 
-  async getFlows(): Promise<FlowDefinition[]> {
-    return Array.from(this.flows.values());
+  async getFlows(systemInstanceId?: string): Promise<FlowDefinition[]> {
+    const allFlows = Array.from(this.flows.values());
+    if (systemInstanceId) {
+      return allFlows.filter(f => f.systemInstanceId === systemInstanceId);
+    }
+    return allFlows;
   }
 
   async updateFlow(

@@ -58,6 +58,7 @@ export class DatabaseStorage implements IStorage {
       id: flow.id,
       name: flow.name,
       description: flow.description || null,
+      systemInstanceId: flow.systemInstanceId || null,
       nodes: flow.nodes as any,
       edges: flow.edges as any,
       version: flow.version,
@@ -82,8 +83,14 @@ export class DatabaseStorage implements IStorage {
     return this.mapFlowFromDb(row);
   }
 
-  async getFlows(): Promise<SchemaFlowDefinition[]> {
-    const results = await (db.select() as any).from(flowDefinitions).orderBy(desc(flowDefinitions.createdAt));
+  async getFlows(systemInstanceId?: string): Promise<SchemaFlowDefinition[]> {
+    let query = (db.select() as any).from(flowDefinitions);
+    
+    if (systemInstanceId) {
+      query = query.where(eq(flowDefinitions.systemInstanceId, systemInstanceId));
+    }
+    
+    const results = await query.orderBy(desc(flowDefinitions.createdAt));
     return results.map((row: any) => this.mapFlowFromDb(row));
   }
 
@@ -108,6 +115,7 @@ export class DatabaseStorage implements IStorage {
       .set({
         name: updatedFlow.name,
         description: updatedFlow.description || null,
+        systemInstanceId: updatedFlow.systemInstanceId || null,
         nodes: updatedFlow.nodes as any,
         edges: updatedFlow.edges as any,
         version: updatedFlow.version,
@@ -223,6 +231,7 @@ export class DatabaseStorage implements IStorage {
       id: row.id,
       name: row.name,
       description: row.description || undefined,
+      systemInstanceId: row.systemInstanceId ?? undefined,
       nodes: typeof row.nodes === 'string' ? JSON.parse(row.nodes) : row.nodes,
       edges: typeof row.edges === 'string' ? JSON.parse(row.edges) : row.edges,
       version: row.version,

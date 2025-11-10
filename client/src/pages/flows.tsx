@@ -44,6 +44,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { SystemInstanceSelector } from "@/components/SystemInstanceSelector";
 import {
   Save,
   Play,
@@ -156,10 +157,16 @@ export default function Flows() {
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [loadDialogOpen, setLoadDialogOpen] = useState(false);
   const [currentFlowId, setCurrentFlowId] = useState<string | null>(null);
+  const [selectedSystemInstance, setSelectedSystemInstance] = useState<string>("default-dev");
 
-  // Fetch available flows
+  // Fetch available flows (filtered by system instance)
   const { data: flows, isLoading: flowsLoading } = useQuery<any[]>({
-    queryKey: ["/api/flows"],
+    queryKey: ["/api/flows", selectedSystemInstance],
+    queryFn: async () => {
+      const response = await fetch(`/api/flows?systemInstanceId=${selectedSystemInstance}`);
+      if (!response.ok) throw new Error("Failed to fetch flows");
+      return response.json();
+    },
   });
 
   // Node changes handler
@@ -229,6 +236,7 @@ export default function Flows() {
         name: flowName,
         version: "1.0",
         enabled: true,
+        systemInstanceId: selectedSystemInstance,
         nodes: nodes.map((node) => ({
           id: node.id,
           type: node.data.type,
@@ -252,7 +260,7 @@ export default function Flows() {
     },
     onSuccess: (data: any) => {
       setCurrentFlowId(data.id);
-      queryClient.invalidateQueries({ queryKey: ["/api/flows"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/flows", selectedSystemInstance] });
       toast({
         title: "Flow saved",
         description: `Flow "${flowName}" saved successfully`,
@@ -328,6 +336,10 @@ export default function Flows() {
             onChange={(e) => setFlowName(e.target.value)}
             className="text-lg font-semibold w-64"
             data-testid="input-flow-name"
+          />
+          <SystemInstanceSelector
+            value={selectedSystemInstance}
+            onValueChange={setSelectedSystemInstance}
           />
           {currentFlowId && (
             <Badge variant="outline" data-testid="badge-flow-saved">
