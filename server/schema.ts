@@ -1,11 +1,111 @@
 import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
+// Hierarchy Tables (Account → Tenant → Ecosystem → Environment → System Instance)
+
+// Accounts Table (Monetization layer)
+export const accounts = sqliteTable("accounts", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  licenseTier: text("license_tier").notNull().$type<"free" | "professional" | "enterprise">().default("free"),
+  
+  // Limits based on tier
+  maxTenants: integer("max_tenants").notNull().default(1),
+  maxEcosystems: integer("max_ecosystems").notNull().default(5),
+  maxInstances: integer("max_instances").notNull().default(10),
+  
+  // Status
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  expiresAt: text("expires_at"), // License expiration
+  
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Tenants Table (Organization/Client)
+export const tenants = sqliteTable("tenants", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+  
+  name: text("name").notNull(),
+  displayName: text("display_name").notNull(),
+  
+  // Status
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Ecosystems Table (Business domain: ERP, Marketplace, WMS, etc.)
+export const ecosystems = sqliteTable("ecosystems", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  name: text("name").notNull(),
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  
+  // Ecosystem type
+  type: text("type").notNull().$type<"erp" | "marketplace" | "wms" | "tms" | "3pl" | "last_mile" | "custom">(),
+  
+  // Status
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  
+  tags: text("tags", { mode: "json" }).$type<string[]>(),
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Environments Table (DEV/PROD/STAGING)
+export const environments = sqliteTable("environments", {
+  id: text("id").primaryKey(),
+  ecosystemId: text("ecosystem_id").notNull().references(() => ecosystems.id, { onDelete: "cascade" }),
+  
+  name: text("name").notNull().$type<"dev" | "staging" | "prod">(),
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  
+  // Status
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// System Instances Table (Billable endpoint: JDA_DEV_01, AMAZON_PROD_EU)
+export const systemInstances = sqliteTable("system_instances", {
+  id: text("id").primaryKey(),
+  environmentId: text("environment_id").notNull().references(() => environments.id, { onDelete: "cascade" }),
+  
+  name: text("name").notNull(),
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  
+  // Connection details
+  endpoint: text("endpoint"),
+  
+  // Status
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  
+  tags: text("tags", { mode: "json" }).$type<string[]>(),
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 // Flow Definitions Table
 export const flowDefinitions = sqliteTable("flow_definitions", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
+  
+  // Hierarchy scoping (NULLABLE for backward compatibility)
+  systemInstanceId: text("system_instance_id").references(() => systemInstances.id, { onDelete: "set null" }),
   
   // React Flow graph stored as JSON
   nodes: text("nodes", { mode: "json" }).notNull().$type<any[]>(),
@@ -100,6 +200,21 @@ export const integrationEvents = sqliteTable("integration_events", {
   
   metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
 });
+
+export type Account = typeof accounts.$inferSelect;
+export type InsertAccount = typeof accounts.$inferInsert;
+
+export type Tenant = typeof tenants.$inferSelect;
+export type InsertTenant = typeof tenants.$inferInsert;
+
+export type Ecosystem = typeof ecosystems.$inferSelect;
+export type InsertEcosystem = typeof ecosystems.$inferInsert;
+
+export type Environment = typeof environments.$inferSelect;
+export type InsertEnvironment = typeof environments.$inferInsert;
+
+export type SystemInstance = typeof systemInstances.$inferSelect;
+export type InsertSystemInstance = typeof systemInstances.$inferInsert;
 
 export type FlowDefinition = typeof flowDefinitions.$inferSelect;
 export type InsertFlowDefinition = typeof flowDefinitions.$inferInsert;
