@@ -1,5 +1,6 @@
 import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import { randomUUID } from "crypto";
 
 // Hierarchy Tables (Account → Tenant → Ecosystem → Environment → System Instance)
 
@@ -847,7 +848,7 @@ export type InsertSystemInstanceTestFile = typeof systemInstanceTestFiles.$infer
 
 // System Instance Authentication (per-system auth configs)
 export const systemInstanceAuth = sqliteTable("system_instance_auth", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => randomUUID()),
   systemInstanceId: text("system_instance_id").notNull().references(() => systemInstances.id, { onDelete: "cascade" }),
   
   // Auth adapter configuration
