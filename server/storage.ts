@@ -112,12 +112,19 @@ export interface IStorage {
   deleteTestFileFromDisk?(storageKey: string): Promise<void>;
 
   // System Instance Authentication (per-system auth configs)
-  getSystemAuths?(systemInstanceId: string): Promise<SystemInstanceAuth[]>;
+  getSystemAuths?(
+    systemInstanceId: string,
+    filters?: {
+      direction?: "inbound" | "outbound" | "bidirectional";
+      enabled?: boolean;
+      adapterType?: "oauth2" | "jwt" | "cookie" | "apikey";
+    }
+  ): Promise<SystemInstanceAuth[]>;
   getSystemAuth?(id: string): Promise<SystemInstanceAuth | undefined>;
+  getSystemAuthByName?(systemInstanceId: string, name: string): Promise<SystemInstanceAuth | undefined>;
   createSystemAuth?(auth: InsertSystemInstanceAuth): Promise<SystemInstanceAuth>;
   updateSystemAuth?(id: string, auth: Partial<InsertSystemInstanceAuth>): Promise<SystemInstanceAuth | undefined>;
   deleteSystemAuth?(id: string): Promise<boolean>;
-  getSystemAuthByType?(systemInstanceId: string, adapterType: SystemInstanceAuth['adapterType'], direction?: SystemInstanceAuth['direction']): Promise<SystemInstanceAuth | undefined>;
 }
 
 export class MemStorage implements IStorage {

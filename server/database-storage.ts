@@ -18,6 +18,7 @@ import {
   authAdapters,
   inboundAuthPolicies,
   systemInstanceTestFiles,
+  systemInstanceAuth,
   type FlowDefinition, 
   type FlowRun, 
   type SmtpSettings,
@@ -31,8 +32,10 @@ import {
   type InsertInboundAuthPolicy,
   type SystemInstanceTestFile,
   type InsertSystemInstanceTestFile,
+  type SystemInstanceAuth,
+  type InsertSystemInstanceAuth,
 } from "./schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { IStorage } from "./storage";
 
 /**
@@ -266,6 +269,25 @@ export class DatabaseStorage implements IStorage {
       nodeExecutions: row.nodeExecutions ? (typeof row.nodeExecutions === 'string' ? JSON.parse(row.nodeExecutions) : row.nodeExecutions) : undefined,
       error: row.error || undefined,
       errorNode: row.errorNode || undefined,
+    };
+  }
+
+  private mapSystemAuthFromDb(row: any): SystemInstanceAuth {
+    return {
+      id: row.id,
+      systemInstanceId: row.systemInstanceId,
+      name: row.name,
+      description: row.description || undefined,
+      adapterType: row.adapterType,
+      direction: row.direction,
+      secretRef: row.secretRef || undefined,
+      config: typeof row.config === 'string' ? JSON.parse(row.config) : row.config,
+      enabled: Boolean(row.enabled),
+      lastTestedAt: row.lastTestedAt || undefined,
+      lastUsedAt: row.lastUsedAt || undefined,
+      metadata: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata) : undefined,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
     };
   }
 
@@ -723,5 +745,145 @@ export class DatabaseStorage implements IStorage {
         throw error;
       }
     }
+  }
+
+  // ============================================================================
+  // System Instance Authentication (per-system auth configs)
+  // ============================================================================
+
+  async getSystemAuths(
+    systemInstanceId: string,
+    filters?: {
+      direction?: "inbound" | "outbound" | "bidirectional";
+      enabled?: boolean;
+      adapterType?: "oauth2" | "jwt" | "cookie" | "apikey";
+    }
+  ): Promise<SystemInstanceAuth[]> {
+    let query = (db.select() as any).from(systemInstanceAuth);
+
+    const conditions = [eq(systemInstanceAuth.systemInstanceId, systemInstanceId)];
+
+    if (filters?.direction) {
+      conditions.push(eq(systemInstanceAuth.direction, filters.direction));
+    }
+
+    if (filters?.enabled !== undefined) {
+      conditions.push(eq(systemInstanceAuth.enabled, filters.enabled ? 1 : 0));
+    }
+
+    if (filters?.adapterType) {
+      conditions.push(eq(systemInstanceAuth.adapterType, filters.adapterType));
+    }
+
+    if (conditions.length > 1) {
+      query = query.where(and(...conditions));
+    } else {
+      query = query.where(conditions[0]);
+    }
+
+    const result = await query.orderBy(desc(systemInstanceAuth.createdAt));
+
+    return result.map((row: any) => this.mapSystemAuthFromDb(row));
+  }
+
+  async getSystemAuth(id: string): Promise<SystemInstanceAuth | undefined> {
+    const result = await (db.select() as any)
+      .from(systemInstanceAuth)
+      .where(eq(systemInstanceAuth.id, id))
+      .limit(1);
+
+    if (result.length === 0) {
+      return undefined;
+    }
+
+    return this.mapSystemAuthFromDb(result[0]);
+  }
+
+  async getSystemAuthByName(
+    systemInstanceId: string,
+    name: string
+  ): Promise<SystemInstanceAuth | undefined> {
+    const result = await (db.select() as any)
+      .from(systemInstanceAuth)
+      .where(
+        and(
+          eq(systemInstanceAuth.systemInstanceId, systemInstanceId),
+          eq(systemInstanceAuth.name, name)
+        )
+      )
+      .limit(1);
+
+    if (result.length === 0) {
+      return undefined;
+    }
+
+    return this.mapSystemAuthFromDb(result[0]);
+  }
+
+  async createSystemAuth(data: InsertSystemInstanceAuth): Promise<SystemInstanceAuth> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+
+    const auth: SystemInstanceAuth = {
+      id,
+      systemInstanceId: data.systemInstanceId,
+      name: data.name,
+      description: data.description || null,
+      adapterType: data.adapterType,
+      direction: data.direction,
+      secretRef: data.secretRef || null,
+      config: data.config,
+      enabled: data.enabled ?? true,
+      lastTestedAt: null,
+      lastUsedAt: null,
+      metadata: data.metadata || null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await (db.insert(systemInstanceAuth) as any).values({
+      ...auth,
+      enabled: auth.enabled ? 1 : 0,
+    });
+
+    return auth;
+  }
+
+  async updateSystemAuth(
+    id: string,
+    data: Partial<InsertSystemInstanceAuth>
+  ): Promise<SystemInstanceAuth | undefined> {
+    const existing = await this.getSystemAuth(id);
+
+    if (!existing) {
+      return undefined;
+    }
+
+    const updated: any = {
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (updated.enabled !== undefined) {
+      updated.enabled = updated.enabled ? 1 : 0;
+    }
+
+    await (db.update(systemInstanceAuth) as any)
+      .set(updated)
+      .where(eq(systemInstanceAuth.id, id));
+
+    return await this.getSystemAuth(id);
+  }
+
+  async deleteSystemAuth(id: string): Promise<boolean> {
+    const existing = await this.getSystemAuth(id);
+
+    if (!existing) {
+      return false;
+    }
+
+    await (db.delete(systemInstanceAuth) as any).where(eq(systemInstanceAuth.id, id));
+
+    return true;
   }
 }
