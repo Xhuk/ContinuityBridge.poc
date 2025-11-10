@@ -1,0 +1,51 @@
+# Status mapping tables for normalizing status codes across systems
+# Used by BYDMMapper and other transformation nodes
+
+# BYDM order status → Canonical order status
+order:
+  "01": "pending"           # New
+  "02": "confirmed"         # Confirmed
+  "03": "processing"        # In Progress
+  "04": "processing"        # Allocated
+  "05": "shipped"          # Shipped
+  "06": "delivered"        # Delivered
+  "07": "cancelled"        # Cancelled
+  "08": "cancelled"        # Rejected
+  
+# BYDM shipment status → Canonical shipment status
+shipment:
+  "10": "pending"          # Created
+  "20": "processing"       # Picking
+  "30": "processing"       # Packing
+  "40": "shipped"          # Manifested
+  "50": "in_transit"       # In Transit
+  "60": "delivered"        # Delivered
+  "70": "exception"        # Exception
+  "90": "cancelled"        # Cancelled
+
+# BYDM receiving status → Canonical inbound status
+receiving:
+  "NEW": "expected"        # Expected
+  "ASN": "in_transit"      # ASN Received
+  "RCV": "receiving"       # Receiving
+  "CMP": "completed"       # Completed
+  "CLS": "closed"          # Closed
+  
+# Amazon status → Canonical
+amazon:
+  "Pending": "pending"
+  "Unshipped": "confirmed"
+  "PartiallyShipped": "processing"
+  "Shipped": "shipped"
+  "Canceled": "cancelled"
+  "Unfulfillable": "cancelled"
+
+# MercadoLibre status → Canonical  
+mercadolibre:
+  "confirmed": "confirmed"
+  "payment_required": "pending"
+  "payment_in_process": "pending"
+  "paid": "confirmed"
+  "shipped": "shipped"
+  "delivered": "delivered"
+  "cancelled": "cancelled"

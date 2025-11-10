@@ -1,0 +1,84 @@
+{
+  "documentId": "ORD-2025-001234",
+  "creationDateTime": "2025-11-10T14:30:00Z",
+  "requestedDeliveryDateTime": "2025-11-15T10:00:00Z",
+  "orderStatus": {
+    "statusCode": "02"
+  },
+  "purchaseOrder": {
+    "purchaseOrderNumber": "PO-987654"
+  },
+  "buyer": {
+    "identifier": "CUST-12345",
+    "gln": "1234567890123",
+    "name": "Acme Corporation",
+    "contactInformation": {
+      "email": "orders@acme.com",
+      "telephone": "+1-555-0123"
+    }
+  },
+  "shipTo": {
+    "name": "Acme Warehouse",
+    "address": {
+      "streetAddress": "123 Main Street",
+      "additionalStreetAddress": "Suite 100",
+      "cityName": "Springfield",
+      "stateOrProvinceCode": "IL",
+      "postalCode": "62701",
+      "countryCode": "US"
+    }
+  },
+  "shipFrom": {
+    "identifier": "WH-001",
+    "gln": "9876543210987",
+    "name": "Distribution Center East"
+  },
+  "carrier": {
+    "identifier": "CARR-UPS",
+    "name": "UPS",
+    "serviceLevel": "GROUND"
+  },
+  "lineItem": [
+    {
+      "lineItemNumber": "1",
+      "transactionalTradeItem": {
+        "primaryId": "SKU-ABC-123",
+        "gtin": "00012345678905",
+        "tradeItemDescription": "Widget Pro - Blue",
+        "unitPrice": {
+          "amount": "29.99",
+          "currencyCode": "USD"
+        }
+      },
+      "requestedQuantity": {
+        "value": "100",
+        "unitOfMeasure": "EA"
+      },
+      "orderedQuantity": {
+        "value": "100",
+        "unitOfMeasure": "EA"
+      },
+      "requestedDeliveryDateTime": "2025-11-15T10:00:00Z"
+    },
+    {
+      "lineItemNumber": "2",
+      "transactionalTradeItem": {
+        "primaryId": "SKU-XYZ-789",
+        "gtin": "00098765432109",
+        "tradeItemDescription": "Gadget Plus - Red",
+        "unitPrice": {
+          "amount": "49.99",
+          "currencyCode": "USD"
+        }
+      },
+      "requestedQuantity": {
+        "value": "50",
+        "unitOfMeasure": "CS"
+      },
+      "orderedQuantity": {
+        "value": "50",
+        "unitOfMeasure": "CS"
+      }
+    }
+  ]
+}

@@ -1,0 +1,164 @@
+# BYDM OrderRelease → Canonical Order Mapping
+# Supports BYDM 2018 and 2025 formats
+# Uses JSONPath-like syntax for field extraction
+
+# Include common mappings
+includes:
+  - "../common/status_map.yaml"
+  - "../common/uom.yaml"
+
+# Root mapping configuration
+version: "1.0"
+sourceFormat: "BYDM OrderRelease"
+targetFormat: "Canonical Order"
+
+# Field mappings
+mapping:
+  orderId:
+    path: "$.documentId"
+    description: "BYDM document identifier"
+    
+  externalOrderId:
+    path: "$.purchaseOrder.purchaseOrderNumber"
+    fallback: "$.documentId"
+    
+  orderDate:
+    path: "$.creationDateTime"
+    transform: "toISO8601"
+    
+  requestedDeliveryDate:
+    path: "$.requestedDeliveryDateTime"
+    transform: "toISO8601"
+    optional: true
+    
+  status:
+    path: "$.orderStatus.statusCode"
+    lookup: "status_map.order"
+    default: "pending"
+    
+  customer:
+    customerId:
+      path: "$.buyer.identifier"
+      fallback: "$.buyer.gln"
+    name:
+      path: "$.buyer.name"
+      optional: true
+    email:
+      path: "$.buyer.contactInformation.email"
+      optional: true
+    phone:
+      path: "$.buyer.contactInformation.telephone"
+      optional: true
+      
+  shipTo:
+    name:
+      path: "$.shipTo.name"
+    address1:
+      path: "$.shipTo.address.streetAddress"
+    address2:
+      path: "$.shipTo.address.additionalStreetAddress"
+      optional: true
+    city:
+      path: "$.shipTo.address.cityName"
+    state:
+      path: "$.shipTo.address.stateOrProvinceCode"
+      optional: true
+    postalCode:
+      path: "$.shipTo.address.postalCode"
+    country:
+      path: "$.shipTo.address.countryCode"
+      transform: "toISO3166Alpha2"
+      default: "US"
+      
+  items:
+    arrayPath: "$.lineItem[*]"
+    itemMapping:
+      lineNumber:
+        path: "$.lineItemNumber"
+        transform: "parseInt"
+      sku:
+        path: "$.transactionalTradeItem.primaryId"
+        fallback: "$.transactionalTradeItem.gtin"
+      description:
+        path: "$.transactionalTradeItem.tradeItemDescription"
+        optional: true
+      quantity:
+        path: "$.requestedQuantity.value"
+        fallback: "$.orderedQuantity.value"
+        transform: "parseFloat"
+        default: 0
+      uom:
+        path: "$.requestedQuantity.unitOfMeasure"
+        lookup: "uom_map"
+        default: "EA"
+      unitPrice:
+        path: "$.transactionalTradeItem.unitPrice.amount"
+        transform: "parseFloat"
+        optional: true
+      currency:
+        path: "$.transactionalTradeItem.unitPrice.currencyCode"
+        default: "USD"
+        optional: true
+      requestedDeliveryDate:
+        path: "$.requestedDeliveryDateTime"
+        transform: "toISO8601"
+        optional: true
+        
+  warehouse:
+    warehouseId:
+      path: "$.shipFrom.identifier"
+      fallback: "$.shipFrom.gln"
+      optional: true
+    name:
+      path: "$.shipFrom.name"
+      optional: true
+      
+  carrier:
+    carrierId:
+      path: "$.carrier.identifier"
+      optional: true
+    carrierName:
+      path: "$.carrier.name"
+      optional: true
+    serviceLevel:
+      path: "$.carrier.serviceLevel"
+      optional: true
+
+# Transformation rules
+transforms:
+  toISO8601:
+    description: "Convert BYDM datetime to ISO 8601"
+    # Handles both BYDM 2018 (CCYY-MM-DDTHH:MM:SS) and 2025 formats
+    
+  toISO3166Alpha2:
+    description: "Convert country code to ISO 3166-1 alpha-2"
+    # Handles 3-letter codes → 2-letter codes if needed
+    
+  parseInt:
+    description: "Parse string to integer"
+    
+  parseFloat:
+    description: "Parse string to float"
+
+# Validation rules (applied after mapping)
+validation:
+  - field: "orderId"
+    required: true
+    type: "string"
+    minLength: 1
+    
+  - field: "orderDate"
+    required: true
+    format: "date-time"
+    
+  - field: "items"
+    required: true
+    minItems: 1
+    
+  - field: "items[*].sku"
+    required: true
+    type: "string"
+    
+  - field: "items[*].quantity"
+    required: true
+    minimum: 0

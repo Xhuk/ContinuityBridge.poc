@@ -1,0 +1,43 @@
+# Unit of Measure (UOM) mapping and conversion
+# Used by BYDMMapper for normalizing UOM codes
+
+# BYDM UOM codes → Canonical UOM
+uom_map:
+  "EA": "EA"    # Each
+  "CS": "CS"    # Case
+  "PK": "PK"    # Pack
+  "BX": "BX"    # Box
+  "PLT": "PLT"  # Pallet
+  "CTN": "CTN"  # Carton
+  "PC": "EA"    # Piece → Each
+  "UN": "EA"    # Unit → Each
+  "UM": "EA"    # Unidad → Each (Spanish)
+  
+# Weight conversion (to KG)
+weight:
+  KG: 1
+  LB: 0.453592
+  OZ: 0.0283495
+  G: 0.001
+  TON: 1000
+  MT: 1000      # Metric Ton
+
+# Length conversion (to CM)
+length:
+  CM: 1
+  M: 100
+  MM: 0.1
+  IN: 2.54
+  FT: 30.48
+  YD: 91.44
+
+# Volume conversion (to L)
+volume:
+  L: 1
+  ML: 0.001
+  GAL: 3.78541
+  QT: 0.946353
+  PT: 0.473176
+  FLOZ: 0.0295735
+  M3: 1000
+  CM3: 0.001
