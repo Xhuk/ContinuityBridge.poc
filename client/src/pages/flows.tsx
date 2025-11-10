@@ -7,6 +7,8 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   addEdge,
+  Handle,
+  Position,
   type Node,
   type Edge,
   type NodeChange,
@@ -115,17 +117,45 @@ const NODE_TYPES = [
   },
 ];
 
-// Custom node component
-function CustomNode({ data }: { data: any }) {
+// Custom node component with connection handles
+function CustomNode({ data, selected }: { data: any; selected?: boolean }) {
   const nodeType = NODE_TYPES.find((t) => t.type === data.type);
   const color = nodeType?.color || "hsl(240 5% 64%)";
+  const category = nodeType?.category || "";
+  const [isHovered, setIsHovered] = useState(false);
+
+  // Determine which handles to show based on node category
+  const showTargetHandle = category !== "trigger"; // Triggers don't accept inputs
+  const showSourceHandle = category !== "output"; // Outputs don't produce outputs
+
+  // Show handles when hovered OR selected
+  const handlesVisible = isHovered || selected;
 
   return (
     <div
-      className="px-4 py-3 rounded-lg border-2 shadow-md bg-card min-w-[180px] hover-elevate active-elevate-2 transition-all"
+      className="relative px-4 py-3 rounded-lg border-2 shadow-md bg-card min-w-[180px] hover-elevate active-elevate-2 transition-all"
       style={{ borderColor: color }}
       data-testid={`node-${data.type}`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
+      {/* Target Handle (Left - Input) - Only for non-trigger nodes */}
+      {showTargetHandle && (
+        <Handle
+          type="target"
+          position={Position.Left}
+          className={`!w-6 !h-6 !bg-primary !border-2 !border-primary-foreground !rounded-full transition-all ${
+            handlesVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+          }`}
+          style={{ left: '-12px' }}
+          data-testid={`handle-target-${data.type}`}
+        >
+          <div className="flex items-center justify-center w-full h-full">
+            <Plus className="w-3 h-3 text-primary-foreground" />
+          </div>
+        </Handle>
+      )}
+
       <div className="flex items-center gap-2 mb-1">
         <div
           className="w-2 h-2 rounded-full"
@@ -138,6 +168,23 @@ function CustomNode({ data }: { data: any }) {
           <Settings className="inline w-3 h-3 mr-1" />
           Configured
         </div>
+      )}
+
+      {/* Source Handle (Right - Output) - Only for non-output nodes */}
+      {showSourceHandle && (
+        <Handle
+          type="source"
+          position={Position.Right}
+          className={`!w-6 !h-6 !bg-primary !border-2 !border-primary-foreground !rounded-full transition-all ${
+            handlesVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+          }`}
+          style={{ right: '-12px' }}
+          data-testid={`handle-source-${data.type}`}
+        >
+          <div className="flex items-center justify-center w-full h-full">
+            <Plus className="w-3 h-3 text-primary-foreground" />
+          </div>
+        </Handle>
       )}
     </div>
   );
