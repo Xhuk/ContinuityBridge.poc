@@ -1,0 +1,83 @@
+{
+  "id": "flow-bydm-amazon-order",
+  "name": "BYDM OrderRelease → Amazon SP-API",
+  "description": "Transform BYDM order to Amazon marketplace format",
+  "nodes": [
+    {
+      "id": "1",
+      "type": "bydm_parser",
+      "position": {
+        "x": 50,
+        "y": 100
+      },
+      "data": {
+        "label": "Parse BYDM",
+        "config": {
+          "version": "auto",
+          "messageType": "orderRelease",
+          "strict": false
+        }
+      }
+    },
+    {
+      "id": "2",
+      "type": "bydm_mapper",
+      "position": {
+        "x": 300,
+        "y": 100
+      },
+      "data": {
+        "label": "Map to Canonical",
+        "config": {
+          "autoSelectMapping": true
+        }
+      }
+    },
+    {
+      "id": "3",
+      "type": "validator",
+      "position": {
+        "x": 550,
+        "y": 100
+      },
+      "data": {
+        "label": "Validate",
+        "config": {
+          "schemaRef": "schemas/canonical/order.schema.json"
+        }
+      }
+    },
+    {
+      "id": "4",
+      "type": "interface",
+      "position": {
+        "x": 800,
+        "y": 100
+      },
+      "data": {
+        "label": "Amazon SP-API",
+        "config": {
+          "templateId": "amazon-sp-api",
+          "operation": "createOrder"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1-2",
+      "source": "1",
+      "target": "2"
+    },
+    {
+      "id": "e2-3",
+      "source": "2",
+      "target": "3"
+    },
+    {
+      "id": "e3-4",
+      "source": "3",
+      "target": "4"
+    }
+  ]
+}
