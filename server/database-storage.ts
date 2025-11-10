@@ -6,6 +6,8 @@ import {
   type InsertSmtpSettings as SchemaInsertSmtpSettings,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { promises as fs } from "fs";
+import path from "path";
 import { db } from "./db";
 import { 
   flowDefinitions, 
@@ -15,6 +17,7 @@ import {
   secretsVault,
   authAdapters,
   inboundAuthPolicies,
+  systemInstanceTestFiles,
   type FlowDefinition, 
   type FlowRun, 
   type SmtpSettings,
@@ -26,6 +29,8 @@ import {
   type InsertAuthAdapter,
   type InboundAuthPolicy,
   type InsertInboundAuthPolicy,
+  type SystemInstanceTestFile,
+  type InsertSystemInstanceTestFile,
 } from "./schema";
 import { eq, desc } from "drizzle-orm";
 import { IStorage } from "./storage";
@@ -595,5 +600,119 @@ export class DatabaseStorage implements IStorage {
     }
 
     await (db.delete(inboundAuthPolicies) as any).where(eq(inboundAuthPolicies.id, id));
+  }
+
+  // ============================================================================
+  // System Instance Test Files (for E2E testing and emulation)
+  // ============================================================================
+
+  async getTestFiles(systemInstanceId: string): Promise<SystemInstanceTestFile[]> {
+    const result = await (db.select() as any)
+      .from(systemInstanceTestFiles)
+      .where(eq(systemInstanceTestFiles.systemInstanceId, systemInstanceId))
+      .orderBy(desc(systemInstanceTestFiles.uploadedAt));
+    
+    return result as SystemInstanceTestFile[];
+  }
+
+  async getTestFile(id: string): Promise<SystemInstanceTestFile | undefined> {
+    const result = await (db.select() as any)
+      .from(systemInstanceTestFiles)
+      .where(eq(systemInstanceTestFiles.id, id))
+      .limit(1);
+    
+    if (result.length === 0) {
+      return undefined;
+    }
+
+    return result[0] as SystemInstanceTestFile;
+  }
+
+  async createTestFile(file: InsertSystemInstanceTestFile): Promise<SystemInstanceTestFile> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+
+    const testFile: SystemInstanceTestFile = {
+      id,
+      systemInstanceId: file.systemInstanceId,
+      filename: file.filename,
+      mediaType: file.mediaType,
+      storageKey: file.storageKey,
+      fileSize: file.fileSize,
+      uploadedAt: now,
+      metadata: file.metadata || null,
+    };
+
+    await (db.insert(systemInstanceTestFiles) as any).values(testFile);
+
+    return testFile;
+  }
+
+  async deleteTestFile(id: string): Promise<boolean> {
+    const existing = await this.getTestFile(id);
+    
+    if (!existing) {
+      return false;
+    }
+
+    // Delete file from filesystem
+    await this.deleteTestFileFromDisk(existing.storageKey);
+
+    // Delete record from database
+    await (db.delete(systemInstanceTestFiles) as any).where(eq(systemInstanceTestFiles.id, id));
+
+    return true;
+  }
+
+  // ============================================================================
+  // File System Helpers for Test Files
+  // ============================================================================
+
+  private getTestFilesBaseDir(): string {
+    return path.join(process.cwd(), "server", "data", "test-files");
+  }
+
+  private getTestFilePath(storageKey: string): string {
+    return path.join(this.getTestFilesBaseDir(), storageKey);
+  }
+
+  async writeTestFileToDisk(
+    systemInstanceId: string,
+    buffer: Buffer,
+    originalFilename: string,
+    mediaType: SystemInstanceTestFile["mediaType"]
+  ): Promise<{ storageKey: string; fileSize: number }> {
+    const fileUuid = randomUUID();
+    const ext = path.extname(originalFilename);
+    const storageKey = `${systemInstanceId}/${fileUuid}${ext}`;
+    const filePath = this.getTestFilePath(storageKey);
+
+    // Ensure directory exists
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+
+    // Write file
+    await fs.writeFile(filePath, buffer);
+
+    return {
+      storageKey,
+      fileSize: buffer.length,
+    };
+  }
+
+  async readTestFileFromDisk(storageKey: string): Promise<Buffer> {
+    const filePath = this.getTestFilePath(storageKey);
+    return await fs.readFile(filePath);
+  }
+
+  async deleteTestFileFromDisk(storageKey: string): Promise<void> {
+    try {
+      const filePath = this.getTestFilePath(storageKey);
+      await fs.unlink(filePath);
+    } catch (error: any) {
+      // Ignore if file doesn't exist
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+    }
   }
 }
