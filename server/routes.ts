@@ -8,7 +8,7 @@ import { initializeQueue } from "./src/serverQueue.js";
 import { Worker, setWorkerInstance } from "./src/workers/worker.js";
 import { logger } from "./src/core/logger.js";
 import { DatabaseStorage } from "./database-storage.js";
-import { ensureTables } from "./migrate.js";
+import { ensureTables, seedDefaultHierarchy } from "./migrate.js";
 import { secretsService } from "./src/secrets/secrets-service.js";
 import { TokenLifecycleService } from "./src/auth/token-lifecycle-service.js";
 import { BackgroundTokenRefreshJob } from "./src/auth/background-token-refresh.js";
@@ -21,6 +21,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   try {
     // Initialize database tables
     await ensureTables();
+    
+    // Seed default hierarchy (Account → Tenant → Ecosystem → Environment → System Instance)
+    await seedDefaultHierarchy();
     
     // Create database storage instance
     const storage = new DatabaseStorage();

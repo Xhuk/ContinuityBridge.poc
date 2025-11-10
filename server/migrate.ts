@@ -392,6 +392,19 @@ export async function ensureTables() {
       )
     `);
 
+    // Migration: Add system_instance_id column to flow_definitions if it doesn't exist
+    try {
+      sqlite.exec(`
+        ALTER TABLE flow_definitions ADD COLUMN system_instance_id TEXT REFERENCES system_instances(id) ON DELETE SET NULL
+      `);
+      console.log("[Database] Added system_instance_id column to flow_definitions");
+    } catch (e: any) {
+      // Column already exists, which is fine
+      if (!e.message?.includes("duplicate column name")) {
+        throw e;
+      }
+    }
+
     // Create indices for hierarchy tables
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS idx_tenants_account_id ON tenants(account_id)
@@ -445,6 +458,118 @@ export async function ensureTables() {
     console.log("[Database] Tables initialized successfully");
   } catch (error) {
     console.error("[Database] Error creating tables:", error);
+    throw error;
+  }
+}
+
+/**
+ * Seed default hierarchy data on first run
+ * Creates: Account → Tenant → Ecosystem → Environment → System Instance
+ */
+export async function seedDefaultHierarchy() {
+  if (!sqlite) {
+    console.log("[Database] Skipping seed data (not using SQLite)");
+    return;
+  }
+
+  try {
+    // Check if default account already exists
+    const existingAccount = sqlite.prepare("SELECT id FROM accounts WHERE id = ?").get("default");
+    
+    if (existingAccount) {
+      console.log("[Database] Default hierarchy already exists, skipping seed");
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    // 1. Create default account
+    sqlite.prepare(`
+      INSERT INTO accounts (id, name, license_tier, max_tenants, max_ecosystems, max_instances, enabled, metadata, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "default",
+      "Default Account",
+      "free",
+      1,
+      5,
+      10,
+      1,
+      JSON.stringify({}),
+      now,
+      now
+    );
+
+    // 2. Create default tenant
+    sqlite.prepare(`
+      INSERT INTO tenants (id, account_id, name, display_name, enabled, metadata, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "default-tenant",
+      "default",
+      "default-tenant",
+      "Default Tenant",
+      1,
+      JSON.stringify({}),
+      now,
+      now
+    );
+
+    // 3. Create general ecosystem
+    sqlite.prepare(`
+      INSERT INTO ecosystems (id, tenant_id, name, display_name, description, type, enabled, tags, metadata, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "general",
+      "default-tenant",
+      "general",
+      "General",
+      "Default ecosystem for all integrations",
+      "custom",
+      1,
+      JSON.stringify([]),
+      JSON.stringify({}),
+      now,
+      now
+    );
+
+    // 4. Create DEV environment
+    sqlite.prepare(`
+      INSERT INTO environments (id, ecosystem_id, name, display_name, description, enabled, metadata, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "dev",
+      "general",
+      "dev",
+      "Development",
+      "Development environment for testing and iteration",
+      1,
+      JSON.stringify({}),
+      now,
+      now
+    );
+
+    // 5. Create default system instance
+    sqlite.prepare(`
+      INSERT INTO system_instances (id, environment_id, name, display_name, description, endpoint, enabled, tags, metadata, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "default-dev",
+      "dev",
+      "default-dev",
+      "DEV Instance",
+      "Default development system instance",
+      null,
+      1,
+      JSON.stringify([]),
+      JSON.stringify({}),
+      now,
+      now
+    );
+
+    console.log("[Database] Default hierarchy seeded successfully: Account → Tenant → Ecosystem(general) → Environment(dev) → SystemInstance(default-dev)");
+  } catch (error) {
+    console.error("[Database] Error seeding default hierarchy:", error);
     throw error;
   }
 }
