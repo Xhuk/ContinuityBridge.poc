@@ -1,3 +1,22 @@
+/**
+ * ⚠️ CRITICAL SECURITY WARNING ⚠️
+ * 
+ * DO NOT REGISTER THESE ROUTES IN PRODUCTION!
+ * 
+ * These routes implement per-system authentication configuration but lack
+ * tenant ownership verification. Any caller who knows a system instance ID
+ * can manage auth configs for that instance, even across different tenants.
+ * 
+ * BLOCKING DEPENDENCY: Authentication middleware required
+ * 
+ * Routes must NOT be registered until:
+ * 1. Authentication middleware identifies request tenant (session/JWT/API key)
+ * 2. ensureSystemInstanceExists() verifies tenant ownership
+ * 3. Integration tests validate 403 responses for cross-tenant access
+ * 
+ * Current state: Code complete, security gap prevents deployment
+ */
+
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import type { IStorage } from "../../storage";
