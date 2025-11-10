@@ -1,5 +1,7 @@
 import type { Express } from "express";
 import { randomUUID } from "crypto";
+import path from "path";
+import multer from "multer";
 import { Pipeline } from "../core/pipeline.js";
 import { metricsCollector } from "../core/metrics.js";
 import { getQueueProvider } from "../serverQueue.js";
@@ -9,6 +11,7 @@ import { getCurrentBackend } from "../serverQueue.js";
 import { getDataSourceManager } from "../datasources/manager.js";
 import { interfaceManager } from "../interfaces/manager.js";
 import { interfaceTemplateCatalog } from "../interfaces/template-catalog.js";
+import type { SystemInstanceTestFile } from "../../schema.js";
 
 const log = logger.child("REST-API");
 
@@ -1899,6 +1902,211 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       });
     } catch (error: any) {
       log.error("Error rolling back queue backend", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================================================
+  // System Instance Test Files API (for E2E testing and emulation)
+  // ============================================================================
+
+  // Configure multer for file uploads (memory storage, 10MB max)
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = ['application/xml', 'application/json', 'text/csv', 'text/plain', 'text/xml'];
+      const allowedExts = ['.xml', '.json', '.csv', '.txt'];
+      const ext = path.extname(file.originalname).toLowerCase();
+      
+      if (allowedTypes.includes(file.mimetype) && allowedExts.includes(ext)) {
+        cb(null, true);
+      } else {
+        cb(new Error(`Invalid file type. Allowed: XML, JSON, CSV. Got: ${file.mimetype}`));
+      }
+    }
+  });
+
+  // GET /api/system-instances/:id/test-files - List test files
+  app.get("/api/system-instances/:id/test-files", async (req, res) => {
+    try {
+      const { id: systemInstanceId } = req.params;
+      
+      if (!storage?.getTestFiles) {
+        return res.status(501).json({ error: "Test files not supported" });
+      }
+      
+      const files = await storage.getTestFiles(systemInstanceId);
+      res.json({ files });
+    } catch (error: any) {
+      log.error("Error listing test files", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/system-instances/:id/test-files - Upload test file
+  app.post("/api/system-instances/:id/test-files", 
+    (req, res, next) => {
+      upload.single('file')(req, res, (err: any) => {
+        if (err) {
+          // Handle multer-specific errors
+          if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).json({ error: "File too large. Maximum 10MB." });
+          }
+          if (err.message && err.message.includes('Invalid file type')) {
+            return res.status(400).json({ error: err.message });
+          }
+          // Other multer errors
+          return res.status(400).json({ error: err.message || "File upload failed" });
+        }
+        next();
+      });
+    },
+    async (req, res) => {
+    try {
+      const { id: systemInstanceId } = req.params;
+      const file = req.file;
+      const { description } = req.body;
+      
+      if (!file) {
+        return res.status(400).json({ error: "File is required" });
+      }
+      
+      if (!storage?.createTestFile || !storage?.writeTestFileToDisk || !storage?.getTestFileQuota) {
+        return res.status(501).json({ error: "Test files not supported" });
+      }
+      
+      // Check quotas
+      const quota = await storage.getTestFileQuota(systemInstanceId);
+      const MAX_FILES = 50;
+      const MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100MB
+      
+      if (quota.count >= MAX_FILES) {
+        return res.status(429).json({ 
+          error: `File quota exceeded. Maximum ${MAX_FILES} files per system instance.`,
+          quota 
+        });
+      }
+      
+      if (quota.totalSize + file.size > MAX_TOTAL_SIZE) {
+        return res.status(429).json({ 
+          error: `Storage quota exceeded. Maximum ${MAX_TOTAL_SIZE / 1024 / 1024}MB total per system instance.`,
+          quota 
+        });
+      }
+      
+      // Determine media type from MIME type
+      const mediaTypeMap: Record<string, SystemInstanceTestFile["mediaType"]> = {
+        'application/xml': 'application/xml',
+        'text/xml': 'application/xml',
+        'application/json': 'application/json',
+        'text/csv': 'text/csv',
+        'text/plain': 'text/plain',
+      };
+      const mediaType = mediaTypeMap[file.mimetype] || 'text/plain';
+      
+      let storageKey: string | undefined;
+      let fileSize: number;
+      let createdFile: SystemInstanceTestFile;
+      
+      try {
+        // Write file to disk first
+        const writeResult = await storage.writeTestFileToDisk(
+          systemInstanceId,
+          file.buffer,
+          file.originalname,
+          mediaType
+        );
+        
+        storageKey = writeResult.storageKey;
+        fileSize = writeResult.fileSize;
+        
+        // Then create database record
+        createdFile = await storage.createTestFile({
+          systemInstanceId,
+          filename: file.originalname,
+          mediaType,
+          storageKey,
+          fileSize,
+          metadata: description ? { description } : undefined,
+        });
+      } catch (dbError: any) {
+        // If DB insert fails, clean up orphaned file
+        if (storageKey && storage.deleteTestFileFromDisk) {
+          await storage.deleteTestFileFromDisk(storageKey).catch(() => {});
+        }
+        throw dbError;
+      }
+      
+      res.status(201).json({ file: createdFile });
+    } catch (error: any) {
+      log.error("Error uploading test file", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/system-instances/:id/test-files/:fileId/download - Download test file
+  app.get("/api/system-instances/:id/test-files/:fileId/download", async (req, res) => {
+    try {
+      const { id: systemInstanceId, fileId } = req.params;
+      
+      if (!storage?.getTestFile || !storage?.readTestFileFromDisk) {
+        return res.status(501).json({ error: "Test files not supported" });
+      }
+      
+      const file = await storage.getTestFile(fileId);
+      
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      // Verify ownership (prevent cross-instance access)
+      if (file.systemInstanceId !== systemInstanceId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const buffer = await storage.readTestFileFromDisk(file.storageKey);
+      
+      res.setHeader('Content-Type', file.mediaType);
+      res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+      res.send(buffer);
+    } catch (error: any) {
+      log.error("Error downloading test file", error);
+      
+      if (error.code === 'ENOENT') {
+        return res.status(404).json({ error: "File not found on disk" });
+      }
+      
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/system-instances/:id/test-files/:fileId - Delete test file
+  app.delete("/api/system-instances/:id/test-files/:fileId", async (req, res) => {
+    try {
+      const { id: systemInstanceId, fileId } = req.params;
+      
+      if (!storage?.getTestFile || !storage?.deleteTestFile) {
+        return res.status(501).json({ error: "Test files not supported" });
+      }
+      
+      // Verify ownership before deletion
+      const file = await storage.getTestFile(fileId);
+      
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      if (file.systemInstanceId !== systemInstanceId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      // deleteTestFile handles both DB and disk deletion (see database-storage.ts)
+      const deleted = await storage.deleteTestFile(fileId);
+      
+      res.json({ ok: deleted });
+    } catch (error: any) {
+      log.error("Error deleting test file", error);
       res.status(500).json({ error: error.message });
     }
   });

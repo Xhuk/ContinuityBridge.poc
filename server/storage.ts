@@ -95,8 +95,19 @@ export interface IStorage {
   // System Instance Test Files (for E2E testing and emulation)
   getTestFiles?(systemInstanceId: string): Promise<SystemInstanceTestFile[]>;
   getTestFile?(id: string): Promise<SystemInstanceTestFile | undefined>;
+  getTestFileQuota?(systemInstanceId: string): Promise<{ count: number; totalSize: number }>;
   createTestFile?(file: InsertSystemInstanceTestFile): Promise<SystemInstanceTestFile>;
   deleteTestFile?(id: string): Promise<boolean>;
+  
+  // Filesystem helpers for test files (used by API layer)
+  writeTestFileToDisk?(
+    systemInstanceId: string,
+    buffer: Buffer,
+    originalFilename: string,
+    mediaType: SystemInstanceTestFile["mediaType"]
+  ): Promise<{ storageKey: string; fileSize: number }>;
+  readTestFileFromDisk?(storageKey: string): Promise<Buffer>;
+  deleteTestFileFromDisk?(storageKey: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {

@@ -628,6 +628,15 @@ export class DatabaseStorage implements IStorage {
     return result[0] as SystemInstanceTestFile;
   }
 
+  async getTestFileQuota(systemInstanceId: string): Promise<{ count: number; totalSize: number }> {
+    const files = await this.getTestFiles(systemInstanceId);
+    
+    return {
+      count: files.length,
+      totalSize: files.reduce((sum, file) => sum + file.fileSize, 0),
+    };
+  }
+
   async createTestFile(file: InsertSystemInstanceTestFile): Promise<SystemInstanceTestFile> {
     const id = randomUUID();
     const now = new Date().toISOString();
