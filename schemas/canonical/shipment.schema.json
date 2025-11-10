@@ -1,0 +1,198 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://continuitybridge.io/schemas/canonical/shipment.schema.json",
+  "title": "Canonical Shipment",
+  "description": "Canonical shipment format for ContinuityBridge - normalized across all sources",
+  "type": "object",
+  "required": ["shipmentId", "shipmentDate", "items"],
+  "properties": {
+    "shipmentId": {
+      "type": "string",
+      "description": "Unique shipment identifier"
+    },
+    "orderId": {
+      "type": "string",
+      "description": "Associated order ID"
+    },
+    "shipmentDate": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 shipment creation timestamp"
+    },
+    "expectedDeliveryDate": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Expected delivery date"
+    },
+    "actualDeliveryDate": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Actual delivery date"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "processing", "shipped", "in_transit", "delivered", "exception", "cancelled"],
+      "description": "Normalized shipment status"
+    },
+    "trackingNumber": {
+      "type": "string",
+      "description": "Carrier tracking number"
+    },
+    "shipFrom": {
+      "type": "object",
+      "properties": {
+        "warehouseId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "address1": {
+          "type": "string"
+        },
+        "address2": {
+          "type": "string"
+        },
+        "city": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "postalCode": {
+          "type": "string"
+        },
+        "country": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        }
+      }
+    },
+    "shipTo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "address1": {
+          "type": "string"
+        },
+        "address2": {
+          "type": "string"
+        },
+        "city": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "postalCode": {
+          "type": "string"
+        },
+        "country": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        }
+      }
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["lineNumber", "sku", "quantity"],
+        "properties": {
+          "lineNumber": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sku": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": 0
+          },
+          "uom": {
+            "type": "string"
+          },
+          "serialNumbers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lotNumber": {
+            "type": "string"
+          },
+          "expirationDate": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    },
+    "carrier": {
+      "type": "object",
+      "properties": {
+        "carrierId": {
+          "type": "string"
+        },
+        "carrierName": {
+          "type": "string"
+        },
+        "serviceLevel": {
+          "type": "string"
+        },
+        "scac": {
+          "type": "string",
+          "description": "Standard Carrier Alpha Code"
+        }
+      }
+    },
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "packageId": {
+            "type": "string"
+          },
+          "trackingNumber": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number"
+          },
+          "weightUom": {
+            "type": "string"
+          },
+          "dimensions": {
+            "type": "object",
+            "properties": {
+              "length": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number"
+              },
+              "height": {
+                "type": "number"
+              },
+              "uom": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

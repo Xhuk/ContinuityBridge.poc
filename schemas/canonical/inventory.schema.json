@@ -1,0 +1,136 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://continuitybridge.io/schemas/canonical/inventory.schema.json",
+  "title": "Canonical Inventory",
+  "description": "Canonical inventory report format for ContinuityBridge",
+  "type": "object",
+  "required": ["reportId", "reportDate", "items"],
+  "properties": {
+    "reportId": {
+      "type": "string",
+      "description": "Unique inventory report identifier"
+    },
+    "reportDate": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Report generation timestamp"
+    },
+    "reportType": {
+      "type": "string",
+      "enum": ["snapshot", "delta", "cycle_count", "physical_count"],
+      "description": "Type of inventory report"
+    },
+    "warehouse": {
+      "type": "object",
+      "properties": {
+        "warehouseId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        }
+      }
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["sku", "quantityOnHand"],
+        "properties": {
+          "sku": {
+            "type": "string",
+            "description": "Product SKU/item identifier"
+          },
+          "description": {
+            "type": "string"
+          },
+          "quantityOnHand": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Current quantity in stock"
+          },
+          "quantityAvailable": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Quantity available for sale (on-hand minus reserved)"
+          },
+          "quantityReserved": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Quantity reserved for orders"
+          },
+          "quantityInTransit": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Quantity in transit to warehouse"
+          },
+          "uom": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string",
+            "description": "Warehouse location (aisle, bin, etc.)"
+          },
+          "lotNumber": {
+            "type": "string"
+          },
+          "expirationDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "serialNumbers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "condition": {
+            "type": "string",
+            "enum": ["new", "used", "damaged", "returned", "quarantine"]
+          },
+          "cost": {
+            "type": "number",
+            "description": "Unit cost"
+          },
+          "value": {
+            "type": "number",
+            "description": "Total value (cost × quantity)"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "totalItems": {
+          "type": "integer",
+          "description": "Total number of unique SKUs"
+        },
+        "totalQuantity": {
+          "type": "number",
+          "description": "Total units across all SKUs"
+        },
+        "totalValue": {
+          "type": "number",
+          "description": "Total inventory value"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

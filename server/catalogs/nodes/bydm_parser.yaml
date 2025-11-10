@@ -1,0 +1,77 @@
+id: bydm_parser
+name: BYDM Parser
+category: parsers
+description: Parse and normalize BYDM messages (XML/JSON) with auto-detection of version (2018/2025)
+icon: file-code
+color: "#3B82F6"
+
+inputs:
+  - name: data
+    type: string | object
+    required: true
+    description: Raw BYDM XML string or JSON object
+
+outputs:
+  - name: bydmPayload
+    type: object
+    description: Normalized BYDM message as JSON
+  - name: version
+    type: string
+    description: Detected BYDM version (2018 or 2025)
+  - name: messageType
+    type: string
+    description: BYDM message type (orderRelease, shipment, receivingAdvice, inventoryReport)
+
+config:
+  - name: version
+    type: select
+    options:
+      - value: auto
+        label: Auto-detect
+      - value: "2018"
+        label: BYDM 2018
+      - value: "2025"
+        label: BYDM 2025
+    default: auto
+    description: BYDM version (auto-detect or explicit)
+    
+  - name: messageType
+    type: select
+    options:
+      - value: auto
+        label: Auto-detect
+      - value: orderRelease
+        label: Order Release
+      - value: shipment
+        label: Shipment
+      - value: receivingAdvice
+        label: Receiving Advice
+      - value: inventoryReport
+        label: Inventory Report
+    default: auto
+    description: BYDM message type
+    
+  - name: strict
+    type: boolean
+    default: false
+    description: Enable strict validation mode
+
+executor: bydm_parser
+
+examples:
+  - name: Parse BYDM Order XML
+    input: |
+      <?xml version="1.0"?>
+      <orderRelease>
+        <documentId>ORD-001</documentId>
+        ...
+      </orderRelease>
+    config:
+      version: auto
+      messageType: auto
+      strict: false
+    output:
+      bydmPayload:
+        documentId: ORD-001
+      version: "2025"
+      messageType: orderRelease

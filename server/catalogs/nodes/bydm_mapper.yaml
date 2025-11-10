@@ -1,0 +1,68 @@
+id: bydm_mapper
+name: BYDM Mapper
+category: transformers
+description: Map BYDM messages to canonical format using YAML mapping definitions
+icon: arrows-right-left
+color: "#10B981"
+
+inputs:
+  - name: bydmPayload
+    type: object
+    required: true
+    description: Normalized BYDM message from BYDMParser
+  - name: messageType
+    type: string
+    description: BYDM message type (for auto-mapping)
+  - name: version
+    type: string
+    description: BYDM version (for version-aware mappings)
+
+outputs:
+  - name: canonicalPayload
+    type: object
+    description: Canonical order/shipment/inbound/inventory object
+
+config:
+  - name: mappingRef
+    type: string
+    description: Path to mapping YAML file (optional if autoSelectMapping is true)
+    placeholder: mappings/bydm-to-canonical/order_release_to_canonical_order.yaml
+    
+  - name: autoSelectMapping
+    type: boolean
+    default: true
+    description: Auto-select mapping based on messageType
+    
+  - name: customerId
+    type: string
+    description: Customer ID for override mappings (optional)
+    placeholder: accel
+
+executor: bydm_mapper
+
+examples:
+  - name: Map BYDM Order to Canonical
+    input:
+      bydmPayload:
+        documentId: ORD-2025-001234
+        creationDateTime: "2025-11-10T14:30:00Z"
+        lineItem:
+          - lineItemNumber: "1"
+            transactionalTradeItem:
+              primaryId: SKU-ABC-123
+            requestedQuantity:
+              value: "100"
+              unitOfMeasure: EA
+      messageType: orderRelease
+      version: "2025"
+    config:
+      autoSelectMapping: true
+    output:
+      canonicalPayload:
+        orderId: ORD-2025-001234
+        orderDate: "2025-11-10T14:30:00Z"
+        items:
+          - lineNumber: 1
+            sku: SKU-ABC-123
+            quantity: 100
+            uom: EA

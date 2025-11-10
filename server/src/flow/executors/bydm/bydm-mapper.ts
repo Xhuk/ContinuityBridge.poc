@@ -61,19 +61,24 @@ export const executeBYDMMapper: NodeExecutor = async (node, input, context) => {
 };
 
 /**
- * Resolve mapping reference (file path)
+ * Allowed mapping directories (whitelist for security)
+ */
+const ALLOWED_MAPPING_DIRS = [
+  'mappings/bydm-to-canonical',
+  'mappings/overrides',
+];
+
+/**
+ * Resolve mapping reference (file path) with security validation
  */
 function resolveMappingRef(
   explicitRef: string | undefined,
   autoSelect: boolean,
   messageType: string | undefined
 ): string {
-  // Explicit reference takes precedence
-  if (explicitRef) {
-    return explicitRef;
-  }
+  let mappingRef: string;
 
-  // Auto-select based on message type
+  // Auto-select based on message type (always use whitelisted paths)
   if (autoSelect && messageType) {
     const mappingMap: Record<string, string> = {
       orderRelease: 'mappings/bydm-to-canonical/order_release_to_canonical_order.yaml',
@@ -82,13 +87,37 @@ function resolveMappingRef(
       inventoryReport: 'mappings/bydm-to-canonical/inventory_report_to_canonical_inventory.yaml',
     };
 
-    const ref = mappingMap[messageType];
-    if (ref) {
-      return ref;
+    mappingRef = mappingMap[messageType] || '';
+    if (mappingRef) {
+      return mappingRef;
     }
   }
 
-  throw new Error('No mapping reference provided and auto-selection failed');
+  // Explicit reference - must be validated
+  if (explicitRef) {
+    mappingRef = explicitRef;
+  } else {
+    throw new Error('No mapping reference provided and auto-selection failed');
+  }
+
+  // Security: Validate mapping path is within allowed directories
+  const normalizedPath = mappingRef.replace(/\\/g, '/').replace(/\/+/g, '/');
+  
+  // Prevent path traversal attacks
+  if (normalizedPath.includes('..')) {
+    throw new Error('Invalid mapping path: path traversal detected');
+  }
+
+  // Ensure path starts with an allowed directory
+  const isAllowed = ALLOWED_MAPPING_DIRS.some(dir => 
+    normalizedPath.startsWith(dir + '/') || normalizedPath === dir
+  );
+
+  if (!isAllowed) {
+    throw new Error(`Mapping path must be within allowed directories: ${ALLOWED_MAPPING_DIRS.join(', ')}`);
+  }
+
+  return mappingRef;
 }
 
 /**
@@ -119,13 +148,40 @@ function loadMapping(mappingRef: string): any {
 }
 
 /**
- * Load lookup tables (status_map, uom, etc.)
+ * Allowed lookup directories (whitelist for security)
+ */
+const ALLOWED_LOOKUP_DIRS = [
+  'mappings/common',
+  'mappings/overrides',
+];
+
+/**
+ * Load lookup tables (status_map, uom, etc.) with security validation
  */
 function loadLookupTables(includes: string[]): Record<string, any> {
   const tables: Record<string, any> = {};
 
   for (const includePath of includes) {
     try {
+      // Security: Validate include path
+      const normalizedPath = includePath.replace(/\\/g, '/').replace(/\/+/g, '/');
+      
+      // Prevent path traversal
+      if (normalizedPath.includes('..')) {
+        console.warn(`Skipping lookup table with path traversal: ${includePath}`);
+        continue;
+      }
+
+      // Ensure path starts with an allowed directory
+      const isAllowed = ALLOWED_LOOKUP_DIRS.some(dir => 
+        normalizedPath.startsWith(dir + '/') || normalizedPath === dir
+      );
+
+      if (!isAllowed) {
+        console.warn(`Skipping lookup table outside allowed directories: ${includePath}`);
+        continue;
+      }
+
       const fullPath = includePath.startsWith('/') 
         ? includePath 
         : join(process.cwd(), includePath);

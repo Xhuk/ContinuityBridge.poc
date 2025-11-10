@@ -12,6 +12,8 @@ import { executeConditional } from "./executors/conditional";
 import { executeManualTrigger } from "./executors/manual-trigger";
 import { executeCsvParser } from "./executors/csv-parser";
 import { executeValidation } from "./executors/validation";
+import { executeBYDMParser } from "./executors/bydm/bydm-parser";
+import { executeBYDMMapper } from "./executors/bydm/bydm-mapper";
 
 /**
  * Flow Orchestrator - Executes flows by traversing nodes and executing them in sequence
@@ -42,6 +44,8 @@ export class FlowOrchestrator {
     this.registerExecutor("executeManualTrigger", executeManualTrigger);
     this.registerExecutor("executeCsvParser", executeCsvParser);
     this.registerExecutor("executeValidation", executeValidation);
+    this.registerExecutor("executeBYDMParser", executeBYDMParser);
+    this.registerExecutor("executeBYDMMapper", executeBYDMMapper);
   }
 
   /**
@@ -293,6 +297,8 @@ export class FlowOrchestrator {
       manual_trigger: "executeManualTrigger",
       csv_parser: "executeCsvParser",
       validation: "executeValidation",
+      bydm_parser: "executeBYDMParser",
+      bydm_mapper: "executeBYDMMapper",
     };
 
     return executorMap[node.type] || node.type;

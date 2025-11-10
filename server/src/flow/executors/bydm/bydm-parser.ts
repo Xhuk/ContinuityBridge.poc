@@ -182,33 +182,22 @@ function normalizePayload(payload: any, version: string): any {
 
 /**
  * Validate BYDM structure in strict mode
+ * Validates that payload is an object and has some content
+ * Note: Detailed validation is done by canonical schema validators downstream
  */
 function validateBYDMStructure(payload: any, messageType: string): void {
   if (!payload || typeof payload !== 'object') {
     throw new Error('Invalid BYDM payload: must be an object');
   }
 
-  // Basic validation by message type
-  switch (messageType) {
-    case 'orderRelease':
-      if (!payload.documentId && !payload.orderId) {
-        throw new Error('BYDM orderRelease must have documentId or orderId');
-      }
-      break;
-    case 'shipment':
-      if (!payload.shipmentId && !payload.documentId) {
-        throw new Error('BYDM shipment must have shipmentId or documentId');
-      }
-      break;
-    case 'receivingAdvice':
-      if (!payload.receivingAdviceId && !payload.documentId) {
-        throw new Error('BYDM receivingAdvice must have receivingAdviceId or documentId');
-      }
-      break;
-    case 'inventoryReport':
-      if (!payload.reportId && !payload.documentId) {
-        throw new Error('BYDM inventoryReport must have reportId or documentId');
-      }
-      break;
+  // Ensure payload has at least some keys
+  const keys = Object.keys(payload);
+  if (keys.length === 0) {
+    throw new Error(`BYDM ${messageType} payload is empty`);
+  }
+
+  // Basic structural validation - check payload is not just primitives
+  if (keys.every(k => typeof payload[k] !== 'object')) {
+    throw new Error(`BYDM ${messageType} payload has invalid structure`);
   }
 }
