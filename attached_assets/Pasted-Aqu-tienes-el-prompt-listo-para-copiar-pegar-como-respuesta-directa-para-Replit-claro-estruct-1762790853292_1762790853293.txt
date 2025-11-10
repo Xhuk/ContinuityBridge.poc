@@ -1,0 +1,87 @@
+Aquí tienes el **prompt listo para copiar/pegar** como respuesta directa para Replit, claro, estructurado y completo:
+
+---
+
+**Prompt para Replit:**
+
+Estoy trabajando en ContinuityBridge, un integration hub con arquitectura ya existente que incluye:
+
+* Flow Builder UI basado en React Flow (nodos + edges)
+* Orquestador de Flujos (FlowOrchestrator) que ejecuta nodos en orden de dependencia
+* Catálogo de Nodos definido en YAML (XMLParser, JSONParser, CSVParser, ObjectMapper, InterfaceNode, ConditionalNode, Validator, etc.)
+* Catálogo de Plantillas de Integración (Amazon SP-API, MercadoLibre, WMS/3PL, etc.)
+* Soporte de transformaciones Legacy (XML→YAML→Canonical JSON) y modernas (nodos de transformación visual)
+
+Quiero integrar BYDM en esta arquitectura sin crear un sistema paralelo. Necesito incorporar:
+
+1. **Parser BYDM**
+
+   * Debe soportar BYDM XML/JSON
+   * Autodetección de formato
+   * Normalización de namespaces/tags para BYDM 2018/2025
+
+2. **Mapper BYDM → Canónico**
+
+   * Debe usar el ObjectMapper existente
+   * Debe aceptar `mappingRef` hacia YAMLs BYDM→Canonical
+   * Debe soportar includes: status_map.yaml, uom.yaml
+   * Debe trabajar con los YAML already generated:
+
+     * `mappings/bydm→canonical/order_release_to_canonical_order.yaml`
+     * `mappings/bydm→canonical/shipment_to_canonical_shipment.yaml`
+     * `mappings/bydm→canonical/receiving_advice_to_canonical_inbound.yaml`
+     * `mappings/bydm→canonical/inventory_report_to_canonical_inventory.yaml`
+
+3. **Schemas canónicos**
+
+   * Deben usarse con el Validator existente:
+
+     * `schemas/canonical/order.schema.json`
+     * `schemas/canonical/shipment.schema.json`
+     * `schemas/canonical/inbound.schema.json`
+     * `schemas/canonical/inventory.schema.json`
+
+4. **Flujo estándar esperado**
+
+   ```
+   [BYDMParser] → [BYDMMapper] → [Validator] → [InterfaceNode]
+   ```
+
+5. **Compatibilidad con Catálogo**
+
+   * Los nodos deben definirse como YAML para incorporarse al catálogo:
+
+     * bydm_parser.yaml
+     * bydm_mapper.yaml
+
+6. **Compatibilidad con el Orchestrator**
+
+   * Deben producir `bydmPayload` → `canonicalPayload`
+   * Deben seguir el modelo I/O del resto de nodos
+
+7. **Soporte para BYDM 2018 y BYDM 2025**
+
+   * A través de prop `version: auto|2018|2025`
+   * Selección automática de mappingRef según versión
+
+Necesito que Replit me ayude a generar:
+
+✅ Implementación de `BYDMParser` como wrapper del XMLParser/JSONParser
+✅ Implementación de `BYDMMapper` como wrapper del ObjectMapper + includes
+✅ Archivos de Catálogo YAML para ambos nodos
+✅ Código de adaptadores (parser.adapter y objectmapper.adapter)
+✅ Ejemplos de flujos de integración para:
+
+* orderRelease → Amazon SP-API
+* shipment → MercadoLibre
+* receivingAdvice → WMS
+* inventoryReport → Amazon/MELI
+
+✅ Instrucciones para registrar estos nodos en el Flow Builder UI
+✅ Instrucciones para ejecutar BYDM flows dentro del FlowOrchestrator
+✅ Manejo de errores y logs BYDM (status, qty, uom, rutas)
+✅ Recomendaciones de cómo versionar mappings (2018/2025/overrides por cliente)
+
+---
+
+Ese es el prompt que necesito que Replit procese para generar la integración completa.
