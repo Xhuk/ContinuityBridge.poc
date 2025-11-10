@@ -406,6 +406,27 @@ export async function ensureTables() {
       )
     `);
 
+    // Create system_instance_auth table (per-system auth configs)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS system_instance_auth (
+        id TEXT PRIMARY KEY,
+        system_instance_id TEXT NOT NULL REFERENCES system_instances(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        adapter_type TEXT NOT NULL,
+        direction TEXT NOT NULL,
+        secret_ref TEXT REFERENCES secrets_vault(id) ON DELETE SET NULL,
+        config TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        last_tested_at TEXT,
+        last_used_at TEXT,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(system_instance_id, name)
+      )
+    `);
+
     // Migration: Add system_instance_id column to flow_definitions if it doesn't exist
     try {
       sqlite.exec(`
@@ -472,6 +493,19 @@ export async function ensureTables() {
     // Create indices for test files table
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS idx_system_instance_test_files_system_instance_id ON system_instance_test_files(system_instance_id)
+    `);
+
+    // Create indices for system instance auth table
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_system_instance_auth_system_instance_id ON system_instance_auth(system_instance_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_system_instance_auth_direction ON system_instance_auth(system_instance_id, direction)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_system_instance_auth_enabled ON system_instance_auth(system_instance_id, enabled)
     `);
 
     console.log("[Database] Tables initialized successfully");
