@@ -18,6 +18,8 @@ import type {
   InsertTokenCache,
   InboundAuthPolicy,
   InsertInboundAuthPolicy,
+  SystemInstanceTestFile,
+  InsertSystemInstanceTestFile,
 } from "./schema";
 import { randomUUID } from "crypto";
 
@@ -89,6 +91,12 @@ export interface IStorage {
   createInboundAuthPolicy?(policy: InsertInboundAuthPolicy): Promise<InboundAuthPolicy>;
   updateInboundAuthPolicy?(id: string, policy: Partial<InsertInboundAuthPolicy>): Promise<InboundAuthPolicy | undefined>;
   deleteInboundAuthPolicy?(id: string): Promise<void>;
+
+  // System Instance Test Files (for E2E testing and emulation)
+  getTestFiles?(systemInstanceId: string): Promise<SystemInstanceTestFile[]>;
+  getTestFile?(id: string): Promise<SystemInstanceTestFile | undefined>;
+  createTestFile?(file: InsertSystemInstanceTestFile): Promise<SystemInstanceTestFile>;
+  deleteTestFile?(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {

@@ -822,3 +822,25 @@ export const inboundAuthPolicies = sqliteTable("inbound_auth_policies", {
 
 export type InboundAuthPolicy = typeof inboundAuthPolicies.$inferSelect;
 export type InsertInboundAuthPolicy = typeof inboundAuthPolicies.$inferInsert;
+
+// System Instance Test Files (for E2E testing and emulation)
+export const systemInstanceTestFiles = sqliteTable("system_instance_test_files", {
+  id: text("id").primaryKey(),
+  systemInstanceId: text("system_instance_id").notNull().references(() => systemInstances.id, { onDelete: "cascade" }),
+  
+  filename: text("filename").notNull(),
+  mediaType: text("media_type").notNull().$type<"application/xml" | "application/json" | "text/csv" | "text/plain">(),
+  storageKey: text("storage_key").notNull().unique(), // Filesystem path: <instanceId>/<uuid>.<ext>
+  fileSize: integer("file_size").notNull(), // Size in bytes
+  
+  uploadedAt: text("uploaded_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  
+  metadata: text("metadata", { mode: "json" }).$type<{
+    originalName?: string;
+    encoding?: string;
+    description?: string;
+  }>(),
+});
+
+export type SystemInstanceTestFile = typeof systemInstanceTestFiles.$inferSelect;
+export type InsertSystemInstanceTestFile = typeof systemInstanceTestFiles.$inferInsert;
