@@ -696,6 +696,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ============================================================================
+  // System Instance Management
+  // ============================================================================
+
+  async getSystemInstance(id: string): Promise<SystemInstance | undefined> {
+    const result = await (db.select() as any)
+      .from(systemInstances)
+      .where(eq(systemInstances.id, id))
+      .limit(1);
+    
+    if (result.length === 0) {
+      return undefined;
+    }
+
+    return result[0] as SystemInstance;
+  }
+
+  // ============================================================================
   // File System Helpers for Test Files
   // ============================================================================
 

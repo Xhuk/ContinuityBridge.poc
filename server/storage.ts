@@ -18,6 +18,7 @@ import type {
   InsertTokenCache,
   InboundAuthPolicy,
   InsertInboundAuthPolicy,
+  SystemInstance,
   SystemInstanceTestFile,
   InsertSystemInstanceTestFile,
   SystemInstanceAuth,
@@ -93,6 +94,9 @@ export interface IStorage {
   createInboundAuthPolicy?(policy: InsertInboundAuthPolicy): Promise<InboundAuthPolicy>;
   updateInboundAuthPolicy?(id: string, policy: Partial<InsertInboundAuthPolicy>): Promise<InboundAuthPolicy | undefined>;
   deleteInboundAuthPolicy?(id: string): Promise<void>;
+
+  // System Instance Management
+  getSystemInstance?(id: string): Promise<SystemInstance | undefined>;
 
   // System Instance Test Files (for E2E testing and emulation)
   getTestFiles?(systemInstanceId: string): Promise<SystemInstanceTestFile[]>;

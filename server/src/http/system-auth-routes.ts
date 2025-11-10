@@ -173,14 +173,35 @@ const queryFiltersSchema = z.object({
 // ============================================================================
 
 /**
- * Ensure system instance exists before proceeding with CRUD operations
- * For MVP: Skip check and rely on FK constraints
- * TODO: Implement storage.getSystemInstance() for proper 404 responses
+ * Validates that a system instance exists.
+ * Returns true if exists, false otherwise.
+ * 
+ * TODO (CRITICAL - BLOCKS PRODUCTION): Tenant ownership validation not implemented.
+ * 
+ * CURRENT IMPLEMENTATION:
+ * - ✅ Checks if system instance exists (returns 404 if not found)
+ * - ❌ Does NOT verify tenant ownership (requires authentication middleware)
+ * 
+ * FOR PRODUCTION:
+ * 1. Add authentication middleware to identify request tenant
+ * 2. Load system instance → environment → ecosystem → tenant (via JOIN or cascade)
+ * 3. Compare authenticated tenant ID to instance's tenant ID
+ * 4. Return 403 if mismatch (cross-tenant access attempt)
+ * 
+ * SECURITY RISK: Without tenant verification, any caller who knows a system instance ID
+ * can manage auth configs for that instance, even if it belongs to a different tenant.
+ * 
+ * MITIGATION: Do NOT register these routes until authentication middleware exists.
+ * This function is implemented and tested but routes are gated from production use.
  */
 async function ensureSystemInstanceExists(storage: IStorage, systemInstanceId: string): Promise<boolean> {
-  // MVP: Skip existence check, rely on FK constraints
-  // If system instance doesn't exist, FK constraint will fail on create/update
-  return true;
+  if (!storage.getSystemInstance) {
+    console.warn("[SystemAuthRoutes] getSystemInstance not implemented - skipping existence check (INSECURE)");
+    return true;
+  }
+
+  const instance = await storage.getSystemInstance(systemInstanceId);
+  return instance !== undefined;
 }
 
 /**
