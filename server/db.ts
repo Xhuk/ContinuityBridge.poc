@@ -5,6 +5,7 @@ import Database from 'better-sqlite3';
 import ws from "ws";
 import path from "path";
 import { fileURLToPath } from "url";
+import * as sqliteSchema from "./schema.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,14 +13,6 @@ const __dirname = path.dirname(__filename);
 // Determine database type from environment
 const dbType = process.env.DB_TYPE || "sqlite"; // Default to SQLite for portability
 const isProd = process.env.NODE_ENV === "production";
-
-// Conditionally import the correct schema
-let schema: any;
-if (dbType === "postgres") {
-  schema = await import("./schema.pg.js");
-} else {
-  schema = await import("./schema.js");
-}
 
 // SQLite setup (portable, offline-capable)
 let sqliteDb: ReturnType<typeof drizzleSqlite> | null = null;
@@ -66,7 +59,7 @@ if (dbType === "sqlite") {
   
   try {
     sqliteClient = new Database(dbPath);
-    sqliteDb = drizzleSqlite(sqliteClient, { schema });
+    sqliteDb = drizzleSqlite(sqliteClient, { schema: sqliteSchema });
     console.log(`[Database] ✅ Using SQLite: ${dbPath}`);
     
     // Enable WAL mode for better concurrency
@@ -101,7 +94,9 @@ if (dbType === "sqlite") {
     connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || "10000", 10),
   });
   
-  postgresDb = drizzleNeon({ client: postgresPool, schema });
+  // Don't pass schema to avoid SQLite/PostgreSQL type conflicts
+  // Schema is only used for relations and type inference, not required for queries
+  postgresDb = drizzleNeon({ client: postgresPool });
   
   console.log(`[Database] ✅ PostgreSQL pool created (Neon serverless)`);
   console.log(`[Database] 📋 Using schema: public (default)`);
