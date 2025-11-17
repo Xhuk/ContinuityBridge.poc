@@ -315,6 +315,9 @@ next-env.d.ts
 # Separate landing page project (lives in its own repo)
 silentfox-landing/
 
+# Wiki export (generated from .qoder/repowiki)
+wiki/
+
 # Documentation files (auto-generated, not version controlled)
 *.md
 
