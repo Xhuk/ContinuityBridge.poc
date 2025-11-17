@@ -171,9 +171,19 @@ export default function Landing() {
                     {isLoading ? "Authenticating..." : "Sign In"}
                   </Button>
 
-                  <p className="text-xs text-gray-500 text-center">
-                    API keys start with 'cb_' prefix
-                  </p>
+                  <div className="pt-2 border-t border-gray-200">
+                    <p className="text-xs text-gray-500 text-center mb-2">
+                      API keys start with 'cb_' prefix
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full text-sm"
+                      onClick={() => setLocation("/login")}
+                    >
+                      Go to Login Page
+                    </Button>
+                  </div>
                 </form>
               </CardContent>
             </Card>

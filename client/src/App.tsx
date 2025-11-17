@@ -19,6 +19,7 @@ import MappingGenerator from "@/pages/MappingGenerator";
 import Projects from "@/pages/admin/projects";
 import TenantSelector from "@/pages/tenant-selector";
 import Profile from "@/pages/profile";
+import Login from "@/pages/login";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import type { QueueConfig } from "@shared/schema";
@@ -46,7 +47,12 @@ function Router() {
 
   // Show secure landing page (fake 404) if not authenticated
   if (!user) {
-    return <Landing />;
+    return (
+      <Switch>
+        <Route path="/login" component={Login} />
+        <Route component={Landing} />
+      </Switch>
+    );
   }
 
   // Consultant needs to select tenant first
