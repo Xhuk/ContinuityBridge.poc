@@ -160,3 +160,64 @@ export const wafConfig = pgTable("waf_config", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// Customer License/Contract Configuration
+export const customerLicense = pgTable("customer_license", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id").notNull().unique(),
+  organizationName: text("organization_name").notNull(),
+  
+  // License type
+  licenseType: text("license_type").notNull().$type<"trial" | "basic" | "professional" | "enterprise">().default("trial"),
+  
+  // Feature flags - what features are enabled for this customer
+  features: jsonb("features").$type<{
+    flowEditor: boolean;        // Flow Builder access
+    dataSources: boolean;       // Data Sources configuration
+    interfaces: boolean;        // Interfaces (REST, GraphQL, etc)
+    mappingGenerator: boolean;  // AI Mapping Generator
+    advancedSettings: boolean;  // Advanced system settings
+    customNodes: boolean;       // Custom node creation
+    apiAccess: boolean;         // Direct API access
+    webhooks: boolean;          // Webhook endpoints
+  }>().default({
+    flowEditor: false,
+    dataSources: false,
+    interfaces: false,
+    mappingGenerator: false,
+    advancedSettings: false,
+    customNodes: false,
+    apiAccess: true,
+    webhooks: true,
+  }),
+  
+  // Resource limits
+  limits: jsonb("limits").$type<{
+    maxFlows: number;           // Maximum number of flows
+    maxDataSources: number;     // Maximum data sources
+    maxInterfaces: number;      // Maximum interfaces
+    maxUsers: number;           // Maximum users in organization
+    maxExecutionsPerMonth: number; // Monthly execution limit
+  }>().default({
+    maxFlows: 5,
+    maxDataSources: 2,
+    maxInterfaces: 2,
+    maxUsers: 5,
+    maxExecutionsPerMonth: 10000,
+  }),
+  
+  // License validity
+  validFrom: timestamp("valid_from").notNull().defaultNow(),
+  validUntil: timestamp("valid_until"), // null = perpetual
+  
+  // Status
+  active: boolean("active").notNull().default(true),
+  
+  // Metadata
+  contractNumber: text("contract_number"),
+  notes: text("notes"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdBy: text("created_by"),
+});

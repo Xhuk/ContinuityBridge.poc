@@ -1,5 +1,6 @@
 import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
   SidebarContent,
@@ -20,51 +21,61 @@ const menuItems = [
     title: "Dashboard",
     url: "/",
     icon: Home,
+    requiresFeature: null, // Always visible
   },
   {
     title: "Events",
     url: "/events",
     icon: List,
+    requiresFeature: null,
   },
   {
     title: "Queue & Worker",
     url: "/queue",
     icon: SettingsIcon,
+    requiresFeature: null,
   },
   {
     title: "Data Sources",
     url: "/datasources",
     icon: Database,
+    requiresFeature: "dataSources", // Requires license feature
   },
   {
     title: "Interfaces",
     url: "/interfaces",
     icon: Network,
+    requiresFeature: "interfaces", // Requires license feature
   },
   {
     title: "Flow Builder",
     url: "/flows",
     icon: Workflow,
+    requiresFeature: "flowEditor", // Requires license feature
   },
   {
     title: "Mapping Generator",
     url: "/mappergenerator",
     icon: Sparkles,
+    requiresFeature: "mappingGenerator", // Requires license feature
   },
   {
     title: "Ingest XML",
     url: "/ingest",
     icon: Upload,
+    requiresFeature: null,
   },
   {
     title: "Test Files",
     url: "/test-files",
     icon: FileText,
+    requiresFeature: null,
   },
   {
     title: "Settings",
     url: "/settings",
     icon: Cog,
+    requiresFeature: "advancedSettings", // Basic settings always available
   },
 ];
 
@@ -80,6 +91,31 @@ export function AppSidebar({ queueBackend }: { queueBackend?: string }) {
   const [location, setLocation] = useLocation();
   const { user, logout } = useAuth();
   const isSuperAdmin = user?.role === "superadmin";
+  const isConsultant = user?.role === "consultant";
+
+  // Fetch license/feature flags
+  const { data: licenseData } = useQuery({
+    queryKey: ["/api/license"],
+    enabled: !!user,
+  });
+
+  const license = licenseData?.license;
+  const features = license?.features || {};
+
+  // Admins and consultants see all features
+  const showAllFeatures = isSuperAdmin || isConsultant;
+
+  // Filter menu items based on license
+  const visibleMenuItems = menuItems.filter(item => {
+    // Always show items without feature requirements
+    if (!item.requiresFeature) return true;
+    
+    // Admins/consultants see everything
+    if (showAllFeatures) return true;
+    
+    // Check if customer has the required feature
+    return features[item.requiresFeature] === true;
+  });
 
   const handleLogout = () => {
     logout();
@@ -99,14 +135,24 @@ export function AppSidebar({ queueBackend }: { queueBackend?: string }) {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => {
+              {visibleMenuItems.map((item) => {
                 const isActive = location === item.url;
+                const isLocked = item.requiresFeature && !showAllFeatures && !features[item.requiresFeature];
+                
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isActive} 
+                      data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                      disabled={isLocked}
+                    >
                       <Link href={item.url}>
                         <item.icon className="h-5 w-5" />
-                        <span>{item.title}</span>
+                        <span className="flex-1">{item.title}</span>
+                        {isLocked && (
+                          <Badge variant="secondary" className="text-xs">Pro</Badge>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
