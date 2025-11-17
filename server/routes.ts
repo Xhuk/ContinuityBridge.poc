@@ -86,6 +86,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Register auth adapter and policy routes with optional auth guard
     registerAuthRoutes(app, storage, tokenLifecycle, secretsService, reloadPolicies, authGuard);
 
+    // Register WAF configuration routes
+    const wafConfigRouter = (await import("./src/routes/waf-config.js")).default;
+    app.use("/api/waf", wafConfigRouter);
+
     // Register GraphQL server (standalone on port 4000) with shared pipeline
     registerGraphQLServer(pipeline).catch((err) => {
       log.error("Failed to start GraphQL server", err);

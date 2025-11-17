@@ -234,7 +234,8 @@ export function wafMiddleware(config: Partial<WAFConfig> = {}) {
   // Cleanup old entries every 5 minutes
   setInterval(() => {
     const now = Date.now();
-    for (const [ip, entry] of rateLimitStore.entries()) {
+    const entries = Array.from(rateLimitStore.entries());
+    for (const [ip, entry] of entries) {
       if (now - entry.firstRequest > finalConfig.rateLimit.windowMs * 2) {
         rateLimitStore.delete(ip);
       }
@@ -243,6 +244,12 @@ export function wafMiddleware(config: Partial<WAFConfig> = {}) {
   
   return (req: Request, res: Response, next: NextFunction) => {
     const ip = getClientIP(req);
+    const url = req.originalUrl || req.url;
+    
+    // ALWAYS allow static assets (CSS, JS, images, fonts)
+    if (url.startsWith('/assets/') || url.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map)$/)) {
+      return next();
+    }
     
     // Whitelist check
     if (finalConfig.whitelist.includes(ip)) {

@@ -138,3 +138,25 @@ export const smtpSettings = pgTable("smtp_settings", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// WAF (Web Application Firewall) Configuration Table
+export const wafConfig = pgTable("waf_config", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id").unique(), // null = global/default config
+  
+  enabled: boolean("enabled").notNull().default(true),
+  blockBots: boolean("block_bots").notNull().default(true),
+  blockSuspicious: boolean("block_suspicious").notNull().default(true),
+  
+  // Rate limiting
+  rateLimitEnabled: boolean("rate_limit_enabled").notNull().default(true),
+  rateLimitWindowMs: integer("rate_limit_window_ms").notNull().default(60000),
+  rateLimitMaxRequests: integer("rate_limit_max_requests").notNull().default(30),
+  rateLimitBlockDurationMs: integer("rate_limit_block_duration_ms").notNull().default(300000),
+  
+  // IP whitelist (JSON array of IP addresses)
+  whitelist: jsonb("whitelist").$type<string[]>().default([]),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
