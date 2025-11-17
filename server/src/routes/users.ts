@@ -33,6 +33,7 @@ router.get("/", authenticateUser, async (req, res) => {
         organizationId: users.organizationId,
         organizationName: users.organizationName,
         assignedCustomers: users.assignedCustomers,
+        apiKey: users.apiKey, // Include API key for superadmin
         enabled: users.enabled,
         lastLoginAt: users.lastLoginAt,
         createdAt: users.createdAt,
