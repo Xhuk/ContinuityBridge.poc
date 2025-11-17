@@ -362,4 +362,49 @@ router.put("/config", authenticateUser, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/logs/cleanup/trigger
+ * Manually trigger log cleanup job
+ * 🔒 SUPERADMIN ONLY
+ */
+router.post("/cleanup/trigger", authenticateUser, requireSuperAdmin, async (req, res) => {
+  try {
+    const { getLogCleanupJob } = await import("../core/log-cleanup-job.js");
+    const cleanupJob = getLogCleanupJob();
+    
+    const result = await cleanupJob.triggerManualCleanup();
+    
+    res.json({
+      success: result.success,
+      message: result.success ? "Log cleanup completed" : "Log cleanup failed",
+      deleted: result.deleted,
+    });
+  } catch (error: any) {
+    console.error("[LogsAPI] Manual cleanup failed:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/logs/cleanup/status
+ * Get log cleanup job status
+ * 🔒 SUPERADMIN ONLY
+ */
+router.get("/cleanup/status", authenticateUser, requireSuperAdmin, async (req, res) => {
+  try {
+    const { getLogCleanupJob } = await import("../core/log-cleanup-job.js");
+    const cleanupJob = getLogCleanupJob();
+    
+    const status = cleanupJob.getStatus();
+    
+    res.json({
+      ...status,
+      message: status.running ? "Cleanup job is running" : "Cleanup job is stopped",
+    });
+  } catch (error: any) {
+    console.error("[LogsAPI] Get cleanup status failed:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

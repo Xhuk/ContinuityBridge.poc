@@ -15,6 +15,9 @@ import { initializeOutboundTokenProvider } from "./src/auth/auth-service-factory
 import { BackgroundTokenRefreshJob } from "./src/auth/background-token-refresh.js";
 import { createInboundAuthMiddleware } from "./src/auth/inbound-auth-middleware.js";
 import { createAuthGuard } from "./src/middleware/auth-guard.js";
+import { getSchedulerDaemon } from "./src/schedulers/scheduler-daemon.js";
+import { getPollerDaemon } from "./src/schedulers/poller-daemon.js";
+import { getLogCleanupJob } from "./src/core/log-cleanup-job.js";
 
 const log = logger.child("Server");
 
@@ -102,6 +105,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       5   // Refresh tokens expiring in <5 minutes
     );
     tokenRefreshJob.start();
+
+    // Initialize and start scheduler daemon (for cron-based flows)
+    const schedulerDaemon = getSchedulerDaemon(orchestrator);
+    await schedulerDaemon.start();
+    log.info("Scheduler daemon started");
+
+    // Initialize and start poller daemon (for SFTP/Blob pollers)
+    const pollerDaemon = getPollerDaemon(orchestrator);
+    pollerDaemon.start();
+    log.info("Poller daemon started");
+
+    // Initialize and start log cleanup job (runs every hour)
+    const logCleanupJob = getLogCleanupJob(60); // 60 minutes interval
+    logCleanupJob.start();
+    log.info("Log cleanup job started (runs every 60 minutes)");
 
     log.info("All routes and services registered successfully");
 
