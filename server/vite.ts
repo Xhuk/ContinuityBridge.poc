@@ -71,15 +71,13 @@ export function serveStatic(app: Express) {
   // Try multiple possible paths for the dist/public directory
   const possiblePaths = [
     path.resolve(process.cwd(), "dist", "public"),           // From project root
-    path.resolve(__dirname, "public"),                        // If running from dist/ (common case)
-    path.resolve(import.meta.dirname, "public"),              // ESM equivalent of __dirname
+    path.resolve(import.meta.dirname, "public"),              // If running from dist/
     path.resolve(import.meta.dirname, "..", "public"),       // If in dist/server/
     path.join(process.cwd(), "dist", "public"),              // Alternative join syntax
   ];
 
   console.log(`[Static] Current working directory: ${process.cwd()}`);
   console.log(`[Static] import.meta.dirname: ${import.meta.dirname}`);
-  console.log(`[Static] __dirname (if available): ${typeof __dirname !== 'undefined' ? __dirname : 'N/A'}`);
   console.log(`[Static] Trying paths:`);
   
   let distPath: string | null = null;
