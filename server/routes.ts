@@ -102,6 +102,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const licenseRouter = (await import("./src/routes/license.js")).default;
     app.use("/api/license", licenseRouter);
 
+    // Register institutional page generator routes
+    const institutionalPageRouter = (await import("./src/routes/institutional-page.js")).default;
+    app.use("/api/institutional-page", institutionalPageRouter);
+
     // Register GraphQL server (standalone on port 4000) with shared pipeline
     registerGraphQLServer(pipeline).catch((err) => {
       log.error("Failed to start GraphQL server", err);
