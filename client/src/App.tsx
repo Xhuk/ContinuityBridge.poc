@@ -25,6 +25,7 @@ import Login from "@/pages/login";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Wiki from "@/pages/wiki";
+import QATracking from "@/pages/qa-tracking";
 import type { QueueConfig } from "@shared/schema";
 
 function Router() {
@@ -98,6 +99,9 @@ function Router() {
               <Route path="/settings" component={Settings} />
               <Route path="/profile" component={Profile} />
               <Route path="/wiki" component={Wiki} />
+              {(user?.role === "superadmin" || user?.role === "consultant") && (
+                <Route path="/admin/qa-tracking" component={QATracking} />
+              )}
               {user?.role === "superadmin" && (
                 <>
                   <Route path="/admin/projects" component={Projects} />
