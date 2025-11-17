@@ -9,18 +9,13 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS email_confirmed BOOLEAN NOT NULL DEFA
 ALTER TABLE users ADD COLUMN IF NOT EXISTS confirmation_token TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS confirmation_token_expires TIMESTAMP;
 
--- Step 2: Add unique constraint safely
-DO $$ 
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'users_confirmation_token_unique'
-    ) THEN
-        ALTER TABLE users ADD CONSTRAINT users_confirmation_token_unique UNIQUE (confirmation_token);
-    END IF;
-END $$;
+-- Step 2: Drop the unique constraint if it exists (to avoid conflict)
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_confirmation_token_unique;
 
--- Step 3: Mark existing users as confirmed (one-time data migration)
+-- Step 3: Re-add unique constraint (this won't prompt for truncation)
+ALTER TABLE users ADD CONSTRAINT users_confirmation_token_unique UNIQUE (confirmation_token);
+
+-- Step 4: Mark existing users as confirmed (one-time data migration)
 UPDATE users 
 SET email_confirmed = true 
 WHERE email_confirmed IS NULL OR email_confirmed = false;
