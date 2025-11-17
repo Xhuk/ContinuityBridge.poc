@@ -96,27 +96,9 @@ if (dbType === "sqlite") {
   
   postgresDb = drizzleNeon({ client: postgresPool, schema });
   
-  // Extract schema name from DATABASE_URL if specified
-  try {
-    const dbUrl = new URL(process.env.DATABASE_URL);
-    const schemaParam = dbUrl.searchParams.get('schema');
-    const targetSchema = schemaParam || 'public';
-    
-    console.log(`[Database] ✅ PostgreSQL pool created (Neon serverless)`);
-    console.log(`[Database] 📋 Target schema: ${targetSchema}`);
-    
-    // Set search_path to target schema for all connections
-    if (schemaParam) {
-      postgresPool.on('connect', (client) => {
-        client.query(`SET search_path TO ${schemaParam}, public`).catch((err) => {
-          console.error(`[Database] ⚠️  Failed to set search_path:`, err.message);
-        });
-      });
-      console.log(`[Database] 🔒 search_path configured: ${schemaParam}, public`);
-    }
-  } catch (error: any) {
-    console.error("[Database] ⚠️  Failed to parse DATABASE_URL:", error.message);
-  }
+  console.log(`[Database] ✅ PostgreSQL pool created (Neon serverless)`);
+  console.log(`[Database] 📋 Using schema: public (default)`);
+  console.log(`[Database] 🔗 Connection pooling: ${process.env.DB_POOL_MAX || 20} max connections`);
 }
 
 export const db = (sqliteDb || postgresDb)!;
