@@ -97,9 +97,7 @@ function Router() {
               <Route path="/mappergenerator" component={MappingGenerator} />
               <Route path="/settings" component={Settings} />
               <Route path="/profile" component={Profile} />
-              {(user?.role === "superadmin" || user?.role === "consultant") && (
-                <Route path="/wiki" component={Wiki} />
-              )}
+              <Route path="/wiki" component={Wiki} />
               {user?.role === "superadmin" && (
                 <>
                   <Route path="/admin/projects" component={Projects} />

@@ -10,23 +10,23 @@ interface WikiPage {
   filename: string;
   content: string;
   tags: string[];
-  category: "operational" | "strategic" | "technical" | "business";
-  accessLevel: "founder" | "consultant" | "all";
+  category: "operational" | "strategic" | "technical" | "business" | "customer";
+  accessLevel: "founder" | "consultant" | "customer" | "all";
 }
 
 /**
  * Get all wiki pages based on user role
- * - Founders: See all documentation (full version)
+ * - Founders (superadmin): See all documentation (full version)
  * - Consultants: See only operational information
- * - Customer admins/users: No access
+ * - Customer Admins/Users: See only customer-facing manuals and basic guides
  */
 router.get("/pages", authenticateUser, async (req, res) => {
   try {
     const userRole = req.user?.role;
 
-    // Only superadmin (founders) and consultants can access wiki
-    if (userRole !== "superadmin" && userRole !== "consultant") {
-      return res.status(403).json({ error: "Wiki access restricted to founders and consultants" });
+    // All authenticated users can access wiki (filtered by role)
+    if (!userRole) {
+      return res.status(403).json({ error: "Authentication required" });
     }
 
     const wikiPath = join(process.cwd(), "wiki");
@@ -50,8 +50,13 @@ router.get("/pages", authenticateUser, async (req, res) => {
         // Founders see everything
         pages.push(page);
       } else if (userRole === "consultant") {
-        // Consultants only see operational content
-        if (page.accessLevel === "all" || page.accessLevel === "consultant" || page.category === "operational") {
+        // Consultants see operational content
+        if (page.accessLevel === "all" || page.accessLevel === "consultant" || page.accessLevel === "customer" || page.category === "operational" || page.category === "customer") {
+          pages.push(page);
+        }
+      } else if (userRole === "customer_admin" || userRole === "customer_user") {
+        // Customers only see customer-facing manuals and guides
+        if (page.accessLevel === "all" || page.accessLevel === "customer" || page.category === "customer") {
           pages.push(page);
         }
       }
@@ -75,8 +80,8 @@ router.get("/pages/:filename", authenticateUser, async (req, res) => {
     const userRole = req.user?.role;
     const { filename } = req.params;
 
-    if (userRole !== "superadmin" && userRole !== "consultant") {
-      return res.status(403).json({ error: "Wiki access restricted" });
+    if (!userRole) {
+      return res.status(403).json({ error: "Authentication required" });
     }
 
     const wikiPath = join(process.cwd(), "wiki");
@@ -94,8 +99,20 @@ router.get("/pages/:filename", authenticateUser, async (req, res) => {
       if (page.accessLevel === "founder") {
         return res.status(403).json({ error: "This page is restricted to founders only" });
       }
-      if (page.category !== "operational" && page.accessLevel !== "consultant" && page.accessLevel !== "all") {
-        return res.status(403).json({ error: "Access denied" });
+      if (page.category === "strategic" || page.category === "business") {
+        if (page.accessLevel !== "consultant" && page.accessLevel !== "all" && page.accessLevel !== "customer") {
+          return res.status(403).json({ error: "Access denied" });
+        }
+      }
+    } else if (userRole === "customer_admin" || userRole === "customer_user") {
+      // Customers can only access customer-level content
+      if (page.accessLevel === "founder" || page.accessLevel === "consultant") {
+        return res.status(403).json({ error: "This page is restricted to internal teams only" });
+      }
+      if (page.category === "strategic" || page.category === "business" || page.category === "operational") {
+        if (page.accessLevel !== "customer" && page.accessLevel !== "all") {
+          return res.status(403).json({ error: "Access denied" });
+        }
       }
     }
 
@@ -142,8 +159,8 @@ function parseWikiPage(filename: string, content: string): WikiPage {
   // Default metadata
   let title = filename.replace('.md', '');
   let tags: string[] = [];
-  let category: "operational" | "strategic" | "technical" | "business" = "operational";
-  let accessLevel: "founder" | "consultant" | "all" = "all";
+  let category: "operational" | "strategic" | "technical" | "business" | "customer" = "operational";
+  let accessLevel: "founder" | "consultant" | "customer" | "all" = "all";
 
   // Parse frontmatter-style metadata from markdown
   const lines = content.split('\n');
@@ -165,7 +182,9 @@ function parseWikiPage(filename: string, content: string): WikiPage {
   const lowerFilename = filename.toLowerCase();
 
   // Category detection
-  if (lowerContent.includes('operational') || lowerFilename.includes('operational')) {
+  if (lowerContent.includes('customer') || lowerFilename.includes('customer') || tags.includes('customer')) {
+    category = "customer";
+  } else if (lowerContent.includes('operational') || lowerFilename.includes('operational')) {
     category = "operational";
   } else if (lowerContent.includes('strategic') || lowerFilename.includes('strategic') || lowerFilename.includes('business')) {
     category = "strategic";
@@ -178,6 +197,8 @@ function parseWikiPage(filename: string, content: string): WikiPage {
   // Access level detection
   if (tags.includes('founder-only') || lowerContent.includes('founder only')) {
     accessLevel = "founder";
+  } else if (tags.includes('customer') || category === "customer") {
+    accessLevel = "customer";
   } else if (tags.includes('consultant') || category === "operational") {
     accessLevel = "consultant";
   } else if (category === "strategic" || category === "business") {

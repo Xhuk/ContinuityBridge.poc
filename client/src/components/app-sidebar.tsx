@@ -84,7 +84,7 @@ const adminMenuItems = [
     title: "Wiki",
     url: "/wiki",
     icon: Book,
-    roles: ["superadmin", "consultant"],
+    roles: ["superadmin", "consultant", "customer_admin", "customer_user"],
   },
   {
     title: "Projects",

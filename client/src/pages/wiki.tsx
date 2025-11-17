@@ -15,8 +15,8 @@ interface WikiPage {
   filename: string;
   content: string;
   tags: string[];
-  category: "operational" | "strategic" | "technical" | "business";
-  accessLevel: "founder" | "consultant" | "all";
+  category: "operational" | "strategic" | "technical" | "business" | "customer";
+  accessLevel: "founder" | "consultant" | "customer" | "all";
 }
 
 export default function Wiki() {
@@ -51,6 +51,7 @@ export default function Wiki() {
   // Category badge color
   const getCategoryColor = (category: string) => {
     switch (category) {
+      case "customer": return "bg-teal-500";
       case "operational": return "bg-blue-500";
       case "strategic": return "bg-purple-500";
       case "technical": return "bg-green-500";
@@ -79,7 +80,9 @@ export default function Wiki() {
               <p className="text-sm text-gray-500">
                 {userRole === "superadmin" 
                   ? "Full documentation access (Founder)"
-                  : "Operational documentation (Consultant)"}
+                  : userRole === "consultant"
+                  ? "Operational documentation (Consultant)"
+                  : "User manuals and guides (Customer)"}
               </p>
             </div>
           </div>
@@ -231,6 +234,14 @@ export default function Wiki() {
           <Lock className="h-4 w-4" />
           <AlertDescription>
             You're viewing operational documentation. Strategic and business content is restricted to founders.
+          </AlertDescription>
+        </Alert>
+      )}
+      {(userRole === "customer_admin" || userRole === "customer_user") && (
+        <Alert className="mx-6 mb-6">
+          <Book className="h-4 w-4" />
+          <AlertDescription>
+            You're viewing customer documentation. Internal operational guides are restricted to consultants and founders.
           </AlertDescription>
         </Alert>
       )}
