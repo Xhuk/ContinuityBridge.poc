@@ -105,7 +105,25 @@ export function serveStatic(app: Express) {
   }
 
   console.log(`[Static] ✓ Serving static files from: ${distPath}`);
-  app.use(express.static(distPath));
+  
+  // Serve static files with explicit error handling
+  app.use((req, res, next) => {
+    // Only handle requests for static assets
+    if (req.path.startsWith('/assets/') || req.path.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf)$/)) {
+      express.static(distPath, {
+        setHeaders: (res, filePath) => {
+          // Ensure correct MIME types
+          if (filePath.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css');
+          } else if (filePath.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript');
+          }
+        }
+      })(req, res, next);
+    } else {
+      next();
+    }
+  });
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
