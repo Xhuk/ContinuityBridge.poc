@@ -264,6 +264,259 @@ ${domain}
   }
 
   /**
+   * Send account confirmation email (step 1 of user creation)
+   */
+  async sendAccountConfirmationEmail(
+    email: string,
+    organizationName: string,
+    role: "superadmin" | "consultant" | "customer_admin" | "customer_user",
+    confirmationToken: string
+  ): Promise<void> {
+    const domain = process.env.APP_DOMAIN || 'networkvoid.xyz';
+    const appUrl = process.env.APP_URL || `https://${domain}`;
+    const confirmUrl = `${appUrl}/confirm-account/${confirmationToken}`;
+
+    const roleLabels = {
+      superadmin: 'Founder / Superadmin',
+      consultant: 'Consultant',
+      customer_admin: 'Customer Admin',
+      customer_user: 'Customer User',
+    };
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+  <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">✉️ Confirm Your Account</h1>
+  </div>
+  
+  <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">
+      Hi <strong>${email}</strong>,
+    </p>
+    
+    <p style="font-size: 16px; margin-bottom: 25px;">
+      An account has been created for you on <strong>ContinuityBridge</strong> with the following details:
+    </p>
+    
+    <div style="background: #f3f4f6; padding: 20px; border-radius: 6px; margin: 25px 0; border-left: 4px solid #10b981;">
+      <p style="margin: 0 0 10px 0;"><strong>📋 Account Details:</strong></p>
+      <p style="margin: 5px 0;">📧 Email: <code style="background: white; padding: 4px 8px; border-radius: 3px; font-size: 14px;">${email}</code></p>
+      <p style="margin: 5px 0;">🎯 Role: <code style="background: white; padding: 4px 8px; border-radius: 3px; font-size: 14px;">${roleLabels[role]}</code></p>
+      <p style="margin: 5px 0;">🏢 Organization: <code style="background: white; padding: 4px 8px; border-radius: 3px; font-size: 14px;">${organizationName}</code></p>
+    </div>
+    
+    <div style="background: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 6px; margin: 20px 0;">
+      <p style="margin: 0; font-size: 14px; color: #92400e;">
+        ⚠️ <strong>Action Required:</strong> Please confirm your email address to receive your login credentials.
+      </p>
+    </div>
+    
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${confirmUrl}" 
+         style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 14px 40px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        ✅ Confirm Email Address
+      </a>
+    </div>
+    
+    <p style="font-size: 14px; color: #6b7280; margin-top: 25px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+      <strong>What happens next:</strong><br>
+      • Click the button above to confirm your email<br>
+      • You'll receive another email with your API key and magic link<br>
+      • Use these credentials to log in to ContinuityBridge
+    </p>
+    
+    <p style="font-size: 12px; color: #9ca3af; margin-top: 20px;">
+      If the button doesn't work, copy and paste this link:<br>
+      <code style="background: #e5e7eb; padding: 8px; display: block; margin-top: 8px; border-radius: 4px; word-break: break-all;">${confirmUrl}</code>
+    </p>
+  </div>
+  
+  <div style="text-align: center; margin-top: 20px; color: #9ca3af; font-size: 12px;">
+    <p>ContinuityBridge - Integration Platform</p>
+    <p>${domain}</p>
+  </div>
+</body>
+</html>
+    `;
+
+    const text = `
+ContinuityBridge - Confirm Your Account
+
+Hi ${email},
+
+An account has been created for you on ContinuityBridge with the following details:
+
+📋 Account Details:
+📧 Email: ${email}
+🎯 Role: ${roleLabels[role]}
+🏢 Organization: ${organizationName}
+
+⚠️ Action Required: Please confirm your email address to receive your login credentials.
+
+Confirm your email: ${confirmUrl}
+
+What happens next:
+• Click the link above to confirm your email
+• You'll receive another email with your API key and magic link
+• Use these credentials to log in to ContinuityBridge
+
+---
+ContinuityBridge - Integration Platform
+${domain}
+    `;
+
+    await this.sendEmail({
+      to: email,
+      subject: `✉️ Confirm Your ContinuityBridge Account`,
+      html,
+      text,
+    });
+  }
+
+  /**
+   * Send account details email with API key and magic link (step 2 after confirmation)
+   */
+  async sendAccountDetailsEmail(
+    email: string,
+    apiKey: string,
+    magicLink: string,
+    organizationName: string,
+    environment: string,
+    role: "superadmin" | "consultant" | "customer_admin" | "customer_user"
+  ): Promise<void> {
+    const domain = process.env.APP_DOMAIN || 'networkvoid.xyz';
+    const loginUrl = process.env.APP_URL || `https://${domain}`;
+
+    const roleLabel = {
+      superadmin: 'Superadmin',
+      consultant: 'Consultant',
+      customer_admin: 'Customer Admin',
+      customer_user: 'Customer User',
+    }[role];
+
+    const envLabel = {
+      dev: 'Development',
+      test: 'Testing',
+      staging: 'Staging',
+      prod: 'Production',
+    }[environment] || environment;
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">🎉 Welcome to ContinuityBridge!</h1>
+  </div>
+  
+  <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">
+      Hi <strong>${email}</strong>,
+    </p>
+    
+    <p style="font-size: 16px; margin-bottom: 25px;">
+      Your email has been confirmed! Here are your login credentials for <strong>${organizationName}</strong> (${envLabel} environment).
+    </p>
+    
+    <div style="background: #f3f4f6; padding: 20px; border-radius: 6px; margin: 25px 0; border-left: 4px solid #667eea;">
+      <p style="margin: 0 0 15px 0;"><strong>🔑 Your Login Credentials:</strong></p>
+      
+      <p style="margin: 10px 0 5px 0; font-weight: 600;">Option 1: API Key Login</p>
+      <code style="display: block; background: #1e293b; color: #10b981; padding: 12px; border-radius: 4px; font-size: 13px; word-break: break-all; font-family: 'Courier New', monospace; margin-bottom: 15px;">${apiKey}</code>
+      
+      <p style="margin: 10px 0 5px 0; font-weight: 600;">Option 2: Magic Link (One-Click Login)</p>
+      <a href="${magicLink}" style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; margin-top: 5px;">
+        🚀 Login with Magic Link
+      </a>
+      
+      <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+        <p style="margin: 5px 0; font-size: 14px;">📧 Email: <code style="background: white; padding: 2px 6px; border-radius: 3px;">${email}</code></p>
+        <p style="margin: 5px 0; font-size: 14px;">🎯 Role: <code style="background: white; padding: 2px 6px; border-radius: 3px;">${roleLabel}</code></p>
+        <p style="margin: 5px 0; font-size: 14px;">🌐 Environment: <code style="background: white; padding: 2px 6px; border-radius: 3px;">${envLabel}</code></p>
+      </div>
+    </div>
+    
+    <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 6px; margin: 20px 0;">
+      <p style="margin: 0; font-size: 14px; color: #856404;">
+        ⚠️ <strong>Security Notice:</strong> Keep your API key secure. Do not share it publicly or commit it to version control.
+      </p>
+    </div>
+    
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${loginUrl}/sys/auth/bridge" 
+         style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 40px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        🚀 Go to Login Page
+      </a>
+    </div>
+    
+    <p style="font-size: 14px; color: #6b7280; margin-top: 25px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+      <strong>How to use your credentials:</strong><br>
+      • <strong>API Key:</strong> Include in the <code>X-API-Key</code> header for all API requests<br>
+      • <strong>Magic Link:</strong> Click to log in automatically (valid for 7 days)<br>
+      • Store your API key securely in your environment variables
+    </p>
+  </div>
+  
+  <div style="text-align: center; margin-top: 20px; color: #9ca3af; font-size: 12px;">
+    <p>ContinuityBridge - Integration Platform</p>
+    <p>${domain}</p>
+  </div>
+</body>
+</html>
+    `;
+
+    const text = `
+ContinuityBridge - Your Login Credentials
+
+Hi ${email},
+
+Your email has been confirmed! Here are your login credentials for ${organizationName} (${envLabel} environment).
+
+🔑 Your Login Credentials:
+
+Option 1: API Key Login
+${apiKey}
+
+Option 2: Magic Link (One-Click Login)
+${magicLink}
+
+📧 Email: ${email}
+🎯 Role: ${roleLabel}
+🌐 Environment: ${envLabel}
+
+⚠️ Security Notice: Keep your API key secure. Do not share it publicly or commit it to version control.
+
+How to use your credentials:
+• API Key: Include in the X-API-Key header for all API requests
+• Magic Link: Click to log in automatically (valid for 7 days)
+• Store your API key securely in your environment variables
+
+Login Page: ${loginUrl}/sys/auth/bridge
+
+---
+ContinuityBridge - Integration Platform
+${domain}
+    `;
+
+    await this.sendEmail({
+      to: email,
+      subject: `🎉 Your ContinuityBridge Login Credentials - ${envLabel}`,
+      html,
+      text,
+    });
+  }
+
+  /**
    * Send API key email to user
    */
   async sendAPIKeyEmail(

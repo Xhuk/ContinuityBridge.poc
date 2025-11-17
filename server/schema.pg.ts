@@ -15,6 +15,11 @@ export const users = pgTable("users", {
   assignedCustomers: jsonb("assigned_customers").$type<string[]>(),
   maxCustomers: integer("max_customers"),
   
+  // Email confirmation
+  emailConfirmed: boolean("email_confirmed").notNull().default(false),
+  confirmationToken: text("confirmation_token").unique(),
+  confirmationTokenExpires: timestamp("confirmation_token_expires"),
+  
   enabled: boolean("enabled").notNull().default(true),
   lastLoginAt: timestamp("last_login_at"),
   

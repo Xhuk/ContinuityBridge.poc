@@ -184,6 +184,10 @@ router.post("/", authenticateUser, async (req, res) => {
     const stage = environment || "dev";
     const apiKey = `cb_${stage}_${randomUUID().replace(/-/g, "")}`;
 
+    // Generate confirmation token (valid for 24 hours)
+    const confirmationToken = randomUUID().replace(/-/g, "");
+    const confirmationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     // Create user
     const newUser = {
       id: randomUUID(),
@@ -196,6 +200,9 @@ router.post("/", authenticateUser, async (req, res) => {
       enabled: true,
       passwordHash: null,  // No password - API key auth only
       lastLoginAt: null,
+      emailConfirmed: false,  // Require email confirmation
+      confirmationToken,
+      confirmationTokenExpires: confirmationTokenExpires.toISOString(),
       metadata: {
         ...(role === "consultant" ? {
           maxCustomers: maxCustomers || 1,
@@ -209,19 +216,18 @@ router.post("/", authenticateUser, async (req, res) => {
 
     await db.insert(users).values(newUser).run();
 
-    // Send API key via email using Resend
+    // Send confirmation email (step 1)
     const { resendService } = await import("../notifications/resend-service.js");
     try {
-      await resendService.sendAPIKeyEmail(
+      await resendService.sendAccountConfirmationEmail(
         email,
-        apiKey,
         organizationName || organizationId,
-        stage,
-        role as UserRole
+        role as UserRole,
+        confirmationToken
       );
-      console.log(`📧 API key sent to ${email} via Resend for ${stage} environment`);
+      console.log(`📧 Confirmation email sent to ${email}`);
     } catch (emailError: any) {
-      console.warn(`Failed to send API key email: ${emailError.message}`);
+      console.warn(`Failed to send confirmation email: ${emailError.message}`);
       // Continue anyway - user created successfully
     }
 
@@ -231,12 +237,99 @@ router.post("/", authenticateUser, async (req, res) => {
         id: newUser.id,
         email: newUser.email,
         role: newUser.role,
-        apiKey: newUser.apiKey,  // Show once during creation
         organizationId: newUser.organizationId,
         assignedCustomers: newUser.assignedCustomers,
         environment: stage,
+        emailConfirmed: false,
       },
-      message: `User created for ${stage} environment. API key sent to ${email}.`,
+      message: `User created for ${stage} environment. Confirmation email sent to ${email}.`,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/users/confirm-email
+ * Confirm user email and send account details (API key + magic link)
+ */
+router.post("/confirm-email", async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: "Confirmation token is required" });
+    }
+
+    // Find user by confirmation token
+    const userResult = await (db.select().from(users)
+      .where(eq(users.confirmationToken, token)) as any);
+    
+    const user = userResult[0];
+
+    if (!user) {
+      return res.status(404).json({ error: "Invalid confirmation token" });
+    }
+
+    // Check if token is expired
+    if (new Date(user.confirmationTokenExpires) < new Date()) {
+      return res.status(400).json({ error: "Confirmation token has expired" });
+    }
+
+    // Check if already confirmed
+    if (user.emailConfirmed) {
+      return res.status(400).json({ error: "Email already confirmed" });
+    }
+
+    // Generate magic link token (valid for 7 days)
+    const { magicLinks } = await import("../../db.js");
+    const magicLinkToken = randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    await (db.insert(magicLinks).values({
+      id: randomUUID(),
+      token: magicLinkToken,
+      email: user.email,
+      used: false,
+      expiresAt: expiresAt.toISOString(),
+      createdAt: new Date().toISOString(),
+    }) as any);
+
+    // Mark email as confirmed and clear confirmation token
+    await (db.update(users)
+      .set({
+        emailConfirmed: true,
+        confirmationToken: null as any,
+        confirmationTokenExpires: null as any,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(users.id, user.id)) as any);
+
+    // Get environment from metadata
+    const environment = (user.metadata as any)?.environment || "dev";
+    const appUrl = process.env.APP_URL || `https://${process.env.APP_DOMAIN || "networkvoid.xyz"}`;
+    const magicLink = `${appUrl}/auth/magic-link/${magicLinkToken}`;
+
+    // Send account details email (step 2) with API key and magic link
+    const { resendService } = await import("../notifications/resend-service.js");
+    try {
+      await resendService.sendAccountDetailsEmail(
+        user.email,
+        user.apiKey,
+        magicLink,
+        user.organizationName || user.organizationId,
+        environment,
+        user.role
+      );
+      console.log(`📧 Account details sent to ${user.email}`);
+    } catch (emailError: any) {
+      console.warn(`Failed to send account details email: ${emailError.message}`);
+      // Continue anyway - email confirmed successfully
+    }
+
+    res.json({
+      success: true,
+      message: "Email confirmed successfully! Check your email for login credentials.",
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
