@@ -1,0 +1,27 @@
+{
+  "orderId": "string",
+  "orderDate": "string",
+  "customerName": "string",
+  "customerEmail": "string",
+  "shippingAddress": {
+    "street": "string",
+    "city": "string",
+    "state": "string",
+    "zipCode": "string",
+    "country": "string"
+  },
+  "items": [
+    {
+      "lineNumber": "number",
+      "sku": "string",
+      "productName": "string",
+      "quantity": "number",
+      "unitOfMeasure": "string",
+      "unitPrice": "number"
+    }
+  ],
+  "totalAmount": "number",
+  "currency": "string",
+  "shipmentPriority": "string",
+  "requestedDeliveryDate": "string"
+}

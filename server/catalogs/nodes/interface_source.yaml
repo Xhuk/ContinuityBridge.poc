@@ -1,0 +1,42 @@
+id: interface_source
+category: trigger
+label: Interface Source
+description: Receive data from a configured interface definition
+icon: plug
+inputs: 0
+outputs: 1
+
+configFields:
+  - name: interfaceId
+    label: Interface
+    type: interface
+    required: true
+    filterDirection: inbound
+    helpText: "Select the interface to receive data from"
+
+  - name: autoStart
+    label: Auto-Start on Deploy
+    type: checkbox
+    required: false
+    default: true
+    helpText: "Automatically start listening when flow is deployed"
+
+  - name: batchSize
+    label: Batch Size
+    type: number
+    required: false
+    default: 1
+    placeholder: "1"
+    helpText: "Number of messages to process per batch (1 = real-time)"
+
+  - name: ackMode
+    label: Acknowledgment Mode
+    type: select
+    required: true
+    default: auto
+    options:
+      - auto
+      - manual
+    helpText: "When to acknowledge message receipt"
+
+executor: interface_source

@@ -1,8 +1,26 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { securityHeaders, corsConfig, apiRateLimit, sanitizeRequest, isHealthCheck } from "./src/middleware/security.js";
+import { checkFirstRun, displayReadinessBanner } from "./src/setup/first-run.js";
 
 const app = express();
+
+// Apply security headers (Helmet)
+app.use((req, res, next) => {
+  if (isHealthCheck(req)) return next();
+  return securityHeaders(req, res, next);
+});
+
+// Apply CORS
+app.use((req, res, next) => {
+  if (isHealthCheck(req)) return next();
+  return corsConfig(req, res, next);
+});
+
+// Cookie parser (for session management)
+app.use(cookieParser());
 
 declare module 'http' {
   interface IncomingMessage {
@@ -10,11 +28,27 @@ declare module 'http' {
   }
 }
 app.use(express.json({
+  limit: '10mb',
   verify: (req, _res, buf) => {
     req.rawBody = buf;
   }
 }));
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+
+// Sanitize requests
+app.use((req, res, next) => {
+  if (isHealthCheck(req)) return next();
+  return sanitizeRequest(req, res, next);
+});
+
+// Rate limiting (production only, bypassed for health checks)
+app.use((req, res, next) => {
+  if (isHealthCheck(req)) return next();
+  if (process.env.NODE_ENV === 'production') {
+    return apiRateLimit(req, res, next);
+  }
+  next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -47,6 +81,16 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // First-run setup and system readiness check
+  const readiness = await checkFirstRun();
+  displayReadinessBanner(readiness);
+
+  if (!readiness.ready && process.env.NODE_ENV === 'production') {
+    console.error("\n🛑 CRITICAL: System not ready for production deployment");
+    console.error("Fix missing requirements before starting the application.\n");
+    process.exit(1);
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

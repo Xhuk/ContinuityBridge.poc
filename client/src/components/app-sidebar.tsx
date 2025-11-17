@@ -1,4 +1,4 @@
-import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog } from "lucide-react";
+import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -43,6 +43,11 @@ const menuItems = [
     title: "Flow Builder",
     url: "/flows",
     icon: Workflow,
+  },
+  {
+    title: "Mapping Generator",
+    url: "/mappergenerator",
+    icon: Sparkles,
   },
   {
     title: "Ingest XML",

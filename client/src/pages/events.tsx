@@ -1,10 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { RotateCw, Play } from "lucide-react";
+import { RotateCw, Play, AlertCircle } from "lucide-react";
 import { useState } from "react";
 import type { Event } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
 
 const statusColors = {
   pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
@@ -15,15 +16,56 @@ const statusColors = {
 
 export default function Events() {
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const limit = 20;
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: events, isLoading } = useQuery<Event[]>({
     queryKey: ["/api/events", page],
     refetchInterval: 5000,
   });
 
+  const replayMutation = useMutation({
+    mutationFn: async (eventId: string) => {
+      const response = await fetch("/graphql", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: `
+            mutation ReplayEvent($id: ID!) {
+              replayEvent(id: $id)
+            }
+          `,
+          variables: { id: eventId },
+        }),
+      });
+
+      const result = await response.json();
+      if (result.errors) {
+        throw new Error(result.errors[0]?.message || "Replay failed");
+      }
+      return result.data.replayEvent;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Event Replayed",
+        description: "The event has been re-enqueued for processing",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Replay Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleReplay = (eventId: string) => {
-    console.log("Replay event:", eventId);
+    if (replayMutation.isPending) return;
+    replayMutation.mutate(eventId);
   };
 
   if (isLoading) {
@@ -37,7 +79,14 @@ export default function Events() {
   const totalEvents = events?.length || 0;
   const startIndex = (page - 1) * limit;
   const endIndex = Math.min(startIndex + limit, totalEvents);
-  const paginatedEvents = events?.slice(startIndex, endIndex) || [];
+  
+  // Apply status filter
+  const filteredEvents = statusFilter 
+    ? events?.filter(e => e.status === statusFilter) || []
+    : events || [];
+  
+  const paginatedEvents = filteredEvents.slice(startIndex, endIndex);
+  const failedCount = events?.filter(e => e.status === "failed").length || 0;
 
   return (
     <div className="px-6 py-8 md:px-12 md:py-12 max-w-7xl mx-auto space-y-6">
@@ -50,10 +99,33 @@ export default function Events() {
             Track and replay processing events
           </p>
         </div>
-        <Button variant="default" data-testid="button-replay-all">
-          <RotateCw className="h-4 w-4 mr-2" />
-          Replay Selected
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant={statusFilter === "failed" ? "default" : "outline"}
+            onClick={() => setStatusFilter(statusFilter === "failed" ? null : "failed")}
+            className="relative"
+          >
+            <AlertCircle className="h-4 w-4 mr-2" />
+            Failed Events
+            {failedCount > 0 && (
+              <Badge className="ml-2 bg-red-600 text-white">{failedCount}</Badge>
+            )}
+          </Button>
+          <Button 
+            variant="outline" 
+            data-testid="button-replay-all"
+            onClick={() => {
+              if (statusFilter === "failed" && filteredEvents.length > 0) {
+                // Replay all failed events
+                filteredEvents.forEach(event => handleReplay(event.id));
+              }
+            }}
+            disabled={statusFilter !== "failed" || replayMutation.isPending}
+          >
+            <RotateCw className="h-4 w-4 mr-2" />
+            Replay All Failed
+          </Button>
+        </div>
       </div>
 
       <Card className="border rounded-lg overflow-hidden">
@@ -120,6 +192,11 @@ export default function Events() {
                       >
                         {event.status}
                       </Badge>
+                      {event.retryCount !== undefined && event.retryCount > 0 && (
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          {event.retryCount} retries
+                        </Badge>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-xs text-muted-foreground">
                       {new Date(event.timestamp).toLocaleString()}
@@ -127,9 +204,11 @@ export default function Events() {
                     <td className="py-3 px-4">
                       <Button
                         size="icon"
-                        variant="ghost"
+                        variant={event.status === "failed" ? "destructive" : "ghost"}
                         onClick={() => handleReplay(event.id)}
+                        disabled={replayMutation.isPending}
                         data-testid={`button-replay-${index}`}
+                        title={event.status === "failed" ? "Replay failed event" : "Replay event"}
                       >
                         <Play className="h-4 w-4" />
                       </Button>

@@ -11,6 +11,7 @@ import { DatabaseStorage } from "./database-storage.js";
 import { ensureTables, seedDefaultHierarchy } from "./migrate.js";
 import { secretsService } from "./src/secrets/secrets-service.js";
 import { TokenLifecycleService } from "./src/auth/token-lifecycle-service.js";
+import { initializeOutboundTokenProvider } from "./src/auth/auth-service-factory.js";
 import { BackgroundTokenRefreshJob } from "./src/auth/background-token-refresh.js";
 import { createInboundAuthMiddleware } from "./src/auth/inbound-auth-middleware.js";
 import { createAuthGuard } from "./src/middleware/auth-guard.js";
@@ -49,6 +50,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Initialize token lifecycle service (shared)
     const tokenLifecycle = new TokenLifecycleService(storage, secretsService);
+
+    // Initialize outbound token provider (singleton for flow executors)
+    initializeOutboundTokenProvider(storage, tokenLifecycle, secretsService);
 
     // Initialize inbound auth middleware
     const { middleware: inboundAuthMiddleware, reloadPolicies } = createInboundAuthMiddleware({

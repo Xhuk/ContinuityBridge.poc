@@ -37,6 +37,7 @@ export const eventSchema = z.object({
   reason: z.string(),
   status: z.enum(["pending", "processing", "completed", "failed"]),
   latencyMs: z.number().optional(),
+  retryCount: z.number().optional(),
   error: z.string().optional(),
 });
 
@@ -377,7 +378,8 @@ export const interfaceConfigSchema = z.object({
   
   // Authentication
   authType: authTypeSchema,
-  authSecretId: z.string().optional(),         // Reference to secret storage
+  authSecretId: z.string().optional(),         // Reference to secret storage (legacy)
+  authAdapterId: z.string().optional(),        // Reference to auth_adapters table (new system)
   
   // OAuth2-specific configuration
   oauth2Config: oauth2ConfigSchema.optional(), // Required if authType is "oauth2"
@@ -810,12 +812,13 @@ export const nodeDefinitionSchema = z.object({
   configFields: z.array(z.object({
     name: z.string(),
     label: z.string(),
-    type: z.enum(["text", "textarea", "number", "boolean", "select", "interface", "code", "json"]),
+    type: z.enum(["text", "password", "textarea", "number", "boolean", "checkbox", "select", "interface", "code", "json"]),
     required: z.boolean().default(false),
     default: z.unknown().optional(),
     options: z.array(z.string()).optional(), // For select fields
     placeholder: z.string().optional(),
     helpText: z.string().optional(),
+    filterDirection: z.enum(["inbound", "outbound", "bidirectional"]).optional(), // Filter interfaces by direction
   })).default([]),
   
   // Validation

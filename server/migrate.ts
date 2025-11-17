@@ -254,6 +254,66 @@ export async function ensureTables() {
       )
     `);
 
+    // Create data_source_schemas table (for storing uploaded data structures)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS data_source_schemas (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        identifier TEXT NOT NULL UNIQUE,
+        source_type TEXT NOT NULL,
+        format TEXT NOT NULL,
+        sample_data TEXT,
+        schema TEXT NOT NULL,
+        system_instance_id TEXT REFERENCES system_instances(id) ON DELETE SET NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        tags TEXT,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create flow_join_states table (for Join node correlation)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS flow_join_states (
+        id TEXT PRIMARY KEY,
+        flow_id TEXT NOT NULL REFERENCES flow_definitions(id) ON DELETE CASCADE,
+        node_id TEXT NOT NULL,
+        correlation_key TEXT NOT NULL,
+        correlation_value TEXT NOT NULL,
+        stream_a_payload TEXT,
+        stream_b_payload TEXT,
+        stream_a_name TEXT,
+        stream_b_name TEXT,
+        join_strategy TEXT DEFAULT 'inner',
+        status TEXT NOT NULL,
+        timeout_minutes INTEGER NOT NULL DEFAULT 1440,
+        expires_at TEXT NOT NULL,
+        matched_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create poller_states table (for SFTP/Blob poller tracking)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS poller_states (
+        id TEXT PRIMARY KEY,
+        flow_id TEXT NOT NULL REFERENCES flow_definitions(id) ON DELETE CASCADE,
+        node_id TEXT NOT NULL,
+        poller_type TEXT NOT NULL,
+        last_file TEXT,
+        last_processed_at TEXT,
+        file_checksums TEXT,
+        config_snapshot TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        last_error TEXT,
+        last_error_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create indices for common queries
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS idx_flow_runs_flow_id ON flow_runs(flow_id)
@@ -285,6 +345,23 @@ export async function ensureTables() {
 
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS idx_secrets_vault_master_key_id ON secrets_vault(master_key_id)
+    `);
+
+    // Create indices for Join and Poller states
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_join_states_correlation ON flow_join_states(correlation_key, correlation_value)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_join_states_flow_node ON flow_join_states(flow_id, node_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_join_states_expires ON flow_join_states(expires_at)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_poller_states_flow_node ON poller_states(flow_id, node_id)
     `);
 
     // Create audit_logs table (for compliance and security tracking)

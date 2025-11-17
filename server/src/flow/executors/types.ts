@@ -8,6 +8,7 @@ export interface ExecutionContext {
   flowName: string;
   traceId: string;
   runId: string;
+  emulationMode?: boolean;  // Test mode - bypass live auth, use mocked headers
 }
 
 /**

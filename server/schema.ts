@@ -2,6 +2,540 @@ import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
+// Users Table (for RBAC - superadmin vs contractors)
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash"),  // Hashed password
+  
+  // Role-Based Access Control (RBAC)
+  // - superadmin: Full system access, can create consultants, manage all customers
+  // - consultant: Customer-scoped admin, manages assigned customers only
+  // - customer_admin: Self-service configuration, manages own company users
+  // - customer_user: Read-only access, can only view error dashboard
+  role: text("role").notNull().$type<"superadmin" | "consultant" | "customer_admin" | "customer_user">().default("customer_user"),
+  
+  // API key for programmatic access
+  apiKey: text("api_key").unique(),
+  
+  // Organization scoping
+  organizationId: text("organization_id"),
+  organizationName: text("organization_name"),
+  
+  // Consultant-specific: Assigned customers (for multi-customer access)
+  assignedCustomers: text("assigned_customers", { mode: "json" }).$type<string[]>(), // Array of organizationIds
+  
+  // Account status
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  lastLoginAt: text("last_login_at"),
+  
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// System Logs Table (Professional logging with web portal access)
+export const systemLogs = sqliteTable("system_logs", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  // Log metadata
+  timestamp: text("timestamp").notNull().default(sql`CURRENT_TIMESTAMP`),
+  level: text("level").notNull().$type<"debug" | "info" | "warn" | "error">(),
+  
+  // Logging scope (superadmin vs customer)
+  scope: text("scope").notNull().$type<"superadmin" | "customer">().default("superadmin"),
+  
+  // Source information
+  service: text("service").notNull(), // e.g., "FlowOrchestrator", "MagicLinkService"
+  component: text("component"), // e.g., "executeLogger", "validateLicense"
+  
+  // Message
+  message: text("message").notNull(),
+  
+  // Context data (JSON)
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  
+  // Flow execution context (if applicable)
+  flowId: text("flow_id"),
+  flowName: text("flow_name"),
+  runId: text("run_id"),
+  traceId: text("trace_id"),
+  
+  // User/organization context
+  userId: text("user_id"),
+  organizationId: text("organization_id"), // NULL for superadmin logs
+  
+  // Error details (if level = error)
+  errorStack: text("error_stack"),
+  errorCode: text("error_code"),
+  
+  // Request context
+  requestId: text("request_id"),
+  httpMethod: text("http_method"),
+  httpPath: text("http_path"),
+  httpStatus: integer("http_status"),
+  
+  // Performance metrics
+  durationMs: integer("duration_ms"),
+  
+  // Indexes for fast queries
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Log Configuration Table (Per-organization log settings)
+export const logConfigurations = sqliteTable("log_configurations", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  // Scope configuration
+  scope: text("scope").notNull().$type<"superadmin" | "customer">().default("customer"),
+  organizationId: text("organization_id"), // NULL for superadmin config
+  
+  // Log levels
+  minLevel: text("min_level").notNull().$type<"debug" | "info" | "warn" | "error">().default("info"),
+  
+  // Retention settings
+  retentionDays: integer("retention_days").notNull().default(30), // How long to keep logs
+  maxLogSize: integer("max_log_size_mb").notNull().default(100), // Max storage per org (MB)
+  
+  // File logging settings
+  fileLoggingEnabled: integer("file_logging_enabled", { mode: "boolean" }).notNull().default(true),
+  fileRotationDays: integer("file_rotation_days").notNull().default(7), // Daily rotation kept for N days
+  
+  // Database logging settings
+  dbLoggingEnabled: integer("db_logging_enabled", { mode: "boolean" }).notNull().default(true),
+  
+  // What to log
+  logFlowExecutions: integer("log_flow_executions", { mode: "boolean" }).notNull().default(true),
+  logApiRequests: integer("log_api_requests", { mode: "boolean" }).notNull().default(true),
+  logAuthEvents: integer("log_auth_events", { mode: "boolean" }).notNull().default(true),
+  logErrors: integer("log_errors", { mode: "boolean" }).notNull().default(true),
+  
+  // Alert settings
+  alertOnError: integer("alert_on_error", { mode: "boolean" }).notNull().default(false),
+  alertEmail: text("alert_email"),
+  
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// ============================================================================
+// VERSIONED CONFIGURATION MANAGEMENT
+// ============================================================================
+
+// Configuration Versions Table (Track every customer config change)
+export const configurationVersions = sqliteTable("configuration_versions", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  // Organization/Customer scoping
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name").notNull(),
+  
+  // Environment targeting (DEV = mutable, PROD = immutable)
+  targetEnvironment: text("target_environment").$type<"dev" | "staging" | "prod">().notNull().default("dev"),
+  
+  // Semantic versioning: MAJOR.MINOR.PATCH
+  version: text("version").notNull(), // e.g., "1.2.3"
+  versionMajor: integer("version_major").notNull().default(1),
+  versionMinor: integer("version_minor").notNull().default(0),
+  versionPatch: integer("version_patch").notNull().default(0),
+  
+  // Version metadata
+  label: text("label"), // e.g., "Christmas Sale Mappings"
+  description: text("description"), // Change description
+  changeType: text("change_type").$type<"major" | "minor" | "patch">().notNull().default("patch"),
+  
+  // Status lifecycle (environment-dependent)
+  // DEV: draft → deployed (no approval)
+  // PROD: draft → pending_approval → approved → deployed
+  status: text("status").$type<"draft" | "pending_approval" | "approved" | "deployed" | "archived">().notNull().default("draft"),
+  
+  // Immutability flag (PROD versions are immutable after deployment)
+  isImmutable: integer("is_immutable", { mode: "boolean" }).notNull().default(false),
+  
+  // Configuration snapshot (JSON blob of all settings)
+  configuration: text("configuration", { mode: "json" }).$type<{
+    flows?: any[];
+    interfaces?: any[];
+    dataSources?: any[];
+    mappings?: any[];
+    settings?: Record<string, any>;
+  }>().notNull(),
+  
+  // Delta from previous version (for changelog)
+  changesSummary: text("changes_summary", { mode: "json" }).$type<{
+    added?: string[];
+    modified?: string[];
+    deleted?: string[];
+    details?: string;
+  }>(),
+  
+  // Deployment information
+  deployedAt: text("deployed_at"),
+  deploymentMethod: text("deployment_method").$type<"docker" | "kubernetes" | "manual">(),
+  dockerImageTag: text("docker_image_tag"), // e.g., "customer-xyz:1.2.3"
+  dockerRegistryUrl: text("docker_registry_url"),
+  
+  // Rollback reference (nullable, string ID only - handled in app logic)
+  previousVersionId: text("previous_version_id"), // References another version.id
+  canRollback: integer("can_rollback", { mode: "boolean" }).notNull().default(true),
+  
+  // Audit trail
+  createdBy: text("created_by").notNull(), // User ID
+  createdByEmail: text("created_by_email").notNull(),
+  approvedBy: text("approved_by"), // Superadmin ID
+  approvedByEmail: text("approved_by_email"),
+  approvedAt: text("approved_at"),
+  
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Change Requests Table (Contractor proposes → Superadmin approves)
+export const changeRequests = sqliteTable("change_requests", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  // Organization context
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name").notNull(),
+  
+  // Request metadata
+  title: text("title").notNull(), // e.g., "Add new product mapping for SKU-1234"
+  description: text("description").notNull(), // Detailed explanation
+  requestType: text("request_type").$type<"mapping_change" | "flow_update" | "interface_config" | "datasource_update" | "other">().notNull(),
+  
+  // Proposed changes (JSON diff)
+  proposedChanges: text("proposed_changes", { mode: "json" }).$type<{
+    resourceType: string; // "flow", "interface", "mapping"
+    resourceId: string;
+    resourceName: string;
+    oldValue?: any;
+    newValue: any;
+    action: "create" | "update" | "delete";
+  }[]>().notNull(),
+  
+  // Impact assessment
+  impactLevel: text("impact_level").$type<"low" | "medium" | "high" | "critical">().notNull().default("medium"),
+  affectedFlows: text("affected_flows", { mode: "json" }).$type<string[]>(),
+  testingNotes: text("testing_notes"), // How contractor tested changes
+  
+  // Approval workflow
+  status: text("status").$type<"pending" | "reviewing" | "approved" | "rejected" | "deployed">().notNull().default("pending"),
+  reviewNotes: text("review_notes"), // Superadmin feedback
+  
+  // Version association
+  targetVersionId: text("target_version_id").references(() => configurationVersions.id),
+  
+  // Audit trail
+  requestedBy: text("requested_by").notNull(), // Contractor user ID
+  requestedByEmail: text("requested_by_email").notNull(),
+  reviewedBy: text("reviewed_by"), // Superadmin ID
+  reviewedByEmail: text("reviewed_by_email"),
+  reviewedAt: text("reviewed_at"),
+  deployedAt: text("deployed_at"),
+  
+  // Priority
+  priority: text("priority").$type<"low" | "normal" | "high" | "urgent">().notNull().default("normal"),
+  dueDate: text("due_date"),
+  
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Deployment History Table (Track every release to Docker)
+export const deploymentHistory = sqliteTable("deployment_history", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  // Organization context
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name").notNull(),
+  
+  // Environment (dev, staging, prod)
+  environment: text("environment").$type<"dev" | "staging" | "prod">().notNull().default("dev"),
+  
+  // Version reference
+  versionId: text("version_id").notNull().references(() => configurationVersions.id),
+  version: text("version").notNull(), // "1.2.3"
+  
+  // Deployment details
+  deploymentType: text("deployment_type").$type<"initial" | "update" | "rollback" | "hotfix">().notNull(),
+  deploymentMethod: text("deployment_method").$type<"docker" | "kubernetes" | "manual">().notNull(),
+  
+  // Docker/Container info
+  dockerImageTag: text("docker_image_tag").notNull(),
+  dockerRegistryUrl: text("docker_registry_url"),
+  containerName: text("container_name"),
+  
+  // Deployment status
+  status: text("status").$type<"pending" | "building" | "pushing" | "deploying" | "success" | "failed" | "rolled_back">().notNull().default("pending"),
+  
+  // Build information
+  buildStartedAt: text("build_started_at"),
+  buildCompletedAt: text("build_completed_at"),
+  buildDurationMs: integer("build_duration_ms"),
+  buildLogs: text("build_logs"),
+  
+  // Deployment information
+  deployedAt: text("deployed_at"),
+  deploymentDurationMs: integer("deployment_duration_ms"),
+  deploymentLogs: text("deployment_logs"),
+  
+  // Error handling
+  errorMessage: text("error_message"),
+  errorStack: text("error_stack"),
+  
+  // Rollback capability
+  canRollback: integer("can_rollback", { mode: "boolean" }).notNull().default(true),
+  rolledBackAt: text("rolled_back_at"),
+  rolledBackBy: text("rolled_back_by"),
+  
+  // Audit trail
+  deployedBy: text("deployed_by").notNull(), // User ID (superadmin or automated)
+  deployedByEmail: text("deployed_by_email").notNull(),
+  
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// ============================================================================
+// RELEASE MANAGEMENT & PLANNING (Superadmin tracking)
+// ============================================================================
+
+// Release Plans Table (Superadmin tracks customer go-live schedules)
+export const releasePlans = sqliteTable("release_plans", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  // Organization context
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name").notNull(),
+  
+  // Release metadata
+  releaseName: text("release_name").notNull(), // e.g., "Q1 2025 Integration Release"
+  releaseType: text("release_type").$type<"initial_deployment" | "feature_release" | "hotfix" | "migration" | "upgrade">().notNull(),
+  
+  // Environment schedules
+  devSchedule: text("dev_schedule", { mode: "json" }).$type<{
+    plannedDate: string;
+    actualDate?: string;
+    status: "not_started" | "in_progress" | "completed" | "blocked" | "skipped";
+    notes?: string;
+  }>(),
+  
+  stagingSchedule: text("staging_schedule", { mode: "json" }).$type<{
+    plannedDate: string; // UAT start date
+    actualDate?: string;
+    status: "not_started" | "in_progress" | "completed" | "blocked" | "skipped";
+    uatDuration?: string; // e.g., "2 weeks"
+    uatParticipants?: string[]; // Stakeholders
+    notes?: string;
+  }>(),
+  
+  prodSchedule: text("prod_schedule", { mode: "json" }).$type<{
+    plannedGoLiveDate: string; // Expected go-live
+    actualGoLiveDate?: string;
+    status: "not_started" | "in_progress" | "completed" | "blocked" | "delayed";
+    maintenanceWindow?: string; // e.g., "Saturday 2AM-6AM"
+    rollbackPlan?: string;
+    notes?: string;
+  }>(),
+  
+  // Overall release status
+  overallStatus: text("overall_status").$type<"planning" | "dev" | "uat" | "prod_ready" | "deployed" | "rolled_back" | "cancelled">().notNull().default("planning"),
+  
+  // Version associations
+  devVersionId: text("dev_version_id"),
+  stagingVersionId: text("staging_version_id"),
+  prodVersionId: text("prod_version_id"),
+  
+  // Stakeholders
+  projectManager: text("project_manager"), // Email or name
+  technicalLead: text("technical_lead"),
+  businessOwner: text("business_owner"),
+  
+  // Risk assessment
+  riskLevel: text("risk_level").$type<"low" | "medium" | "high" | "critical">().notNull().default("medium"),
+  risks: text("risks", { mode: "json" }).$type<{
+    description: string;
+    mitigation: string;
+    severity: "low" | "medium" | "high" | "critical";
+  }[]>(),
+  
+  // Audit trail
+  createdBy: text("created_by").notNull(),
+  createdByEmail: text("created_by_email").notNull(),
+  
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Integration Notes Table (Consultant/Contractor notes for each customer)
+export const integrationNotes = sqliteTable("integration_notes", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  // Organization context
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name").notNull(),
+  
+  // Note metadata
+  title: text("title").notNull(), // e.g., "WMS API Endpoint Configuration"
+  category: text("category").$type<"architecture" | "mapping" | "api_config" | "data_model" | "business_logic" | "testing" | "deployment" | "troubleshooting" | "other">().notNull(),
+  
+  // Content
+  content: text("content").notNull(), // Markdown supported
+  
+  // Associations
+  relatedReleasePlanId: text("related_release_plan_id"), // Link to release
+  relatedVersionId: text("related_version_id"), // Link to version
+  relatedFlowId: text("related_flow_id"), // Link to flow
+  relatedInterfaceId: text("related_interface_id"), // Link to interface
+  
+  // Tagging
+  tags: text("tags", { mode: "json" }).$type<string[]>(), // ["SAP", "SFTP", "critical"]
+  
+  // Visibility
+  isPublic: integer("is_public", { mode: "boolean" }).notNull().default(false), // Visible to contractors?
+  isPinned: integer("is_pinned", { mode: "boolean" }).notNull().default(false), // Show at top?
+  
+  // Author
+  authorId: text("author_id").notNull(),
+  authorEmail: text("author_email").notNull(),
+  authorRole: text("author_role").$type<"superadmin" | "contractor" | "viewer">(),
+  
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// ============================================================================
+// ERROR REPORTING & TRIAGE SYSTEM
+// ============================================================================
+
+// Error Reports Table (Production error capture with full context snapshot)
+export const errorReports = sqliteTable("error_reports", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  // Organization context (for multi-tenant filtering)
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name"),
+  
+  // Execution context ("Error Context Snapshot")
+  flowId: text("flow_id").notNull(),
+  flowName: text("flow_name").notNull(),
+  flowVersion: text("flow_version").notNull(),
+  runId: text("run_id").notNull(), // Unique execution ID
+  traceId: text("trace_id").notNull(), // For distributed tracing
+  
+  // Failed node details
+  nodeId: text("node_id").notNull(), // Which node failed
+  nodeName: text("node_name"),
+  nodeType: text("node_type"), // "validation", "transformation", "api_call", etc.
+  
+  // Error classification
+  errorType: text("error_type").$type<"flow_execution" | "node_failure" | "validation" | "transformation" | "api_error" | "timeout" | "connection" | "authentication" | "data_format" | "business_logic" | "system" | "unknown">().notNull().default("unknown"),
+  
+  // Error messages (dual format for UI display)
+  errorMessageSimple: text("error_message_simple").notNull(), // Human-readable: "Validation Node: order_id field is missing"
+  errorMessageTechnical: text("error_message_technical").notNull(), // Full error message
+  
+  // Full context snapshot (for advanced debugging)
+  payloadSnapshot: text("payload_snapshot", { mode: "json" }).$type<any>(), // The data that caused the failure
+  stackTrace: text("stack_trace"), // Complete developer-level stack trace
+  nodeConfig: text("node_config", { mode: "json" }).$type<any>(), // Node configuration at time of error
+  
+  // Environment context
+  environment: text("environment").$type<"dev" | "staging" | "prod">().notNull().default("prod"),
+  executionMode: text("execution_mode").$type<"test" | "production">().notNull().default("production"),
+  
+  // Triage status
+  triageStatus: text("triage_status").$type<"new" | "investigating" | "resolved" | "ignored" | "escalated">().notNull().default("new"),
+  
+  // Severity (auto-calculated or manually set)
+  severity: text("severity").$type<"low" | "medium" | "high" | "critical">().notNull().default("medium"),
+  
+  // Assignment & tracking
+  assignedTo: text("assigned_to"), // User ID who's investigating
+  assignedToEmail: text("assigned_to_email"),
+  assignedAt: text("assigned_at"),
+  
+  // Resolution
+  resolvedBy: text("resolved_by"),
+  resolvedByEmail: text("resolved_by_email"),
+  resolvedAt: text("resolved_at"),
+  resolutionNotes: text("resolution_notes"),
+  
+  // Additional context
+  metadata: text("metadata", { mode: "json" }).$type<{
+    httpStatus?: number;
+    httpMethod?: string;
+    endpoint?: string;
+    retryAttempts?: number;
+    relatedErrorIds?: string[]; // For error grouping
+  }>(),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Error Comments/Notes Table (For tracking investigation progress)
+export const errorComments = sqliteTable("error_comments", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  errorReportId: text("error_report_id").notNull().references(() => errorReports.id, { onDelete: "cascade" }),
+  
+  // Comment content
+  content: text("content").notNull(),
+  commentType: text("comment_type").$type<"investigation" | "workaround" | "root_cause" | "fix_applied" | "general">().notNull().default("general"),
+  
+  // Author
+  authorId: text("author_id").notNull(),
+  authorEmail: text("author_email").notNull(),
+  authorRole: text("author_role").$type<"superadmin" | "consultant" | "customer_admin" | "customer_user">(),
+  
+  // Metadata
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Error Escalation Tickets (For creating external support tickets)
+export const errorEscalationTickets = sqliteTable("error_escalation_tickets", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  errorReportId: text("error_report_id").notNull().references(() => errorReports.id, { onDelete: "cascade" }),
+  
+  // Ticket details
+  ticketNumber: text("ticket_number").unique(), // External ticket system ID
+  ticketSystem: text("ticket_system"), // "jira", "zendesk", "email", etc.
+  ticketUrl: text("ticket_url"),
+  
+  // Ticket content (pre-filled from error report)
+  title: text("title").notNull(),
+  description: text("description").notNull(), // Includes simple + advanced context
+  priority: text("priority").$type<"low" | "medium" | "high" | "urgent">().notNull().default("medium"),
+  
+  // Tracking
+  status: text("status").$type<"open" | "in_progress" | "waiting_response" | "resolved" | "closed">().notNull().default("open"),
+  
+  // Created by
+  createdBy: text("created_by").notNull(),
+  createdByEmail: text("created_by_email").notNull(),
+  
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// ============================================================================
+// HIERARCHY TABLES
+// ============================================================================
+
 // Hierarchy Tables (Account → Tenant → Ecosystem → Environment → System Instance)
 
 // Accounts Table (Monetization layer)
@@ -201,6 +735,121 @@ export const integrationEvents = sqliteTable("integration_events", {
   
   metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
 });
+
+// Data Source Schemas Table (stores uploaded data structures)
+export const dataSourceSchemas = sqliteTable("data_source_schemas", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(), // User-friendly name (e.g., "Order_XML", "Shipment_API")
+  identifier: text("identifier").notNull().unique(), // Unique tag (e.g., "order_xml_v1")
+  
+  // Source type and format
+  sourceType: text("source_type").notNull().$type<"upload" | "api" | "database" | "sftp" | "other">(),
+  format: text("format").notNull().$type<"xml" | "json" | "csv" | "other">(),
+  
+  // Original sample data
+  sampleData: text("sample_data"), // Original XML/JSON/CSV content
+  
+  // Parsed schema structure (JSON representation)
+  schema: text("schema", { mode: "json" }).$type<{
+    fields: Array<{
+      name: string;
+      path: string; // JSONPath or XPath
+      type: string; // string, number, object, array, etc.
+      required?: boolean;
+      nested?: boolean;
+    }>;
+    relationships?: Array<{
+      targetSchemaId: string;
+      type: "one-to-one" | "one-to-many" | "many-to-one" | "many-to-many";
+      foreignKey?: string;
+      description?: string;
+    }>;
+  }>().notNull(),
+  
+  // System instance scoping
+  systemInstanceId: text("system_instance_id").references(() => systemInstances.id, { onDelete: "set null" }),
+  
+  // Status
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  
+  // Metadata
+  tags: text("tags", { mode: "json" }).$type<string[]>(),
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type DataSourceSchema = typeof dataSourceSchemas.$inferSelect;
+export type InsertDataSourceSchema = typeof dataSourceSchemas.$inferInsert;
+
+// Flow Join State Table (for Join node correlation)
+export const flowJoinStates = sqliteTable("flow_join_states", {
+  id: text("id").primaryKey(),
+  flowId: text("flow_id").notNull().references(() => flowDefinitions.id, { onDelete: "cascade" }),
+  nodeId: text("node_id").notNull(), // The Join node ID
+  
+  // Correlation
+  correlationKey: text("correlation_key").notNull(), // The field to match on (e.g., order_id)
+  correlationValue: text("correlation_value").notNull(), // The actual value (e.g., "12345")
+  
+  // Payload storage
+  streamAPayload: text("stream_a_payload", { mode: "json" }).$type<unknown>(),
+  streamBPayload: text("stream_b_payload", { mode: "json" }).$type<unknown>(),
+  
+  // Metadata
+  streamAName: text("stream_a_name"),
+  streamBName: text("stream_b_name"),
+  joinStrategy: text("join_strategy").$type<"inner" | "left" | "right">().default("inner"),
+  
+  // Status
+  status: text("status").notNull().$type<"waiting_a" | "waiting_b" | "matched" | "timeout">(),
+  
+  // Timing
+  timeoutMinutes: integer("timeout_minutes").notNull().default(1440), // 24 hours
+  expiresAt: text("expires_at").notNull(),
+  matchedAt: text("matched_at"),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type FlowJoinState = typeof flowJoinStates.$inferSelect;
+export type InsertFlowJoinState = typeof flowJoinStates.$inferInsert;
+
+// Poller State Table (for SFTP/Blob poller tracking)
+export const pollerStates = sqliteTable("poller_states", {
+  id: text("id").primaryKey(),
+  flowId: text("flow_id").notNull().references(() => flowDefinitions.id, { onDelete: "cascade" }),
+  nodeId: text("node_id").notNull(), // The Poller node ID
+  
+  pollerType: text("poller_type").notNull().$type<"sftp" | "azure_blob">(),
+  
+  // Last processed tracking
+  lastFile: text("last_file"), // Last processed filename or blob name
+  lastProcessedAt: text("last_processed_at"),
+  
+  // File checksums to avoid reprocessing (JSON array of {filename, checksum})
+  fileChecksums: text("file_checksums", { mode: "json" }).$type<Array<{
+    filename: string;
+    checksum: string;
+    processedAt: string;
+  }>>(),
+  
+  // Configuration snapshot (for change detection)
+  configSnapshot: text("config_snapshot", { mode: "json" }).$type<Record<string, unknown>>(),
+  
+  // Status
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  lastError: text("last_error"),
+  lastErrorAt: text("last_error_at"),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type PollerState = typeof pollerStates.$inferSelect;
+export type InsertPollerState = typeof pollerStates.$inferInsert;
 
 export type Account = typeof accounts.$inferSelect;
 export type InsertAccount = typeof accounts.$inferInsert;

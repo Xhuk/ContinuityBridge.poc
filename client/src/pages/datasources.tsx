@@ -33,7 +33,9 @@ export default function DataSources() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold">Data Sources</h1>
-            <p className="text-sm text-muted-foreground mt-1">Configure SFTP and Azure Blob sources for XML ingestion</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Configure SFTP and Azure Blob sources for data ingestion. Name each source clearly (e.g., "WMS Inbound SFTP", "3PL Outbound Blob")
+            </p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -300,10 +302,11 @@ function SftpForm({ onSuccess }: { onSuccess: () => void }) {
           id="sftp-name" 
           value={formData.name} 
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="Production SFTP Server"
+          placeholder="e.g., WMS Inbound SFTP, ERP Outbound SFTP"
           required
           data-testid="input-sftp-name"
         />
+        <p className="text-xs text-muted-foreground mt-1">Give a descriptive name to identify this source/destination</p>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -468,10 +471,11 @@ function AzureBlobForm({ onSuccess }: { onSuccess: () => void }) {
           id="azure-name" 
           value={formData.name} 
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="Production Azure Storage"
+          placeholder="e.g., WMS Azure Blob Outbound, 3PL Inbound Storage"
           required
           data-testid="input-azure-name"
         />
+        <p className="text-xs text-muted-foreground mt-1">Give a descriptive name to identify this source/destination</p>
       </div>
 
       <div>

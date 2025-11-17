@@ -46,8 +46,17 @@ export class Pipeline {
             throw new Error("Flow orchestrator not initialized. Pipeline was created without storage.");
           }
           
-          log.debug(`Executing flow ${input.flowId} for trace ${traceId}`);
-          const flowResult = await this.orchestrator.executeFlow(input.flowId, input.flowInput);
+          log.debug(`Executing flow ${input.flowId} for trace ${traceId}`, {
+            emulationMode: input.emulationMode || false,
+          });
+          
+          // Pass emulation mode to flow execution
+          const flowResult = await this.orchestrator.executeFlow(
+            input.flowId, 
+            input.flowInput,
+            "manual",
+            input.emulationMode || false
+          );
           
           if (flowResult.status === "failed") {
             throw new Error(flowResult.error || "Flow execution failed");

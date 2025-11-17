@@ -1,0 +1,42 @@
+id: interface_destination
+category: output
+label: Interface Destination
+description: Send data to an external interface (outbound)
+icon: send
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: interfaceId
+    label: Target Interface
+    type: interface
+    required: true
+    filterDirection: outbound
+    helpText: "Select the outbound interface to send data to"
+
+  - name: operation
+    label: Operation
+    type: select
+    required: false
+    options:
+      - POST
+      - PUT
+      - PATCH
+      - GET
+    default: POST
+    helpText: "HTTP method to use (for REST interfaces)"
+
+  - name: retryOnFailure
+    label: Retry on Failure
+    type: boolean
+    default: true
+    helpText: "Automatically retry failed deliveries"
+
+  - name: maxRetries
+    label: Max Retries
+    type: number
+    default: 3
+    required: false
+    helpText: "Maximum number of retry attempts"
+
+executor: interface_destination

@@ -2,7 +2,7 @@ import type { CanonicalItem } from "@shared/schema";
 
 // Discriminated union for pipeline input modes
 export type PipelineInput = 
-  | { mode: 'flow'; flowId: string; flowInput: unknown; traceId?: string }
+  | { mode: 'flow'; flowId: string; flowInput: unknown; traceId?: string; emulationMode?: boolean }
   | { mode: 'xml'; xml: string; traceId?: string }
   | { mode: 'canonical'; canonical: CanonicalItem; traceId?: string };
 

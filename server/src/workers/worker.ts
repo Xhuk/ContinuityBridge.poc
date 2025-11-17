@@ -42,20 +42,22 @@ export class Worker {
     try {
       this.disposer = await queueProvider.consume(
         "items.inbound",
-        async (payload) => {
+        async (delivery) => {
           // Check if worker is still enabled before processing
           if (!this.config.enabled) {
             log.debug("Worker disabled, skipping message");
+            await delivery.ack();
             return;
           }
 
           try {
-            const data = JSON.parse(payload);
+            const data = JSON.parse(delivery.payload);
             log.debug("Processing message from queue", { 
               traceId: data.traceId,
               mode: data.mode,
               hasXml: !!data.xml,
-              hasFlowId: !!data.flowId 
+              hasFlowId: !!data.flowId,
+              retryCount: delivery.message.retryCount,
             });
 
             // Transform legacy payload format to discriminated union
@@ -84,18 +86,18 @@ export class Worker {
             const result = await this.pipeline.runItemPipeline(pipelineInput);
             this.messagesProcessed++;
 
-            // Store event, decision, and payload for successful processing
+            const { getEventStorage, getDecisionStorage, getPayloadStorage } = await import("../http/rest.js");
+            const events = getEventStorage();
+            const decisions = getDecisionStorage();
+            const payloads = getPayloadStorage();
+
+            // Store payload for replay (both success and failure)
+            if (data.xml && !payloads.has(data.traceId)) {
+              payloads.set(data.traceId, data.xml);
+            }
+
             if (result.success) {
-              const { getEventStorage, getDecisionStorage, getPayloadStorage } = await import("../http/rest.js");
-              const events = getEventStorage();
-              const decisions = getDecisionStorage();
-              const payloads = getPayloadStorage();
-
-              // Ensure payload is stored for replay (in case of worker restart)
-              if (data.xml && !payloads.has(data.traceId)) {
-                payloads.set(data.traceId, data.xml);
-              }
-
+              // Store successful event
               events.push({
                 id: randomUUID(),
                 traceId: result.traceId,
@@ -106,6 +108,7 @@ export class Worker {
                 reason: result.decision?.reason || "",
                 status: "completed",
                 latencyMs: result.latencyMs,
+                retryCount: delivery.message.retryCount,
               });
 
               decisions.push({
@@ -120,14 +123,42 @@ export class Worker {
                 alternatives: [],
                 decisionFactors: {},
               });
+
+              // Acknowledge successful processing
+              await delivery.ack();
+            } else {
+              // Store failed event
+              events.push({
+                id: randomUUID(),
+                traceId: result.traceId,
+                timestamp: new Date().toISOString(),
+                sku: result.canonical?.sku || "",
+                warehouse: "",
+                warehouseId: "",
+                reason: result.error || "Processing failed",
+                status: "failed",
+                latencyMs: result.latencyMs,
+                retryCount: delivery.message.retryCount,
+                error: result.error,
+              });
+
+              // Throw error to trigger RetryManager's retry logic
+              throw new Error(result.error || "Pipeline processing failed");
             }
 
             // Update queue depths
             const inDepth = await queueProvider.getDepth("items.inbound");
             const outDepth = await queueProvider.getDepth("items.outbound");
             metricsCollector.setQueueDepth(inDepth, outDepth);
-          } catch (error) {
-            log.error("Error processing message", error);
+          } catch (error: any) {
+            log.error("Error processing message", {
+              error: error.message,
+              retryCount: delivery.message.retryCount,
+              maxRetries: delivery.message.maxRetries,
+            });
+            
+            // Re-throw to let RetryManager handle retry logic
+            throw error;
           }
         },
         { concurrency: this.config.concurrency }

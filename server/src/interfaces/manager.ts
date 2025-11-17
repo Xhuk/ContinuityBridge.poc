@@ -353,7 +353,9 @@ export class InterfaceManager {
   }
 
   getInterfacesByDirection(direction: string): InterfaceConfig[] {
-    return Array.from(interfaceConfigs.values()).filter(i => i.direction === direction);
+    return Array.from(interfaceConfigs.values()).filter(i => 
+      i.direction === direction || i.direction === "bidirectional"
+    );
   }
 
   getEnabledInterfaces(): InterfaceConfig[] {

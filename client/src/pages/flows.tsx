@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
+import { gsap } from "gsap";
 import {
   ReactFlow,
   Controls,
@@ -57,6 +59,21 @@ import {
   FolderOpen,
   Download,
   Upload,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertCircle,
+  Beaker,
+  ArrowRight,
+  X,
+  GitMerge,
+  Send,
+  Server,
+  Database,
+  Cloud,
+  FileText,
+  Calendar,
+  HardDrive,
 } from "lucide-react";
 
 // Node types from catalog
@@ -66,6 +83,36 @@ const NODE_TYPES = [
     label: "Manual Trigger",
     category: "trigger",
     color: "hsl(142 71% 45%)",
+  },
+  {
+    type: "ingress",
+    label: "Ingress (Inbound)",
+    category: "trigger",
+    color: "hsl(160 75% 50%)",
+  },
+  {
+    type: "sftp_poller",
+    label: "SFTP Poller",
+    category: "trigger",
+    color: "hsl(180 70% 45%)",
+  },
+  {
+    type: "azure_blob_poller",
+    label: "Azure Blob Poller",
+    category: "trigger",
+    color: "hsl(210 75% 55%)",
+  },
+  {
+    type: "scheduler",
+    label: "Scheduler (Timer)",
+    category: "trigger",
+    color: "hsl(290 70% 50%)",
+  },
+  {
+    type: "data_source",
+    label: "Data Source",
+    category: "trigger",
+    color: "hsl(280 65% 60%)",
   },
   {
     type: "xml_parser",
@@ -115,9 +162,51 @@ const NODE_TYPES = [
     category: "router",
     color: "hsl(45 93% 47%)",
   },
+  {
+    type: "distributor",
+    label: "Distributor",
+    category: "router",
+    color: "hsl(280 80% 55%)",
+  },
+  {
+    type: "join",
+    label: "Join (Data Stitch)",
+    category: "transformer",
+    color: "hsl(200 85% 55%)",
+  },
+  {
+    type: "egress",
+    label: "Egress (Outbound)",
+    category: "output",
+    color: "hsl(15 85% 60%)",
+  },
+  {
+    type: "sftp_connector",
+    label: "SFTP Connector",
+    category: "output",
+    color: "hsl(180 65% 50%)",
+  },
+  {
+    type: "azure_blob_connector",
+    label: "Azure Blob Connector",
+    category: "output",
+    color: "hsl(210 70% 60%)",
+  },
+  {
+    type: "database_connector",
+    label: "Database Connector",
+    category: "transformer",
+    color: "hsl(30 80% 55%)",
+  },
+  {
+    type: "logger",
+    label: "Logger",
+    category: "transformer",
+    color: "hsl(240 10% 50%)",
+  },
 ];
 
-// Custom node component with connection handles
+// Custom node component with connection handles and animations
 function CustomNode({ data, selected }: { data: any; selected?: boolean }) {
   const nodeType = NODE_TYPES.find((t) => t.type === data.type);
   const color = nodeType?.color || "hsl(240 5% 64%)";
@@ -130,17 +219,103 @@ function CustomNode({ data, selected }: { data: any; selected?: boolean }) {
 
   // Show handles when hovered OR selected
   const handlesVisible = isHovered || selected;
+  
+  // Execution status from node data
+  const executionStatus = data.executionStatus; // 'pending' | 'running' | 'completed' | 'failed' | 'skipped'
+  
+  // Dynamic output handles for Distributor node
+  const isDistributor = data.type === 'distributor';
+  const distributorRules = isDistributor && data.config?.rules ? data.config.rules : [];
+  const hasMultipleOutputs = isDistributor && distributorRules.length > 0;
+  
+  // Join node has multiple input streams
+  const isJoin = data.type === 'join';
+  const hasMultipleInputs = isJoin;
+  
+  // Status badge icon
+  const getStatusBadge = () => {
+    switch (executionStatus) {
+      case 'running':
+        return <Loader2 className="w-3 h-3 animate-spin text-blue-600" />;
+      case 'completed':
+        return <CheckCircle2 className="w-3 h-3 text-green-600" />;
+      case 'failed':
+        return <XCircle className="w-3 h-3 text-red-600" />;
+      case 'skipped':
+        return <AlertCircle className="w-3 h-3 text-gray-400" />;
+      case 'pending':
+        return <Clock className="w-3 h-3 text-gray-400" />;
+      default:
+        return null;
+    }
+  };
+  
+  // Animation variants for node states
+  const nodeVariants = {
+    idle: { 
+      scale: 1,
+      boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)"
+    },
+    hover: { 
+      scale: 1.02,
+      boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)"
+    },
+    selected: { 
+      scale: 1.03,
+      boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)"
+    },
+    running: {
+      scale: [1, 1.05, 1],
+      boxShadow: [
+        "0 4px 6px -1px rgb(59 130 246 / 0.3)",
+        "0 10px 20px -3px rgb(59 130 246 / 0.5)",
+        "0 4px 6px -1px rgb(59 130 246 / 0.3)"
+      ],
+      transition: {
+        duration: 1,
+        repeat: Infinity,
+        ease: "easeInOut"
+      }
+    },
+    completed: {
+      scale: [1, 1.1, 1],
+      transition: {
+        duration: 0.5,
+        ease: "easeOut"
+      }
+    },
+    failed: {
+      scale: [1, 0.95, 1],
+      transition: {
+        duration: 0.3,
+        ease: "easeInOut"
+      }
+    }
+  };
+  
+  // Determine animation state
+  const getAnimationState = () => {
+    if (executionStatus === 'running') return 'running';
+    if (executionStatus === 'completed') return 'completed';
+    if (executionStatus === 'failed') return 'failed';
+    if (selected) return 'selected';
+    if (isHovered) return 'hover';
+    return 'idle';
+  };
 
   return (
-    <div
-      className="relative px-4 py-3 rounded-lg border-2 shadow-md bg-card min-w-[180px] hover-elevate active-elevate-2 transition-all"
+    <motion.div
+      variants={nodeVariants}
+      initial="idle"
+      animate={getAnimationState()}
+      className="relative px-4 py-3 rounded-lg border-2 bg-card min-w-[180px] cursor-pointer"
       style={{ borderColor: color }}
       data-testid={`node-${data.type}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Target Handle (Left - Input) - Only for non-trigger nodes */}
-      {showTargetHandle && (
+      {/* Target Handle (Left - Input) - Dynamic for Join Node */}
+      {showTargetHandle && !hasMultipleInputs && (
         <Handle
           type="target"
           position={Position.Left}
@@ -156,12 +331,66 @@ function CustomNode({ data, selected }: { data: any; selected?: boolean }) {
         </Handle>
       )}
 
+      {/* Multiple Input Handles for Join Node */}
+      {hasMultipleInputs && (
+        <div className="absolute left-0 top-0 h-full flex flex-col justify-around" style={{ left: '-12px' }}>
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="input-stream-a"
+            className={`!w-6 !h-6 !bg-cyan-600 !border-2 !border-cyan-200 !rounded-full transition-all ${
+              handlesVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+            }`}
+            style={{ position: 'relative', left: 0, top: 0 }}
+            data-testid="handle-input-stream-a"
+          >
+            <div className="absolute left-8 top-1/2 -translate-y-1/2 whitespace-nowrap">
+              <Badge 
+                variant="outline" 
+                className="text-xs bg-cyan-50 border-cyan-300 text-cyan-700 dark:bg-cyan-950/50 dark:border-cyan-700 dark:text-cyan-300"
+              >
+                Stream A
+              </Badge>
+            </div>
+            <div className="flex items-center justify-center w-full h-full">
+              <ArrowRight className="w-3 h-3 text-cyan-200 rotate-180" />
+            </div>
+          </Handle>
+          
+          <Handle
+            type="target"
+            position={Position.Left}
+            id="input-stream-b"
+            className={`!w-6 !h-6 !bg-blue-600 !border-2 !border-blue-200 !rounded-full transition-all ${
+              handlesVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+            }`}
+            style={{ position: 'relative', left: 0, top: 0 }}
+            data-testid="handle-input-stream-b"
+          >
+            <div className="absolute left-8 top-1/2 -translate-y-1/2 whitespace-nowrap">
+              <Badge 
+                variant="outline" 
+                className="text-xs bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300"
+              >
+                Stream B
+              </Badge>
+            </div>
+            <div className="flex items-center justify-center w-full h-full">
+              <ArrowRight className="w-3 h-3 text-blue-200 rotate-180" />
+            </div>
+          </Handle>
+        </div>
+      )}
+
       <div className="flex items-center gap-2 mb-1">
         <div
           className="w-2 h-2 rounded-full"
           style={{ backgroundColor: color }}
         />
         <div className="font-semibold text-sm">{data.label}</div>
+        {executionStatus && (
+          <div className="ml-auto">{getStatusBadge()}</div>
+        )}
       </div>
       {data.config && Object.keys(data.config).length > 0 && (
         <div className="text-xs text-muted-foreground mt-1">
@@ -169,9 +398,19 @@ function CustomNode({ data, selected }: { data: any; selected?: boolean }) {
           Configured
         </div>
       )}
+      {isDistributor && data.config?.fieldPath && (
+        <div className="text-xs text-purple-600 dark:text-purple-400 mt-1 font-mono">
+          ↳ {data.config.fieldPath}
+        </div>
+      )}
+      {data.duration && (
+        <div className="text-xs text-muted-foreground mt-1">
+          ⏱ {data.duration}ms
+        </div>
+      )}
 
-      {/* Source Handle (Right - Output) - Only for non-output nodes */}
-      {showSourceHandle && (
+      {/* Source Handle (Right - Output) - Dynamic for Distributor */}
+      {showSourceHandle && !hasMultipleOutputs && (
         <Handle
           type="source"
           position={Position.Right}
@@ -186,7 +425,63 @@ function CustomNode({ data, selected }: { data: any; selected?: boolean }) {
           </div>
         </Handle>
       )}
-    </div>
+
+      {/* Dynamic Multiple Output Handles for Distributor Node */}
+      {hasMultipleOutputs && (
+        <div className="absolute right-0 top-0 h-full flex flex-col justify-around" style={{ right: '-12px' }}>
+          {distributorRules.map((rule: any, index: number) => (
+            <Handle
+              key={`output-${index}`}
+              type="source"
+              position={Position.Right}
+              id={`output-${index}`}
+              className={`!w-6 !h-6 !bg-purple-600 !border-2 !border-purple-200 !rounded-full transition-all ${
+                handlesVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+              }`}
+              style={{ position: 'relative', right: 0, top: 0 }}
+              data-testid={`handle-output-${index}`}
+            >
+              <div className="absolute right-8 top-1/2 -translate-y-1/2 whitespace-nowrap">
+                <Badge 
+                  variant="outline" 
+                  className="text-xs bg-purple-50 border-purple-300 text-purple-700 dark:bg-purple-950/50 dark:border-purple-700 dark:text-purple-300"
+                >
+                  {rule.outputName || `Port ${index + 1}`}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-center w-full h-full">
+                <ArrowRight className="w-3 h-3 text-purple-200" />
+              </div>
+            </Handle>
+          ))}
+          
+          {/* Default/Fallback Handle */}
+          <Handle
+            key="output-default"
+            type="source"
+            position={Position.Right}
+            id="output-default"
+            className={`!w-6 !h-6 !bg-gray-600 !border-2 !border-gray-300 !rounded-full transition-all ${
+              handlesVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+            }`}
+            style={{ position: 'relative', right: 0, top: 0 }}
+            data-testid="handle-output-default"
+          >
+            <div className="absolute right-8 top-1/2 -translate-y-1/2 whitespace-nowrap">
+              <Badge 
+                variant="secondary" 
+                className="text-xs bg-gray-100 border-gray-400 text-gray-700 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300"
+              >
+                Default
+              </Badge>
+            </div>
+            <div className="flex items-center justify-center w-full h-full">
+              <AlertCircle className="w-3 h-3 text-gray-300" />
+            </div>
+          </Handle>
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -205,6 +500,23 @@ export default function Flows() {
   const [loadDialogOpen, setLoadDialogOpen] = useState(false);
   const [currentFlowId, setCurrentFlowId] = useState<string | null>(null);
   const [selectedSystemInstance, setSelectedSystemInstance] = useState<string>("default-dev");
+  
+  // Phase 1: Execution visualization state
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [executedPaths, setExecutedPaths] = useState<Set<string>>(new Set());
+  const [currentExecutionRun, setCurrentExecutionRun] = useState<any>(null);
+  
+  // Phase 2: Node testing state
+  const [testPanelOpen, setTestPanelOpen] = useState(false);
+  const [testingNode, setTestingNode] = useState<Node | null>(null);
+  const [testInput, setTestInput] = useState("{}");
+  const [testOutput, setTestOutput] = useState<any>(null);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+  
+  // Delete confirmation state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
 
   // Fetch available flows (filtered by system instance)
   const { data: flows, isLoading: flowsLoading } = useQuery<any[]>({
@@ -256,10 +568,110 @@ export default function Flows() {
     setNodes((nds) => [...nds, newNode]);
   };
 
-  // Node click handler
+  // Node click handler - show config or test panel
   const onNodeClick = (_event: any, node: Node) => {
     setSelectedNode(node);
-    setConfigDialogOpen(true);
+    // Don't auto-open config dialog anymore - let user choose
+  };
+  
+  // Node context menu handler (right-click)
+  const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
+    event.preventDefault();
+    setNodeToDelete(node);
+    setDeleteDialogOpen(true);
+  }, []);
+  
+  // Delete node handler
+  const deleteNode = () => {
+    if (!nodeToDelete) return;
+    
+    // Remove node
+    setNodes((nds) => nds.filter((n) => n.id !== nodeToDelete.id));
+    
+    // Remove connected edges
+    setEdges((eds) => eds.filter((e) => 
+      e.source !== nodeToDelete.id && e.target !== nodeToDelete.id
+    ));
+    
+    // Clear selection if deleted node was selected
+    if (selectedNode?.id === nodeToDelete.id) {
+      setSelectedNode(null);
+    }
+    
+    setDeleteDialogOpen(false);
+    setNodeToDelete(null);
+    
+    toast({
+      title: "Node deleted",
+      description: `"${nodeToDelete.data.label}" has been removed`,
+    });
+  };
+  
+  // Open test panel for selected node
+  const openTestPanel = (node: Node) => {
+    setTestingNode(node);
+    setTestPanelOpen(true);
+    setTestInput("{}");
+    setTestOutput(null);
+    setTestError(null);
+    
+    // Try to get output from previous node as sample input
+    if (currentExecutionRun?.nodeExecutions) {
+      const prevEdge = edges.find((e) => e.target === node.id);
+      if (prevEdge) {
+        const prevNodeExec = currentExecutionRun.nodeExecutions.find(
+          (ne: any) => ne.nodeId === prevEdge.source
+        );
+        if (prevNodeExec?.output) {
+          setTestInput(JSON.stringify(prevNodeExec.output, null, 2));
+        }
+      }
+    }
+  };
+  
+  // Test individual node
+  const testNode = async () => {
+    if (!testingNode || !currentFlowId) return;
+    
+    setIsTesting(true);
+    setTestError(null);
+    setTestOutput(null);
+    
+    try {
+      const parsedInput = JSON.parse(testInput);
+      
+      // Execute single node via API
+      const response = await fetch(`/api/flows/${currentFlowId}/test-node`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nodeId: testingNode.id,
+          input: parsedInput,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Node test failed');
+      }
+      
+      const result = await response.json();
+      setTestOutput(result.output);
+      
+      toast({
+        title: "Node tested successfully",
+        description: `Output generated in ${result.durationMs || 0}ms`,
+      });
+    } catch (error: any) {
+      setTestError(error.message);
+      toast({
+        title: "Test failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   // Save node configuration
@@ -322,21 +734,44 @@ export default function Flows() {
     },
   });
 
-  // Execute flow mutation
+  // Execute flow mutation with real-time visualization
   const executeMutation = useMutation({
     mutationFn: async () => {
       if (!currentFlowId) {
         throw new Error("Please save the flow first");
       }
-      return await apiRequest("POST", `/api/flows/${currentFlowId}/execute`, {
+      
+      // Reset execution state
+      setIsExecuting(true);
+      setExecutedPaths(new Set());
+      
+      // Reset all node statuses
+      setNodes((nds) =>
+        nds.map((node) => ({
+          ...node,
+          data: { ...node.data, executionStatus: 'pending', duration: undefined },
+        }))
+      );
+      
+      // Execute flow
+      const response = await apiRequest("POST", `/api/flows/${currentFlowId}/execute`, {
         input: {},
       });
+      
+      return response;
     },
-    onSuccess: (data: any) => {
+    onSuccess: async (data: any) => {
       toast({
         title: "Flow executed",
         description: `Trace ID: ${data.traceId}`,
       });
+      
+      // Fetch execution details to animate
+      if (data.traceId) {
+        await animateExecution(data.traceId);
+      }
+      
+      setIsExecuting(false);
     },
     onError: (error: Error) => {
       toast({
@@ -344,8 +779,103 @@ export default function Flows() {
         description: error.message,
         variant: "destructive",
       });
+      setIsExecuting(false);
     },
   });
+  
+  // Animate execution based on flow run data with GSAP edge effects
+  const animateExecution = async (traceId: string) => {
+    try {
+      // Fetch flow run details
+      const runResponse = await fetch(`/api/flow-runs?flowId=${currentFlowId}`);
+      const runs = await runResponse.json();
+      const run = runs.find((r: any) => r.traceId === traceId);
+      
+      if (!run || !run.nodeExecutions) return;
+      
+      setCurrentExecutionRun(run);
+      
+      // Animate nodes sequentially
+      for (const nodeExec of run.nodeExecutions) {
+        // Update node to 'running'
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeExec.nodeId
+              ? { ...node, data: { ...node.data, executionStatus: 'running' } }
+              : node
+          )
+        );
+        
+        // Highlight incoming edge with GSAP animation
+        const incomingEdge = edges.find((e) => e.target === nodeExec.nodeId);
+        if (incomingEdge) {
+          // Animate edge with pulsing effect using GSAP
+          const edgeElement = document.querySelector(`[data-id="${incomingEdge.id}"] path`);
+          if (edgeElement) {
+            // Create flowing particle effect
+            gsap.to(edgeElement, {
+              strokeWidth: 3,
+              stroke: '#10b981',
+              opacity: 1,
+              duration: 0.3,
+              ease: 'power2.out'
+            });
+            
+            // Pulsing glow effect
+            gsap.to(edgeElement, {
+              filter: 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.8))',
+              duration: 0.6,
+              repeat: 2,
+              yoyo: true,
+              ease: 'sine.inOut'
+            });
+          }
+          
+          setEdges((eds) =>
+            eds.map((edge) =>
+              edge.id === incomingEdge.id
+                ? { 
+                    ...edge, 
+                    animated: true, 
+                    style: { 
+                      stroke: '#10b981', 
+                      strokeWidth: 3,
+                      filter: 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.6))'
+                    } 
+                  }
+                : edge
+            )
+          );
+          setExecutedPaths((prev) => {
+            const newSet = new Set(prev);
+            newSet.add(incomingEdge.id);
+            return newSet;
+          });
+        }
+        
+        // Wait to show animation
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        
+        // Update node to final status
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeExec.nodeId
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    executionStatus: nodeExec.status,
+                    duration: nodeExec.durationMs,
+                  },
+                }
+              : node
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Failed to animate execution:', error);
+    }
+  };
 
   // Load flow
   const loadFlow = (flow: any) => {
@@ -478,6 +1008,7 @@ export default function Flows() {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={onNodeClick}
+            onNodeContextMenu={onNodeContextMenu}
             nodeTypes={nodeTypes}
             fitView
             className="bg-muted/30 rounded-lg border border-border"
@@ -496,6 +1027,66 @@ export default function Flows() {
                 {nodes.length} nodes, {edges.length} connections
               </div>
             </Panel>
+            
+            {/* Selected Node Actions Panel */}
+            <AnimatePresence>
+              {selectedNode && (
+                <Panel position="bottom-center">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    className="bg-background/95 backdrop-blur p-3 rounded-lg border border-border shadow-lg"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">{String(selectedNode.data.label)}</span>
+                      <Separator orientation="vertical" className="h-6" />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setConfigDialogOpen(true)}
+                      >
+                        <Settings className="w-3 h-3 mr-1" />
+                        Configure
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setSelectedNode(null)}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                </Panel>
+              )}
+            </AnimatePresence>
+            
+            {/* Floating Action Button - Test Node (Lower Right) */}
+            <AnimatePresence>
+              {selectedNode && currentFlowId && (
+                <Panel position="bottom-right">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0, rotate: -90 }}
+                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                    exit={{ opacity: 0, scale: 0, rotate: 90 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Button
+                      size="lg"
+                      className="rounded-full w-14 h-14 shadow-2xl"
+                      onClick={() => openTestPanel(selectedNode)}
+                      data-testid="fab-test-node"
+                    >
+                      <Beaker className="w-6 h-6" />
+                    </Button>
+                  </motion.div>
+                </Panel>
+              )}
+            </AnimatePresence>
           </ReactFlow>
         </div>
       </div>
@@ -513,6 +1104,7 @@ export default function Flows() {
             node={selectedNode}
             onSave={saveNodeConfig}
             onCancel={() => setConfigDialogOpen(false)}
+            systemInstanceId={selectedSystemInstance}
           />
         </DialogContent>
       </Dialog>
@@ -557,6 +1149,148 @@ export default function Flows() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+      
+      {/* Phase 2: Test Node Panel */}
+      <Dialog open={testPanelOpen} onOpenChange={setTestPanelOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh]" data-testid="dialog-test-node">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Beaker className="w-5 h-5" />
+              Test Node: {String(testingNode?.data.label || 'Node')}
+            </DialogTitle>
+            <DialogDescription>
+              Test this node with sample input data
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-2 gap-4">
+            {/* Input Panel */}
+            <div className="space-y-2">
+              <Label className="text-blue-700 font-semibold">Input Data</Label>
+              <Textarea
+                value={testInput}
+                onChange={(e) => setTestInput(e.target.value)}
+                className="font-mono text-xs h-64"
+                placeholder='{"key": "value"}'
+              />
+            </div>
+            
+            {/* Output Panel */}
+            <div className="space-y-2">
+              <Label className="text-green-700 font-semibold">Output Data</Label>
+              <AnimatePresence mode="wait">
+                {testOutput ? (
+                  <motion.pre
+                    key="output-success"
+                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    className="font-mono text-xs h-64 overflow-auto p-3 bg-green-50 border border-green-200 rounded-md"
+                  >
+                    {JSON.stringify(testOutput, null, 2)}
+                  </motion.pre>
+                ) : testError ? (
+                  <motion.div
+                    key="output-error"
+                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    className="h-64 flex items-center justify-center bg-red-50 border border-red-200 rounded-md p-4"
+                  >
+                    <div className="text-center">
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
+                      >
+                        <XCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
+                      </motion.div>
+                      <p className="text-sm text-red-700">{testError}</p>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="output-idle"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="h-64 flex items-center justify-center bg-gray-50 border border-gray-200 rounded-md"
+                  >
+                    <p className="text-sm text-muted-foreground">Click "Run Test" to see output</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setTestPanelOpen(false)}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={testNode}
+              disabled={isTesting}
+            >
+              {isTesting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 mr-2" />
+                  Run Test
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Node Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent data-testid="dialog-delete-node">
+          <DialogHeader>
+            <DialogTitle>Delete Node</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this node? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <div className="flex items-center gap-3 p-3 bg-muted rounded-md">
+              <AlertCircle className="w-5 h-5 text-orange-600" />
+              <div>
+                <p className="font-semibold">{String(nodeToDelete?.data.label || 'Node')}</p>
+                <p className="text-sm text-muted-foreground">ID: {nodeToDelete?.id}</p>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setNodeToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={deleteNode}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Node
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -566,10 +1300,12 @@ function NodeConfigForm({
   node,
   onSave,
   onCancel,
+  systemInstanceId,
 }: {
   node: Node | null;
   onSave: (config: Record<string, any>) => void;
   onCancel: () => void;
+  systemInstanceId?: string;
 }): JSX.Element | null {
   const [config, setConfig] = useState<Record<string, any>>(
     node?.data.config || {}
@@ -589,6 +1325,39 @@ function NodeConfigForm({
   // Render appropriate fields based on node type
   const renderConfigFields = () => {
     switch (node.data.type) {
+      case "data_source":
+        return <DataSourceNodeConfig config={config} setConfig={setConfig} systemInstanceId={selectedSystemInstance} />;
+
+      case "ingress":
+        return <IngressNodeConfig config={config} setConfig={setConfig} />;
+
+      case "join":
+        return <JoinNodeConfig config={config} setConfig={setConfig} />;
+
+      case "egress":
+        return <EgressNodeConfig config={config} setConfig={setConfig} />;
+
+      case "sftp_poller":
+        return <SftpPollerNodeConfig config={config} setConfig={setConfig} />;
+
+      case "azure_blob_poller":
+        return <AzureBlobPollerNodeConfig config={config} setConfig={setConfig} />;
+
+      case "scheduler":
+        return <SchedulerNodeConfig config={config} setConfig={setConfig} />;
+
+      case "sftp_connector":
+        return <SftpConnectorNodeConfig config={config} setConfig={setConfig} />;
+
+      case "azure_blob_connector":
+        return <AzureBlobConnectorNodeConfig config={config} setConfig={setConfig} />;
+
+      case "database_connector":
+        return <DatabaseConnectorNodeConfig config={config} setConfig={setConfig} />;
+
+      case "logger":
+        return <LoggerNodeConfig config={config} setConfig={setConfig} />;
+
       case "xml_parser":
         return (
           <div className="space-y-4">
@@ -784,6 +1553,9 @@ function NodeConfigForm({
 
       case "conditional":
         return <ConditionalNodeConfig config={config} setConfig={setConfig} />;
+
+      case "distributor":
+        return <DistributorNodeConfig config={config} setConfig={setConfig} />;
 
       default:
         return (
@@ -1158,6 +1930,83 @@ function ValidationNodeConfig({
   );
 }
 
+// Data Source Node Config Component
+function DataSourceNodeConfig({
+  config,
+  setConfig,
+  systemInstanceId,
+}: {
+  config: Record<string, any>;
+  setConfig: (config: Record<string, any>) => void;
+  systemInstanceId?: string;
+}) {
+  const { data: dataSources, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/data-source-schemas", systemInstanceId],
+    queryFn: async () => {
+      const url = systemInstanceId
+        ? `/api/data-source-schemas?systemInstanceId=${systemInstanceId}`
+        : "/api/data-source-schemas";
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to fetch data sources");
+      return response.json();
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label htmlFor="dataSourceId">Select Data Source</Label>
+        <Select
+          value={config.dataSourceId || ""}
+          onValueChange={(value) => {
+            const source = dataSources?.find((s) => s.id === value);
+            setConfig({ 
+              ...config, 
+              dataSourceId: value,
+              sourceName: source?.name,
+              sourceIdentifier: source?.identifier,
+            });
+          }}
+        >
+          <SelectTrigger id="dataSourceId" data-testid="select-data-source">
+            <SelectValue placeholder="Select a data source..." />
+          </SelectTrigger>
+          <SelectContent>
+            {isLoading ? (
+              <div className="p-2 text-sm text-muted-foreground">Loading...</div>
+            ) : dataSources && dataSources.length > 0 ? (
+              dataSources.map((source) => (
+                <SelectItem key={source.id} value={source.id}>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {source.identifier}
+                    </Badge>
+                    <span>{source.name}</span>
+                  </div>
+                </SelectItem>
+              ))
+            ) : (
+              <div className="p-2 text-sm text-muted-foreground">
+                No data sources available. Upload XML/JSON to create sources.
+              </div>
+            )}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {config.dataSourceId && config.sourceName && (
+        <div className="p-3 bg-muted rounded-md">
+          <p className="text-sm font-semibold mb-1">Selected Source:</p>
+          <div className="flex items-center gap-2">
+            <Badge variant="default">{config.sourceIdentifier}</Badge>
+            <span className="text-sm">{config.sourceName}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConditionalNodeConfig({
   config,
   setConfig,
@@ -1383,6 +2232,773 @@ function ConditionalNodeConfig({
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+// Distributor Node Config Component (Dynamic Router/Switch)
+function DistributorNodeConfig({
+  config,
+  setConfig,
+}: {
+  config: Record<string, any>;
+  setConfig: (config: Record<string, any>) => void;
+}) {
+  const [rules, setRules] = useState<Array<{
+    value: string;
+    outputName: string;
+    operator: string;
+  }>>(config.rules || []);
+
+  const [fieldPath, setFieldPath] = useState(config.fieldPath || "");
+
+  // Add new routing rule
+  const addRule = () => {
+    const newRules = [...rules, { value: "", outputName: "", operator: "equals" }];
+    setRules(newRules);
+    setConfig({ ...config, rules: newRules, fieldPath });
+  };
+
+  // Remove routing rule
+  const removeRule = (index: number) => {
+    const newRules = rules.filter((_, i) => i !== index);
+    setRules(newRules);
+    setConfig({ ...config, rules: newRules, fieldPath });
+  };
+
+  // Update routing rule
+  const updateRule = (index: number, updates: Partial<typeof rules[0]>) => {
+    const newRules = [...rules];
+    newRules[index] = { ...newRules[index], ...updates };
+    setRules(newRules);
+    setConfig({ ...config, rules: newRules, fieldPath });
+  };
+
+  // Update field path
+  const handleFieldPathChange = (value: string) => {
+    setFieldPath(value);
+    setConfig({ ...config, rules, fieldPath: value });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+        <p className="text-sm font-semibold mb-1 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          Configure Routing by Key Field
+        </p>
+        <p className="text-xs text-muted-foreground">
+          The Distributor node routes payloads based on a specific field value (like warehouse ID, location code, etc.).
+          Specify the key field path below and define routing rules for each possible value.
+        </p>
+      </div>
+
+      <div>
+        <Label htmlFor="fieldPath" className="text-base font-semibold">Key Field Path *</Label>
+        <Input
+          id="fieldPath"
+          value={fieldPath}
+          onChange={(e) => handleFieldPathChange(e.target.value)}
+          placeholder="e.g., wh_id, location_id, warehouse_code"
+          className="font-mono text-sm"
+        />
+        <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md">
+          <p className="text-sm font-semibold mb-1">💡 How to specify the key field:</p>
+          <ul className="text-xs text-muted-foreground space-y-1">
+            <li><strong>Simple field:</strong> <code className="bg-muted px-1 py-0.5 rounded">wh_id</code>, <code className="bg-muted px-1 py-0.5 rounded">location_id</code>, <code className="bg-muted px-1 py-0.5 rounded">warehouse_code</code></li>
+            <li><strong>Nested field (JSONPath):</strong> <code className="bg-muted px-1 py-0.5 rounded">$.data.warehouse.id</code>, <code className="bg-muted px-1 py-0.5 rounded">$.header.location_code</code></li>
+            <li><strong>Array element:</strong> <code className="bg-muted px-1 py-0.5 rounded">$.items[0].warehouse_id</code></li>
+          </ul>
+          <p className="text-xs text-muted-foreground mt-2">
+            <strong>Common key fields:</strong> wh_id, warehouse_id, location_id, location_code, site_id, facility_code
+          </p>
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label>Routing Rules</Label>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={addRule}
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Add Rule
+          </Button>
+        </div>
+
+        {rules.length === 0 && (
+          <div className="text-sm text-muted-foreground p-4 border rounded-md text-center">
+            No routing rules defined. Add rules to create dynamic output ports.
+          </div>
+        )}
+
+        {rules.map((rule, index) => (
+          <Card key={index} className="p-4">
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor={`operator-${index}`}>Operator</Label>
+                      <Select
+                        value={rule.operator}
+                        onValueChange={(value) =>
+                          updateRule(index, { operator: value })
+                        }
+                      >
+                        <SelectTrigger id={`operator-${index}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="equals">Equals (==)</SelectItem>
+                          <SelectItem value="not_equals">Not Equals (!=)</SelectItem>
+                          <SelectItem value="contains">Contains</SelectItem>
+                          <SelectItem value="starts_with">Starts With</SelectItem>
+                          <SelectItem value="ends_with">Ends With</SelectItem>
+                          <SelectItem value="greater_than">Greater Than (&gt;)</SelectItem>
+                          <SelectItem value="less_than">Less Than (&lt;)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor={`value-${index}`}>Value to Match</Label>
+                      <Input
+                        id={`value-${index}`}
+                        value={rule.value}
+                        onChange={(e) =>
+                          updateRule(index, { value: e.target.value })
+                        }
+                        placeholder="e.g., 100, WH-EAST, LOC-001"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        The exact value of the key field to match
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor={`outputName-${index}`}>Output Port Name</Label>
+                    <Input
+                      id={`outputName-${index}`}
+                      value={rule.outputName}
+                      onChange={(e) =>
+                        updateRule(index, { outputName: e.target.value })
+                      }
+                      placeholder="e.g., Warehouse 100, Location East, Site NYC"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      A descriptive label for the output port on the node canvas
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => removeRule(index)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <Separator />
+
+      <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md">
+        <p className="text-sm font-semibold mb-1 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          Default/Fallback Path
+        </p>
+        <p className="text-xs text-muted-foreground">
+          A permanent "Default" output port is automatically created for payloads that don't match any rules.
+          Connect this to error handling or fallback logic.
+        </p>
+      </div>
+
+      {rules.length > 0 && (
+        <div className="p-3 bg-muted rounded-md">
+          <p className="text-sm font-semibold mb-2">Output Ports Preview:</p>
+          <div className="space-y-1">
+            {rules.map((rule, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">
+                  Port {index + 1}
+                </Badge>
+                <ArrowRight className="w-3 h-3" />
+                <span className="text-sm">
+                  {rule.outputName || `Unnamed ${index + 1}`}
+                </span>
+              </div>
+            ))}
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-xs">
+                Default
+              </Badge>
+              <ArrowRight className="w-3 h-3" />
+              <span className="text-sm text-muted-foreground">Fallback Path</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Ingress Node Config Component (Inbound Entry Point)
+function IngressNodeConfig({
+  config,
+  setConfig,
+}: {
+  config: Record<string, any>;
+  setConfig: (config: Record<string, any>) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800 rounded-md">
+        <p className="text-sm font-semibold mb-1 flex items-center gap-2">
+          <Upload className="w-4 h-4" />
+          Inbound Entry Point
+        </p>
+        <p className="text-xs text-muted-foreground">
+          This node creates an authenticated endpoint to receive payloads from external systems (e.g., SAP, WMS).
+        </p>
+      </div>
+
+      <div>
+        <Label htmlFor="endpointName">Endpoint Name *</Label>
+        <Input
+          id="endpointName"
+          value={config.endpointName || ""}
+          onChange={(e) => setConfig({ ...config, endpointName: e.target.value })}
+          placeholder="e.g., sap_order_ingress, wms_shipment_webhook"
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          A unique identifier for this ingress endpoint
+        </p>
+      </div>
+
+      <div>
+        <Label htmlFor="authMethod">Authentication Method</Label>
+        <Select
+          value={config.authMethod || "bearer"}
+          onValueChange={(value) => setConfig({ ...config, authMethod: value })}
+        >
+          <SelectTrigger id="authMethod">
+            <SelectValue placeholder="Select auth method" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="bearer">Bearer Token</SelectItem>
+            <SelectItem value="api_key">API Key</SelectItem>
+            <SelectItem value="basic">Basic Auth</SelectItem>
+            <SelectItem value="none">None (Public)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label htmlFor="expectedFormat">Expected Payload Format</Label>
+        <Select
+          value={config.expectedFormat || "json"}
+          onValueChange={(value) => setConfig({ ...config, expectedFormat: value })}
+        >
+          <SelectTrigger id="expectedFormat">
+            <SelectValue placeholder="Select format" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="json">JSON</SelectItem>
+            <SelectItem value="xml">XML</SelectItem>
+            <SelectItem value="csv">CSV</SelectItem>
+            <SelectItem value="text">Plain Text</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label htmlFor="schemaDefinition">Schema Definition (Optional)</Label>
+        <Textarea
+          id="schemaDefinition"
+          value={config.schemaDefinition || ""}
+          onChange={(e) => setConfig({ ...config, schemaDefinition: e.target.value })}
+          placeholder={`Example JSON schema:
+{
+  "order_id": "string",
+  "total": "number",
+  "wh_id": "string"
+}`}
+          className="font-mono text-xs"
+          rows={6}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Define the expected structure for validation
+        </p>
+      </div>
+
+      <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md">
+        <p className="text-sm font-semibold mb-1">📡 Generated Endpoint</p>
+        <code className="text-xs bg-muted px-2 py-1 rounded block break-all">
+          POST /api/ingress/{config.endpointName || 'your-endpoint-name'}
+        </code>
+      </div>
+    </div>
+  );
+}
+
+// Join Node Config Component (Data Stitching/Correlation)
+function JoinNodeConfig({
+  config,
+  setConfig,
+}: {
+  config: Record<string, any>;
+  setConfig: (config: Record<string, any>) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-cyan-50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-800 rounded-md">
+        <p className="text-sm font-semibold mb-1 flex items-center gap-2">
+          <GitMerge className="w-4 h-4" />
+          Data Stitching / Correlation
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Wait for matching payloads from multiple streams and combine them into a single output.
+        </p>
+      </div>
+
+      <div>
+        <Label htmlFor="correlationKey" className="text-base font-semibold">Correlation Key *</Label>
+        <Input
+          id="correlationKey"
+          value={config.correlationKey || ""}
+          onChange={(e) => setConfig({ ...config, correlationKey: e.target.value })}
+          placeholder="e.g., order_id, transaction_id, $.data.order_number"
+          className="font-mono"
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          The field used to match payloads across streams (supports JSONPath)
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="streamAName">Stream A Name</Label>
+          <Input
+            id="streamAName"
+            value={config.streamAName || ""}
+            onChange={(e) => setConfig({ ...config, streamAName: e.target.value })}
+            placeholder="e.g., SAP Order"
+          />
+        </div>
+        <div>
+          <Label htmlFor="streamBName">Stream B Name</Label>
+          <Input
+            id="streamBName"
+            value={config.streamBName || ""}
+            onChange={(e) => setConfig({ ...config, streamBName: e.target.value })}
+            placeholder="e.g., WMS Shipment"
+          />
+        </div>
+      </div>
+
+      <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+        <p className="text-sm font-semibold mb-1">🔀 Stream Identification (Optional)</p>
+        <p className="text-xs text-muted-foreground">
+          Configure how to identify which stream each payload belongs to. If not set, streams are identified by arrival order.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="streamAIdentifier" className="text-sm font-semibold">Stream A Identifier Field</Label>
+          <Input
+            id="streamAIdentifier"
+            value={config.streamAIdentifier || ""}
+            onChange={(e) => setConfig({ ...config, streamAIdentifier: e.target.value })}
+            placeholder="e.g., source, $.meta.type"
+            className="font-mono text-xs"
+          />
+          <Input
+            id="streamAIdentifierValue"
+            value={config.streamAIdentifierValue || ""}
+            onChange={(e) => setConfig({ ...config, streamAIdentifierValue: e.target.value })}
+            placeholder="Value: e.g., SAP, order"
+            className="text-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            Example: <code className="bg-muted px-1 rounded">source=SAP</code> or <code className="bg-muted px-1 rounded">$.type=order</code>
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="streamBIdentifier" className="text-sm font-semibold">Stream B Identifier Field</Label>
+          <Input
+            id="streamBIdentifier"
+            value={config.streamBIdentifier || ""}
+            onChange={(e) => setConfig({ ...config, streamBIdentifier: e.target.value })}
+            placeholder="e.g., source, $.meta.type"
+            className="font-mono text-xs"
+          />
+          <Input
+            id="streamBIdentifierValue"
+            value={config.streamBIdentifierValue || ""}
+            onChange={(e) => setConfig({ ...config, streamBIdentifierValue: e.target.value })}
+            placeholder="Value: e.g., WMS, shipment"
+            className="text-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            Example: <code className="bg-muted px-1 rounded">source=WMS</code> or <code className="bg-muted px-1 rounded">$.type=shipment</code>
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="timeoutMinutes">Timeout (minutes)</Label>
+        <Input
+          id="timeoutMinutes"
+          type="number"
+          value={config.timeoutMinutes || "1440"}
+          onChange={(e) => setConfig({ ...config, timeoutMinutes: e.target.value })}
+          placeholder="1440"
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          How long to wait for matching payload (default: 24 hours = 1440 minutes)
+        </p>
+      </div>
+
+      <div>
+        <Label htmlFor="joinStrategy">Join Strategy</Label>
+        <Select
+          value={config.joinStrategy || "inner"}
+          onValueChange={(value) => setConfig({ ...config, joinStrategy: value })}
+        >
+          <SelectTrigger id="joinStrategy">
+            <SelectValue placeholder="Select join type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="inner">Inner Join (Both required)</SelectItem>
+            <SelectItem value="left">Left Join (Stream A primary)</SelectItem>
+            <SelectItem value="right">Right Join (Stream B primary)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="p-3 bg-muted rounded-md">
+        <p className="text-sm font-semibold mb-2">📥 Input Streams:</p>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">Stream A</Badge>
+            <ArrowRight className="w-3 h-3" />
+            <span className="text-sm">{config.streamAName || "First Stream"}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">Stream B</Badge>
+            <ArrowRight className="w-3 h-3" />
+            <span className="text-sm">{config.streamBName || "Second Stream"}</span>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          Output: Combined payload with both streams' data
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Egress Node Config Component (Outbound Delivery)
+function EgressNodeConfig({
+  config,
+  setConfig,
+}: {
+  config: Record<string, any>;
+  setConfig: (config: Record<string, any>) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-md">
+        <p className="text-sm font-semibold mb-1 flex items-center gap-2">
+          <Send className="w-4 h-4" />
+          Outbound Delivery
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Send the final payload to an external system (e.g., OMS, ERP, API endpoint).
+        </p>
+      </div>
+
+      <div>
+        <Label htmlFor="targetUrl">Target URL *</Label>
+        <Input
+          id="targetUrl"
+          value={config.targetUrl || ""}
+          onChange={(e) => setConfig({ ...config, targetUrl: e.target.value })}
+          placeholder="https://oms.example.com/api/orders"
+          type="url"
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="httpMethod">HTTP Method</Label>
+        <Select
+          value={config.httpMethod || "POST"}
+          onValueChange={(value) => setConfig({ ...config, httpMethod: value })}
+        >
+          <SelectTrigger id="httpMethod">
+            <SelectValue placeholder="Select method" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="POST">POST</SelectItem>
+            <SelectItem value="PUT">PUT</SelectItem>
+            <SelectItem value="PATCH">PATCH</SelectItem>
+            <SelectItem value="GET">GET</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label htmlFor="outboundAuthMethod">Authentication Method</Label>
+        <Select
+          value={config.outboundAuthMethod || "none"}
+          onValueChange={(value) => setConfig({ ...config, outboundAuthMethod: value })}
+        >
+          <SelectTrigger id="outboundAuthMethod">
+            <SelectValue placeholder="Select auth method" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="bearer">Bearer Token</SelectItem>
+            <SelectItem value="api_key">API Key (Header)</SelectItem>
+            <SelectItem value="basic">Basic Auth</SelectItem>
+            <SelectItem value="oauth2">OAuth 2.0</SelectItem>
+            <SelectItem value="none">None</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {config.outboundAuthMethod === "bearer" && (
+        <div>
+          <Label htmlFor="authTokenUrl">Auth Token URL (Optional)</Label>
+          <Input
+            id="authTokenUrl"
+            value={config.authTokenUrl || ""}
+            onChange={(e) => setConfig({ ...config, authTokenUrl: e.target.value })}
+            placeholder="https://oms.example.com/oauth/token"
+            type="url"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            If specified, will call this endpoint first to obtain a token
+          </p>
+        </div>
+      )}
+
+      {config.outboundAuthMethod === "api_key" && (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="apiKeyHeader">Header Name</Label>
+            <Input
+              id="apiKeyHeader"
+              value={config.apiKeyHeader || ""}
+              onChange={(e) => setConfig({ ...config, apiKeyHeader: e.target.value })}
+              placeholder="X-API-Key"
+            />
+          </div>
+          <div>
+            <Label htmlFor="apiKeyValue">API Key Value</Label>
+            <Input
+              id="apiKeyValue"
+              type="password"
+              value={config.apiKeyValue || ""}
+              onChange={(e) => setConfig({ ...config, apiKeyValue: e.target.value })}
+              placeholder="Enter API key"
+            />
+          </div>
+        </div>
+      )}
+
+      {config.outboundAuthMethod === "basic" && (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="basicAuthUsername">Username</Label>
+            <Input
+              id="basicAuthUsername"
+              value={config.basicAuthUsername || ""}
+              onChange={(e) => setConfig({ ...config, basicAuthUsername: e.target.value })}
+              placeholder="username"
+            />
+          </div>
+          <div>
+            <Label htmlFor="basicAuthPassword">Password</Label>
+            <Input
+              id="basicAuthPassword"
+              type="password"
+              value={config.basicAuthPassword || ""}
+              onChange={(e) => setConfig({ ...config, basicAuthPassword: e.target.value })}
+              placeholder="password"
+            />
+          </div>
+        </div>
+      )}
+
+      <div>
+        <Label htmlFor="contentType">Content-Type</Label>
+        <Select
+          value={config.contentType || "application/json"}
+          onValueChange={(value) => setConfig({ ...config, contentType: value })}
+        >
+          <SelectTrigger id="contentType">
+            <SelectValue placeholder="Select content type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="application/json">application/json</SelectItem>
+            <SelectItem value="application/xml">application/xml</SelectItem>
+            <SelectItem value="text/plain">text/plain</SelectItem>
+            <SelectItem value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label htmlFor="customHeaders">Custom Headers (JSON)</Label>
+        <Textarea
+          id="customHeaders"
+          value={config.customHeaders || ""}
+          onChange={(e) => setConfig({ ...config, customHeaders: e.target.value })}
+          placeholder={`{\n  "X-Custom-Header": "value",\n  "X-Request-ID": "{{uuid}}"\n}`}
+          className="font-mono text-xs"
+          rows={4}
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="retryOnFailure"
+          checked={config.retryOnFailure || false}
+          onChange={(e) => setConfig({ ...config, retryOnFailure: e.target.checked })}
+          className="rounded"
+        />
+        <Label htmlFor="retryOnFailure" className="cursor-pointer">
+          Retry on failure (max 3 attempts)
+        </Label>
+      </div>
+    </div>
+  );
+}
+
+// SFTP Poller Node Config Component
+function SftpPollerNodeConfig({
+  config,
+  setConfig,
+}: {
+  config: Record<string, any>;
+  setConfig: (config: Record<string, any>) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800 rounded-md">
+        <p className="text-sm font-semibold mb-1 flex items-center gap-2">
+          <Server className="w-4 h-4" />
+          SFTP File Watcher
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Watches an SFTP directory and triggers the flow when new files appear (e.g., WMS shipping labels).
+        </p>
+      </div>
+
+      <div>
+        <Label htmlFor="sftpHost">SFTP Host *</Label>
+        <Input
+          id="sftpHost"
+          value={config.sftpHost || ""}
+          onChange={(e) => setConfig({ ...config, sftpHost: e.target.value })}
+          placeholder="sftp.example.com"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="sftpPort">Port</Label>
+          <Input
+            id="sftpPort"
+            type="number"
+            value={config.sftpPort || "22"}
+            onChange={(e) => setConfig({ ...config, sftpPort: e.target.value })}
+            placeholder="22"
+          />
+        </div>
+        <div>
+          <Label htmlFor="sftpUsername">Username</Label>
+          <Input
+            id="sftpUsername"
+            value={config.sftpUsername || ""}
+            onChange={(e) => setConfig({ ...config, sftpUsername: e.target.value })}
+            placeholder="username"
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="sftpPassword">Password / Private Key</Label>
+        <Input
+          id="sftpPassword"
+          type="password"
+          value={config.sftpPassword || ""}
+          onChange={(e) => setConfig({ ...config, sftpPassword: e.target.value })}
+          placeholder="••••••••"
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="watchDirectory">Directory to Watch *</Label>
+        <Input
+          id="watchDirectory"
+          value={config.watchDirectory || ""}
+          onChange={(e) => setConfig({ ...config, watchDirectory: e.target.value })}
+          placeholder="/outbound/shipping_labels"
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="filePattern">File Pattern (glob)</Label>
+        <Input
+          id="filePattern"
+          value={config.filePattern || ""}
+          onChange={(e) => setConfig({ ...config, filePattern: e.target.value })}
+          placeholder="*.pdf, *.xml, order_*.csv"
+          className="font-mono"
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Leave empty to watch all files
+        </p>
+      </div>
+
+      <div>
+        <Label htmlFor="pollInterval">Poll Interval (seconds)</Label>
+        <Input
+          id="pollInterval"
+          type="number"
+          value={config.pollInterval || "30"}
+          onChange={(e) => setConfig({ ...config, pollInterval: e.target.value })}
+          placeholder="30"
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="deleteAfterProcessing"
+          checked={config.deleteAfterProcessing || false}
+          onChange={(e) => setConfig({ ...config, deleteAfterProcessing: e.target.checked })}
+          className="rounded"
+        />
+        <Label htmlFor="deleteAfterProcessing" className="cursor-pointer">
+          Delete file after successful processing
+        </Label>
+      </div>
     </div>
   );
 }

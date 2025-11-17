@@ -1,0 +1,20 @@
+{
+  "VBELN": "string",
+  "VBELP": "string",
+  "KUNNR": "string",
+  "NAME1": "string",
+  "STRAS": "string",
+  "ORT01": "string",
+  "REGIO": "string",
+  "PSTLZ": "string",
+  "LAND1": "string",
+  "MATNR": "string",
+  "ARKTX": "string",
+  "KWMENG": "number",
+  "VRKME": "string",
+  "NETWR": "number",
+  "WAERK": "string",
+  "LPRIO": "string",
+  "WADAT": "string",
+  "ERDAT": "string"
+}

@@ -35,8 +35,54 @@ export function getPayloadStorage() {
 
 import type { FlowOrchestrator } from "../flow/orchestrator.js";
 import type { IStorage } from "../../storage.js";
+import { registerAIMappingRoutes } from "./ai-mapping-routes.js";
+import exportRoutes from "../routes/export.js";
+import usersRoutes from "../routes/users.js";
+import authLoginRoutes from "../routes/auth-login.js";
+import logsRoutes from "../routes/logs.js";
+import appControlRoutes from "../routes/app-control.js";
+import systemRoutes from "../routes/system.js";
+import versionsRoutes from "../routes/versions.js";
+import changeRequestsRoutes from "../routes/change-requests.js";
+import environmentPromotionRoutes from "../routes/environment-promotion.js";
+import releasePlansRoutes from "../routes/release-plans.js";
+import integrationNotesRoutes from "../routes/integration-notes.js";
+import errorTriageRoutes from "../routes/error-triage.js";
 
 export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrator?: FlowOrchestrator, storage?: IStorage): void {
+  // Register AI Mapping Generator routes (dev-only)
+  registerAIMappingRoutes(app);
+  
+  // Register Export/License Management routes
+  app.use("/api/export", exportRoutes);
+  
+  // Register User Management routes
+  app.use("/api/users", usersRoutes);
+  
+  // Register Authentication routes (login/magic-link)
+  app.use("/api/auth/login", authLoginRoutes);
+  
+  // Register System Logs routes (superadmin portal)
+  app.use("/api/logs", logsRoutes);
+  
+  // Register App Control routes (restart/stop/status)
+  app.use("/api/app-control", appControlRoutes);
+  
+  // Register System Requirements Check (first-run)
+  app.use("/api/system", systemRoutes);
+  
+  // Register Versioned Configuration Management
+  app.use("/api/versions", versionsRoutes);
+  app.use("/api/change-requests", changeRequestsRoutes);
+  app.use("/api/environment-promotion", environmentPromotionRoutes);
+  
+  // Register Release Management & Integration Notes
+  app.use("/api/release-plans", releasePlansRoutes);
+  app.use("/api/integration-notes", integrationNotesRoutes);
+  
+  // Register Error Triage Dashboard
+  app.use("/api/error-triage", errorTriageRoutes);
+  
   // POST /api/items/ifd - Process XML IFD payload
   app.post("/api/items/ifd", async (req, res) => {
     try {
@@ -201,6 +247,26 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       res.json({ success: true, concurrency });
     } catch (error: any) {
       log.error("Error updating concurrency", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/queue/dead-letter - Get dead letter queue depth and stats
+  app.get("/api/queue/dead-letter", async (req, res) => {
+    try {
+      const queueProvider = getQueueProvider();
+      const depth = await queueProvider.getDeadLetterDepth("items.inbound");
+      
+      // Get failed events from event storage
+      const failedEvents = events.filter(e => e.status === "failed");
+      
+      res.json({
+        depth,
+        failedEvents: failedEvents.slice(0, 100), // Limit to 100 recent failures
+        backend: getCurrentBackend(),
+      });
+    } catch (error: any) {
+      log.error("Error fetching dead letter queue", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -848,7 +914,7 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       }
 
       const flowId = req.params.id;
-      const { input, enqueue } = req.body;
+      const { input, enqueue, emulationMode } = req.body;
 
       // Option 1: Enqueue for worker processing
       if (enqueue) {
@@ -860,14 +926,18 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
             mode: 'flow',
             flowId, 
             flowInput: input,
-            traceId 
+            traceId,
+            emulationMode: emulationMode || false,
           })
         );
 
         return res.json({
           ok: true,
           traceId,
-          message: "Flow execution enqueued for processing",
+          message: emulationMode 
+            ? "Flow execution enqueued for processing (EMULATION MODE)"
+            : "Flow execution enqueued for processing",
+          emulationMode: emulationMode || false,
         });
       }
 
@@ -878,6 +948,7 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
         flowId,
         flowInput: input,
         traceId,
+        emulationMode: emulationMode || false,
       });
 
       res.json({
@@ -887,6 +958,7 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
         decision: result.decision,
         error: result.error,
         latencyMs: result.latencyMs,
+        emulationMode: emulationMode || false,
       });
     } catch (error: any) {
       log.error("Error executing flow", error);
@@ -940,6 +1012,66 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
     } catch (error: any) {
       log.error("Error getting flow run", error);
       res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // POST /api/flows/:id/test-node - Test individual node (Phase 2)
+  app.post("/api/flows/:id/test-node", async (req, res) => {
+    try {
+      if (!orchestrator) {
+        return res.status(501).json({
+          ok: false,
+          error: "Flow orchestrator is not initialized.",
+        });
+      }
+      
+      if (!storage) {
+        return res.status(501).json({ error: "Flow storage is not initialized" });
+      }
+
+      const flowId = req.params.id;
+      const { nodeId, input } = req.body;
+      
+      if (!nodeId) {
+        return res.status(400).json({ error: "nodeId is required" });
+      }
+
+      // Get flow definition
+      const flow = await storage.getFlow(flowId);
+      if (!flow) {
+        return res.status(404).json({ error: "Flow not found" });
+      }
+      
+      // Find the node
+      const node = flow.nodes.find((n) => n.id === nodeId);
+      if (!node) {
+        return res.status(404).json({ error: "Node not found in flow" });
+      }
+      
+      // Use orchestrator's internal executor (accessing private method via reflection is not ideal,
+      // so we'll use the orchestrator's public method with a dummy single-node flow)
+      // For now, return a mock response indicating the feature needs backend support
+      
+      const startTime = Date.now();
+      
+      // TODO: Implement single-node execution in orchestrator
+      // For MVP, return the input as output (passthrough)
+      const output = input;
+      
+      const durationMs = Date.now() - startTime;
+
+      res.json({
+        ok: true,
+        output,
+        metadata: { note: "Node test passthrough - full execution requires orchestrator enhancement" },
+        durationMs,
+      });
+    } catch (error: any) {
+      log.error("Error testing node", error);
+      res.status(500).json({
+        ok: false,
+        error: error.message,
+      });
     }
   });
 
