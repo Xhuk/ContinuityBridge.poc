@@ -120,6 +120,7 @@ router.post("/", authenticateUser, async (req, res) => {
       role = "customer_user",
       organizationId,
       organizationName,
+      environment = "dev", // Stage-specific: dev, test, staging, prod
       assignedCustomers, // Only for consultants
       maxCustomers, // Contract limit for consultants (number of end customers they can manage)
     } = req.body;
@@ -179,8 +180,9 @@ router.post("/", authenticateUser, async (req, res) => {
       return res.status(409).json({ error: "User already exists" });
     }
 
-    // Generate API key
-    const apiKey = `cb_${randomUUID().replace(/-/g, "")}`;
+    // Generate stage-specific API key
+    const stage = environment || "dev";
+    const apiKey = `cb_${stage}_${randomUUID().replace(/-/g, "")}`;
 
     // Create user
     const newUser = {
@@ -194,27 +196,32 @@ router.post("/", authenticateUser, async (req, res) => {
       enabled: true,
       passwordHash: null,  // No password - API key auth only
       lastLoginAt: null,
-      metadata: role === "consultant" ? {
-        maxCustomers: maxCustomers || 1,
-        contractedCustomers: maxCustomers || 1,
-      } : {},
+      metadata: {
+        ...(role === "consultant" ? {
+          maxCustomers: maxCustomers || 1,
+          contractedCustomers: maxCustomers || 1,
+        } : {}),
+        environment: stage, // Track which stage this user belongs to
+      },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     await db.insert(users).values(newUser).run();
 
-    // Send invitation email via Resend
+    // Send API key via email using Resend
     const { resendService } = await import("../notifications/resend-service.js");
     try {
-      await resendService.sendContractorInvitation(
+      await resendService.sendAPIKeyEmail(
         email,
+        apiKey,
         organizationName || organizationId,
-        undefined // No temporary password (use magic link)
+        stage,
+        role as UserRole
       );
-      console.log(`📧 Invitation email sent to ${email} via Resend`);
+      console.log(`📧 API key sent to ${email} via Resend for ${stage} environment`);
     } catch (emailError: any) {
-      console.warn(`Failed to send invitation email: ${emailError.message}`);
+      console.warn(`Failed to send API key email: ${emailError.message}`);
       // Continue anyway - user created successfully
     }
 
@@ -227,8 +234,9 @@ router.post("/", authenticateUser, async (req, res) => {
         apiKey: newUser.apiKey,  // Show once during creation
         organizationId: newUser.organizationId,
         assignedCustomers: newUser.assignedCustomers,
+        environment: stage,
       },
-      message: `User created. Share this API key with them: ${apiKey}`,
+      message: `User created for ${stage} environment. API key sent to ${email}.`,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -288,24 +296,73 @@ router.patch("/:id/enable", authenticateUser, requireSuperAdmin, async (req, res
 
 /**
  * POST /api/users/:id/regenerate-api-key
- * Regenerate API key for a contractor
- * 🔒 SUPERADMIN ONLY
+ * Regenerate API key for a user and send via email
+ * 🔒 SUPERADMIN or CONSULTANT (for their assigned customers)
  */
-router.post("/:id/regenerate-api-key", authenticateUser, requireSuperAdmin, async (req, res) => {
+router.post("/:id/regenerate-api-key", authenticateUser, async (req, res) => {
   try {
     const { id } = req.params;
+    const { environment } = req.body; // Optional: specify environment (dev/test/staging/prod)
 
-    const newApiKey = `cb_${randomUUID().replace(/-/g, "")}`;
+    const user = await (db.select().from(users)
+      .where(eq(users.id, id)) as any);
+    
+    const userRecord = user[0];
+    
+    if (!userRecord) {
+      return res.status(404).json({ error: "User not found" });
+    }
 
-    await db.update(users)
-      .set({ apiKey: newApiKey, updatedAt: new Date().toISOString() })
-      .where(eq(users.id, id))
-      .run();
+    // Permission check: superadmin can regenerate any key, consultant only for assigned customers
+    const requestorRole = req.user?.role;
+    if (requestorRole === "consultant") {
+      const assignedCustomers = req.user?.assignedCustomers || [];
+      if (!assignedCustomers.includes(userRecord.organizationId)) {
+        return res.status(403).json({ 
+          error: "Consultants can only regenerate API keys for their assigned customers" 
+        });
+      }
+    } else if (requestorRole !== "superadmin") {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+
+    // Generate new stage-specific API key
+    const stage = environment || (userRecord.metadata as any)?.environment || "dev";
+    const newApiKey = `cb_${stage}_${randomUUID().replace(/-/g, "")}`;
+
+    // Update user record
+    await (db.update(users)
+      .set({ 
+        apiKey: newApiKey, 
+        updatedAt: new Date().toISOString(),
+        metadata: {
+          ...(userRecord.metadata || {}),
+          environment: stage,
+        } as any,
+      })
+      .where(eq(users.id, id)) as any);
+
+    // Send new API key via email
+    const { resendService } = await import("../notifications/resend-service.js");
+    try {
+      await resendService.sendAPIKeyEmail(
+        userRecord.email,
+        newApiKey,
+        userRecord.organizationName || userRecord.organizationId,
+        stage,
+        userRecord.role as UserRole
+      );
+      console.log(`📧 New API key sent to ${userRecord.email} for ${stage} environment`);
+    } catch (emailError: any) {
+      console.warn(`Failed to send API key email: ${emailError.message}`);
+      // Continue anyway - key regenerated successfully
+    }
 
     res.json({
       success: true,
       apiKey: newApiKey,
-      message: "API key regenerated. Share this with the contractor.",
+      environment: stage,
+      message: `API key regenerated for ${stage} environment. Sent to ${userRecord.email}.`,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
