@@ -49,9 +49,20 @@ function Router() {
 
   // Show secure landing page (fake 404) if not authenticated
   if (!user) {
+    // Determine login path based on deployment type
+    // Customer deployments (prod): /admin
+    // Founder/Consultant platform: /sys/auth/bridge (obscure)
+    const isCustomerDeployment = import.meta.env.VITE_DEPLOYMENT_TYPE === 'customer';
+    
     return (
       <Switch>
+        {/* Customer login endpoint */}
+        <Route path="/admin" component={Login} />
+        
+        {/* Founder/Consultant obscure login endpoint */}
         <Route path="/sys/auth/bridge" component={Login} />
+        
+        {/* Fake 404 landing page for security */}
         <Route component={Landing} />
       </Switch>
     );

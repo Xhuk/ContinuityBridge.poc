@@ -179,7 +179,12 @@ export default function Landing() {
                       type="button"
                       variant="outline"
                       className="w-full text-sm"
-                      onClick={() => setLocation("/sys/auth/bridge")}
+                      onClick={() => {
+                        // Customer deployments: /admin
+                        // Founder/Consultant platform: /sys/auth/bridge
+                        const isCustomerDeployment = import.meta.env.VITE_DEPLOYMENT_TYPE === 'customer';
+                        setLocation(isCustomerDeployment ? '/admin' : '/sys/auth/bridge');
+                      }}
                     >
                       Go to Login Page
                     </Button>
