@@ -39,11 +39,12 @@ export async function checkFirstRun(): Promise<SystemReadiness> {
 
   try {
     // Check if superadmin exists
-    const superadmin = await (db.select() as any)
+    const superadminResult = await (db.select() as any)
       .from(users)
       .where(eq(users.email, SUPERADMIN_EMAIL))
-      .get();
-
+      .limit(1);
+    
+    const superadmin = superadminResult[0];
     result.superadminExists = !!superadmin;
 
     if (!superadmin) {
@@ -73,7 +74,7 @@ export async function checkFirstRun(): Promise<SystemReadiness> {
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      }).run();
+      });
 
       logger.info("Superadmin created successfully", {
         scope: "superadmin",
@@ -223,14 +224,16 @@ export async function getSystemRequirements(): Promise<{
 }> {
   let dbConnected = false;
   try {
-    await (db.select() as any).from(users).limit(1).all();
+    await (db.select() as any).from(users).limit(1);
     dbConnected = true;
   } catch {}
 
-  const superadmin = await (db.select() as any)
+  const superadminResult = await (db.select() as any)
     .from(users)
     .where(eq(users.email, SUPERADMIN_EMAIL))
-    .get();
+    .limit(1);
+  
+  const superadmin = superadminResult[0];
 
   return {
     environment: process.env.NODE_ENV || "development",
