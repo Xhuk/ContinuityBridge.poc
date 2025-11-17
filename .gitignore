@@ -254,6 +254,14 @@ $RECYCLE.BIN/
 docker-compose.override.yml
 .dockerignore
 
+# PostgreSQL data directory (production)
+postgres-data/
+
+# Database backups
+backups/
+*.sql
+*.sql.gz
+
 # ============================================================================
 # CI/CD
 # ============================================================================
@@ -336,13 +344,19 @@ docs/drafts/
 # Keep example environment files
 !.env.example
 !.env.render.example
+!.env.production.example
 
 # Keep Docker files
 !Dockerfile
 !.dockerignore
+!docker-compose.prod.yml
 
 # Keep CI/CD configs
 !.github/workflows/*.yml
 
+# Keep deployment scripts
+!deploy-production.sh
+
 # Keep essential project documentation only
 !README.md
+!DEPLOYMENT.md
