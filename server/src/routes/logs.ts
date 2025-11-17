@@ -407,4 +407,98 @@ router.get("/cleanup/status", authenticateUser, requireSuperAdmin, async (req, r
   }
 });
 
+/**
+ * GET /api/logs/files
+ * List all log files from the logs directory
+ * 🔒 SUPERADMIN ONLY
+ */
+router.get("/files", authenticateUser, requireSuperAdmin, async (req, res) => {
+  try {
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    
+    const logsDir = path.join(process.cwd(), "logs");
+    
+    // Ensure logs directory exists
+    try {
+      await fs.access(logsDir);
+    } catch {
+      return res.json({ files: [] });
+    }
+    
+    // Read all files recursively from superadmin and customer directories
+    const files: any[] = [];
+    
+    const readDirectory = async (dir: string, prefix: string = "") => {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+        
+        if (entry.isDirectory()) {
+          // Recursively read subdirectories
+          await readDirectory(fullPath, relativePath);
+        } else if (entry.isFile() && (entry.name.endsWith(".log") || entry.name.endsWith(".json"))) {
+          const stats = await fs.stat(fullPath);
+          files.push({
+            name: relativePath,
+            size: stats.size,
+            modified: stats.mtime.toISOString(),
+            path: fullPath,
+          });
+        }
+      }
+    };
+    
+    await readDirectory(logsDir);
+    
+    // Sort by modified date (newest first)
+    files.sort((a, b) => new Date(b.modified).getTime() - new Date(a.modified).getTime());
+    
+    res.json({ files, count: files.length });
+  } catch (error: any) {
+    console.error("[LogsAPI] List files failed:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/logs/files/:filename
+ * Download a specific log file
+ * 🔒 SUPERADMIN ONLY
+ */
+router.get("/files/:filename(*)", authenticateUser, requireSuperAdmin, async (req, res) => {
+  try {
+    const path = await import("path");
+    const fs = await import("fs/promises");
+    
+    const filename = decodeURIComponent(req.params.filename);
+    const logsDir = path.join(process.cwd(), "logs");
+    const filePath = path.join(logsDir, filename);
+    
+    // Security check: Ensure file is within logs directory
+    if (!filePath.startsWith(logsDir)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    // Check if file exists
+    try {
+      await fs.access(filePath);
+    } catch {
+      return res.status(404).json({ error: "File not found" });
+    }
+    
+    // Read and send file
+    const fileContent = await fs.readFile(filePath);
+    
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${path.basename(filename)}"`);
+    res.send(fileContent);
+  } catch (error: any) {
+    console.error("[LogsAPI] Download file failed:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
