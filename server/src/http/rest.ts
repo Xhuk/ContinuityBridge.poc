@@ -11,7 +11,11 @@ import { getCurrentBackend } from "../serverQueue.js";
 import { getDataSourceManager } from "../datasources/manager.js";
 import { interfaceManager } from "../interfaces/manager.js";
 import { interfaceTemplateCatalog } from "../interfaces/template-catalog.js";
+import { nodeCatalog } from "../flow/node-catalog.js";
 import type { SystemInstanceTestFile } from "../../schema.js";
+import { db } from "../../db.js";
+import { secretsMasterKeys } from "../../schema.js";
+import { eq } from "drizzle-orm";
 
 const log = logger.child("REST-API");
 
@@ -48,6 +52,10 @@ import environmentPromotionRoutes from "../routes/environment-promotion.js";
 import releasePlansRoutes from "../routes/release-plans.js";
 import integrationNotesRoutes from "../routes/integration-notes.js";
 import errorTriageRoutes from "../routes/error-triage.js";
+import projectsRoutes from "../routes/projects.js";
+import consultantRoutes from "../routes/consultant.js";
+import postmanRoutes from "../routes/postman.js";
+import { authenticateUser } from "../auth/rbac-middleware.js";
 
 export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrator?: FlowOrchestrator, storage?: IStorage): void {
   // Register AI Mapping Generator routes (dev-only)
@@ -82,6 +90,94 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
   
   // Register Error Triage Dashboard
   app.use("/api/error-triage", errorTriageRoutes);
+  
+  // Register SuperAdmin Projects Management
+  app.use("/api/admin/projects", projectsRoutes);
+  
+  // Register Consultant Tenant Selection
+  app.use("/api/consultant", consultantRoutes);
+  
+  // Register Postman Collection Generator
+  app.use("/api/postman", postmanRoutes);
+  
+  // ============================================================================
+  // NODE CATALOG ENDPOINTS
+  // ============================================================================
+
+  // GET /api/node-definitions - Get all available node types from catalog
+  app.get("/api/node-definitions", (req, res) => {
+    try {
+      const { category } = req.query;
+      
+      let nodes;
+      if (category) {
+        nodes = nodeCatalog.getNodesByCategory(category as any);
+      } else {
+        nodes = nodeCatalog.getAllNodes();
+      }
+      
+      res.json(nodes);
+    } catch (error: any) {
+      log.error("Error fetching node definitions", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/node-definitions/:id - Get specific node definition
+  app.get("/api/node-definitions/:id", (req, res) => {
+    try {
+      const nodeId = req.params.id;
+      log.info(`[NodeCatalog] Fetching node definition for: ${nodeId}`);
+      
+      // Ensure node catalog is loaded
+      if (!nodeCatalog) {
+        log.error('[NodeCatalog] Node catalog not initialized');
+        return res.status(500).json({ 
+          error: "Node catalog not initialized",
+          message: "Server is still starting up. Please try again in a moment."
+        });
+      }
+      
+      const node = nodeCatalog.getNode(nodeId);
+      
+      if (!node) {
+        const availableNodes = nodeCatalog.getAllNodes().map(n => n.id);
+        log.warn(`[NodeCatalog] Node definition not found: ${nodeId}`, {
+          availableNodes,
+        });
+        return res.status(404).json({ 
+          error: "Node definition not found",
+          nodeId,
+          availableNodes,
+          message: `Node type '${nodeId}' does not exist. Available: ${availableNodes.join(', ')}`,
+        });
+      }
+      
+      log.info(`[NodeCatalog] Node definition found: ${nodeId}`, {
+        category: node.category,
+        label: node.label,
+        configFieldsCount: node.configFields?.length || 0,
+        configFields: node.configFields?.map(f => ({
+          name: f.name,
+          type: f.type,
+          required: f.required,
+        })),
+      });
+      
+      // Ensure we're returning JSON with correct content-type
+      res.setHeader('Content-Type', 'application/json');
+      res.json(node);
+    } catch (error: any) {
+      log.error(`[NodeCatalog] Error fetching node definition for ${req.params.id}`, error, {
+        errorMessage: error.message,
+        stack: error.stack,
+      });
+      res.status(500).json({ 
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      });
+    }
+  });
   
   // POST /api/items/ifd - Process XML IFD payload
   app.post("/api/items/ifd", async (req, res) => {
@@ -182,6 +278,31 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
     } catch (error: any) {
       log.error("Error fetching recent events", error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/health - Health check endpoint for Render deployment
+  app.get("/api/health", (req, res) => {
+    try {
+      // Check if essential services are running
+      const worker = getWorkerInstance();
+      const workerStatus = worker.getStatus();
+      
+      res.json({
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        services: {
+          worker: workerStatus.enabled,
+          queue: getCurrentBackend(),
+        },
+        version: process.env.npm_package_version || "unknown"
+      });
+    } catch (error: any) {
+      log.error("Health check failed", error);
+      res.status(500).json({ 
+        status: "error", 
+        error: error.message 
+      });
     }
   });
 
@@ -1416,46 +1537,173 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       }
 
       const clientIp = req.ip || 'unknown';
+      const { masterSeed, recoveryCode } = req.body;
 
-      // Rate limiting
-      if (!checkUnlockRateLimit(clientIp)) {
-        auditLog("UNLOCK_RATE_LIMITED", {
-          ip: clientIp,
-          timestamp: new Date().toISOString(),
-        });
-        return res.status(429).json({
-          error: `Too many unlock attempts. Please try again in 15 minutes.`,
-        });
-      }
-
-      const { masterSeed } = req.body;
-
-      if (!masterSeed || typeof masterSeed !== 'string') {
+      if (!masterSeed && !recoveryCode) {
         return res.status(400).json({
-          error: "Master seed is required",
+          error: "Master seed or recovery code is required",
         });
       }
 
       const { secretsService } = await import('../secrets/secrets-service.js');
+      const masterKey = await storage.getMasterKey();
 
-      const unlocked = await secretsService.unlockVault(
-        masterSeed,
-        () => storage.getMasterKey!()
-      );
+      if (!masterKey) {
+        return res.status(400).json({ error: "Vault not initialized" });
+      }
 
-      if (!unlocked) {
-        auditLog("UNLOCK_FAILED", {
+      // Check if vault is locked due to too many failed attempts
+      if (masterKey.lockedUntil) {
+        const lockoutTime = new Date(masterKey.lockedUntil).getTime();
+        const now = Date.now();
+        
+        if (now < lockoutTime) {
+          const minutesRemaining = Math.ceil((lockoutTime - now) / 60000);
+          return res.status(423).json({
+            error: "Vault is locked",
+            locked: true,
+            message: `Vault locked due to failed attempts. Try again in ${minutesRemaining} minutes or use recovery code to reset password.`,
+            minutesRemaining,
+          });
+        }
+      }
+
+      // If recovery code provided, validate and allow password reset
+      if (recoveryCode) {
+        const { verifyRecoveryCode } = await import('../secrets/secrets-service.js');
+        const isValid = await verifyRecoveryCode(recoveryCode, masterKey);
+
+        if (!isValid) {
+          // Increment failed recovery attempts
+          const newAttempts = (masterKey.failedAttempts || 0) + 1;
+          
+          if (newAttempts >= 3) {
+            // Lock vault permanently after 3 failed recovery attempts
+            await (db as any).update(secretsMasterKeys)
+              .set({
+                failedAttempts: newAttempts,
+                lockedUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // Lock for 1 year
+                updatedAt: new Date().toISOString(),
+              })
+              .where(eq(secretsMasterKeys.id, masterKey.id))
+              .run();
+
+            auditLog("VAULT_LOCKED_PERMANENTLY", {
+              ip: clientIp,
+              timestamp: new Date().toISOString(),
+              reason: "3 failed recovery code attempts",
+            });
+
+            return res.status(423).json({
+              error: "Vault permanently locked",
+              locked: true,
+              permanent: true,
+              message: "Too many failed recovery attempts. You must delete vault contents and reinitialize.",
+            });
+          }
+
+          // Update failed attempts
+          await (db as any).update(secretsMasterKeys)
+            .set({
+              failedAttempts: newAttempts,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(secretsMasterKeys.id, masterKey.id))
+            .run();
+
+          auditLog("RECOVERY_CODE_INVALID", {
+            ip: clientIp,
+            attempts: newAttempts,
+            timestamp: new Date().toISOString(),
+          });
+
+          return res.status(401).json({
+            error: "Invalid recovery code",
+            attemptsRemaining: 3 - newAttempts,
+          });
+        }
+
+        // Valid recovery code - return success for password reset flow
+        auditLog("RECOVERY_CODE_VERIFIED", {
           ip: clientIp,
           timestamp: new Date().toISOString(),
-          reason: "Invalid master seed",
         });
-        return res.status(401).json({
-          error: "Invalid master seed",
+
+        return res.json({
+          ok: true,
+          recoveryVerified: true,
+          message: "Recovery code verified. You can now set a new master seed.",
         });
       }
 
-      // Reset rate limit on successful unlock
-      resetUnlockRateLimit(clientIp);
+      // Normal master seed unlock
+      const unlocked = await secretsService.unlockVault(
+        masterSeed,
+        () => Promise.resolve(masterKey)
+      );
+
+      if (!unlocked) {
+        // Increment failed attempts
+        const newAttempts = (masterKey.failedAttempts || 0) + 1;
+        
+        if (newAttempts >= 3) {
+          // Lock vault for 15 minutes after 3 failed attempts
+          const lockoutTime = new Date(Date.now() + 15 * 60 * 1000);
+          
+          await (db as any).update(secretsMasterKeys)
+            .set({
+              failedAttempts: newAttempts,
+              lockedUntil: lockoutTime.toISOString(),
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(secretsMasterKeys.id, masterKey.id))
+            .run();
+
+          auditLog("VAULT_LOCKED", {
+            ip: clientIp,
+            attempts: newAttempts,
+            lockedUntil: lockoutTime.toISOString(),
+            timestamp: new Date().toISOString(),
+          });
+
+          return res.status(423).json({
+            error: "Vault locked",
+            locked: true,
+            message: "Too many failed attempts. Vault locked for 15 minutes. Use recovery code to unlock immediately.",
+          });
+        }
+
+        // Update failed attempts
+        await (db as any).update(secretsMasterKeys)
+          .set({
+            failedAttempts: newAttempts,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(secretsMasterKeys.id, masterKey.id))
+          .run();
+
+        auditLog("UNLOCK_FAILED", {
+          ip: clientIp,
+          attempts: newAttempts,
+          timestamp: new Date().toISOString(),
+        });
+
+        return res.status(401).json({
+          error: "Invalid master seed",
+          attemptsRemaining: 3 - newAttempts,
+        });
+      }
+
+      // Reset failed attempts on successful unlock
+      await (db as any).update(secretsMasterKeys)
+        .set({
+          failedAttempts: 0,
+          lockedUntil: null,
+          lastUnlocked: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(secretsMasterKeys.id, masterKey.id))
+        .run();
 
       auditLog("VAULT_UNLOCKED", {
         ip: clientIp,
@@ -2059,8 +2307,8 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
     }
   });
 
-  // GET /api/system-instances/:id/test-files - List test files
-  app.get("/api/system-instances/:id/test-files", async (req, res) => {
+  // GET /api/system-instances/:id/test-files - List test files (🔒 Auth required)
+  app.get("/api/system-instances/:id/test-files", authenticateUser, async (req, res) => {
     try {
       const { id: systemInstanceId } = req.params;
       
@@ -2069,15 +2317,28 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       }
       
       const files = await storage.getTestFiles(systemInstanceId);
-      res.json({ files });
+      
+      // Filter notes based on user role - customers cannot see notes
+      const userRole = (req as any).user?.role || "customer_user";
+      const filesWithRBAC = files.map(file => {
+        // Customers cannot see notes at all
+        if (userRole !== "superadmin" && userRole !== "consultant") {
+          const { notes, mlApproved, mlApprovedBy, mlApprovedAt, ...publicFile } = file;
+          return publicFile;
+        }
+        return file;
+      });
+      
+      res.json({ files: filesWithRBAC });
     } catch (error: any) {
       log.error("Error listing test files", error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // POST /api/system-instances/:id/test-files - Upload test file
+  // POST /api/system-instances/:id/test-files - Upload test file (🔒 Auth required)
   app.post("/api/system-instances/:id/test-files", 
+    authenticateUser,
     (req, res, next) => {
       upload.single('file')(req, res, (err: any) => {
         if (err) {
@@ -2098,10 +2359,17 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
     try {
       const { id: systemInstanceId } = req.params;
       const file = req.file;
-      const { description } = req.body;
+      const { description, initialNote } = req.body;
+      const userRole = (req as any).user?.role || "customer_user";
+      const userEmail = (req as any).user?.email || "unknown@example.com";
       
       if (!file) {
         return res.status(400).json({ error: "File is required" });
+      }
+      
+      // Only consultants and superadmins can add notes
+      if (initialNote && userRole !== "superadmin" && userRole !== "consultant") {
+        return res.status(403).json({ error: "Only consultants and founders can add notes" });
       }
       
       if (!storage?.createTestFile || !storage?.writeTestFileToDisk || !storage?.getTestFileQuota) {
@@ -2153,13 +2421,23 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
         storageKey = writeResult.storageKey;
         fileSize = writeResult.fileSize;
         
-        // Then create database record
+        // Create initial note if provided
+        const initialNotes = initialNote ? [{
+          iteration: 1,
+          author: userEmail,
+          authorRole: userRole === "superadmin" ? "superadmin" as const : "consultant" as const,
+          timestamp: new Date().toISOString(),
+          content: initialNote,
+        }] : undefined;
+        
+        // Then create database record with initial note
         createdFile = await storage.createTestFile({
           systemInstanceId,
           filename: file.originalname,
           mediaType,
           storageKey,
           fileSize,
+          notes: initialNotes,
           metadata: description ? { description } : undefined,
         });
       } catch (dbError: any) {
@@ -2170,15 +2448,21 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
         throw dbError;
       }
       
-      res.status(201).json({ file: createdFile });
+      // Filter notes from response if customer
+      const responseFile = (userRole === "superadmin" || userRole === "consultant") ? createdFile : (() => {
+        const { notes, mlApproved, mlApprovedBy, mlApprovedAt, ...publicFile } = createdFile;
+        return publicFile;
+      })();
+      
+      res.status(201).json({ file: responseFile });
     } catch (error: any) {
       log.error("Error uploading test file", error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // GET /api/system-instances/:id/test-files/:fileId/download - Download test file
-  app.get("/api/system-instances/:id/test-files/:fileId/download", async (req, res) => {
+  // GET /api/system-instances/:id/test-files/:fileId/download - Download test file (🔒 Auth required)
+  app.get("/api/system-instances/:id/test-files/:fileId/download", authenticateUser, async (req, res) => {
     try {
       const { id: systemInstanceId, fileId } = req.params;
       
@@ -2213,8 +2497,8 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
     }
   });
 
-  // DELETE /api/system-instances/:id/test-files/:fileId - Delete test file
-  app.delete("/api/system-instances/:id/test-files/:fileId", async (req, res) => {
+  // DELETE /api/system-instances/:id/test-files/:fileId - Delete test file (🔒 Auth required)
+  app.delete("/api/system-instances/:id/test-files/:fileId", authenticateUser, async (req, res) => {
     try {
       const { id: systemInstanceId, fileId } = req.params;
       
@@ -2239,6 +2523,86 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       res.json({ ok: deleted });
     } catch (error: any) {
       log.error("Error deleting test file", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/system-instances/:id/test-files/:fileId/notes - Add iteration note (🔒 Consultant/Superadmin only)
+  app.patch("/api/system-instances/:id/test-files/:fileId/notes", authenticateUser, async (req, res) => {
+    try {
+      const { id: systemInstanceId, fileId } = req.params;
+      const { content } = req.body;
+      const userRole = (req as any).user?.role || "customer_user";
+      const userEmail = (req as any).user?.email || "unknown@example.com";
+      
+      // Only consultants and superadmins can add notes
+      if (userRole !== "superadmin" && userRole !== "consultant") {
+        return res.status(403).json({ error: "Only consultants and founders can add notes" });
+      }
+      
+      if (!content || !content.trim()) {
+        return res.status(400).json({ error: "Note content is required" });
+      }
+      
+      if (!storage?.getTestFile || !storage?.addTestFileNote) {
+        return res.status(501).json({ error: "Test file notes not supported" });
+      }
+      
+      // Verify file exists and belongs to system instance
+      const file = await storage.getTestFile(fileId);
+      
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      if (file.systemInstanceId !== systemInstanceId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      // Add note
+      const authorRole = userRole === "superadmin" ? "superadmin" as const : "consultant" as const;
+      const updated = await storage.addTestFileNote(fileId, userEmail, authorRole, content);
+      
+      res.json({ ok: updated });
+    } catch (error: any) {
+      log.error("Error adding note", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/system-instances/:id/test-files/:fileId/approve - Approve for ML training (🔒 Superadmin only)
+  app.post("/api/system-instances/:id/test-files/:fileId/approve", authenticateUser, async (req, res) => {
+    try {
+      const { id: systemInstanceId, fileId } = req.params;
+      const userRole = (req as any).user?.role || "customer_user";
+      const userEmail = (req as any).user?.email || "unknown@example.com";
+      
+      // Only superadmins can approve for ML
+      if (userRole !== "superadmin") {
+        return res.status(403).json({ error: "Only founders can approve files for ML training" });
+      }
+      
+      if (!storage?.getTestFile || !storage?.approveTestFileForML) {
+        return res.status(501).json({ error: "ML approval not supported" });
+      }
+      
+      // Verify file exists and belongs to system instance
+      const file = await storage.getTestFile(fileId);
+      
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      if (file.systemInstanceId !== systemInstanceId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      // Approve file
+      const updated = await storage.approveTestFileForML(fileId, userEmail);
+      
+      res.json({ ok: updated, mlApproved: true });
+    } catch (error: any) {
+      log.error("Error approving file for ML", error);
       res.status(500).json({ error: error.message });
     }
   });

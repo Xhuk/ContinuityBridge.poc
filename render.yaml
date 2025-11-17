@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: continuitybridge
+    env: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        value: file:./data/continuity.db
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SUPERADMIN_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+    healthCheckPath: /api/health
+    autoDeploy: true
+    domains:
+      - continuitybridge.onrender.com
