@@ -1,5 +1,4 @@
-import { db } from "../../db.js";
-import { users, systemLogs } from "../../schema.js";
+import { db, users } from "../../db.js";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { hashPassword } from "../routes/auth-login.js";

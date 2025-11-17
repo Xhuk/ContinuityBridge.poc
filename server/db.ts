@@ -106,3 +106,10 @@ if (dbType === "sqlite") {
 export const db = (sqliteDb || postgresDb)!;
 export const databaseType = dbType as "sqlite" | "postgres";
 export const sqlite = sqliteClient;
+
+// Export table definitions from PostgreSQL schema when using postgres
+// This ensures runtime code uses the correct schema types
+export const { users, systemLogs, logConfigurations, magicLinks } = 
+  dbType === "postgres" 
+    ? await import("./schema.pg.js")
+    : sqliteSchema;
