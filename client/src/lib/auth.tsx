@@ -5,6 +5,7 @@ interface AuthUser {
   email: string;
   role: "superadmin" | "consultant" | "customer_admin" | "customer_user";
   organizationId?: string;
+  organizationName?: string;
   assignedCustomers?: string[];
   selectedTenant?: {
     tenantId: string;

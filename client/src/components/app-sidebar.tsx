@@ -1,4 +1,4 @@
-import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban } from "lucide-react";
+import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -12,6 +12,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 
 const menuItems = [
@@ -76,9 +77,14 @@ const adminMenuItems = [
 ];
 
 export function AppSidebar({ queueBackend }: { queueBackend?: string }) {
-  const [location] = useLocation();
-  const { user } = useAuth();
+  const [location, setLocation] = useLocation();
+  const { user, logout } = useAuth();
   const isSuperAdmin = user?.role === "superadmin";
+
+  const handleLogout = () => {
+    logout();
+    setLocation("/");
+  };
 
   return (
     <Sidebar>
@@ -136,16 +142,41 @@ export function AppSidebar({ queueBackend }: { queueBackend?: string }) {
         )}
       </SidebarContent>
       <SidebarFooter>
-        <div className="px-4 py-3 border-t border-sidebar-border">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Queue Backend</span>
-            <Badge
-              variant="secondary"
-              className="rounded-full text-xs font-medium"
-              data-testid="badge-queue-backend"
-            >
-              {queueBackend || "InMemory"}
-            </Badge>
+        <div className="p-2 space-y-2">
+          {/* User Profile */}
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={location === "/profile"}>
+                <Link href="/profile">
+                  <User className="h-5 w-5" />
+                  <span className="flex-1">Profile</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+
+          {/* Logout Button */}
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={handleLogout}
+          >
+            <LogOut className="h-5 w-5" />
+            <span>Logout</span>
+          </Button>
+
+          {/* Queue Backend Badge */}
+          <div className="px-2 pt-2 border-t border-sidebar-border">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Queue Backend</span>
+              <Badge
+                variant="secondary"
+                className="rounded-full text-xs font-medium"
+                data-testid="badge-queue-backend"
+              >
+                {queueBackend || "InMemory"}
+              </Badge>
+            </div>
           </div>
         </div>
       </SidebarFooter>

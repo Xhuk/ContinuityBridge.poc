@@ -18,6 +18,7 @@ import Settings from "@/pages/settings";
 import MappingGenerator from "@/pages/MappingGenerator";
 import Projects from "@/pages/admin/projects";
 import TenantSelector from "@/pages/tenant-selector";
+import Profile from "@/pages/profile";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import type { QueueConfig } from "@shared/schema";
@@ -75,6 +76,7 @@ function Router() {
               <Route path="/test-files" component={TestFiles} />
               <Route path="/mappergenerator" component={MappingGenerator} />
               <Route path="/settings" component={Settings} />
+              <Route path="/profile" component={Profile} />
               {user?.role === "superadmin" && (
                 <Route path="/admin/projects" component={Projects} />
               )}
