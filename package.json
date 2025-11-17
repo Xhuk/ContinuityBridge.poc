@@ -11,7 +11,8 @@
     "start": "NODE_ENV=production npm run db:migrate && node dist/index.js",
     "db:migrate": "node scripts/run-sql-migration.js && drizzle-kit push --force",
     "deploy:check": "node scripts/pre-deploy-check.js",
-    "wiki:export": "node scripts/export-wiki-to-github.js"
+    "wiki:export": "node scripts/export-wiki-to-github.js",
+    "wiki:publish": "bash scripts/publish-wiki.sh"
   },
   "engines": {
     "node": "20.x"
