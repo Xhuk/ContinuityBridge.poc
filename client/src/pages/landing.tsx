@@ -112,7 +112,105 @@ export default function Landing() {
     }
   };
 
-  // Standard browser 404 error page emulation
+  // Standard browser 404 error page emulation (for platform)
+  // OR institutional page (for customer deployments)
+  const isCustomerDeployment = import.meta.env.VITE_DEPLOYMENT_TYPE === 'customer';
+  
+  if (isCustomerDeployment) {
+    // Customer deployment: Show institutional/corporate landing page
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        {/* Header */}
+        <header className="bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">ContinuityBridge</h1>
+                <p className="text-sm text-gray-600 mt-1">Enterprise Integration Platform</p>
+              </div>
+              <Button
+                onClick={() => setLocation('/admin')}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Sign In
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        {/* Hero Section */}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="text-center">
+            <h2 className="text-4xl font-bold text-gray-900 sm:text-5xl md:text-6xl">
+              Enterprise Integration
+              <span className="block text-blue-600">Made Simple</span>
+            </h2>
+            <p className="mt-6 max-w-2xl mx-auto text-xl text-gray-600">
+              Connect, transform, and orchestrate data flows across your entire technology ecosystem
+              with our powerful middleware platform.
+            </p>
+            <div className="mt-10 flex justify-center gap-4">
+              <Button
+                onClick={() => setLocation('/admin')}
+                size="lg"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
+              >
+                Access Platform
+              </Button>
+            </div>
+          </div>
+
+          {/* Features Grid */}
+          <div className="mt-24 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <h3 className="text-xl font-semibold text-gray-900">Visual Flow Builder</h3>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Design complex integration workflows with our intuitive drag-and-drop interface.
+                  No coding required.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <h3 className="text-xl font-semibold text-gray-900">Real-Time Monitoring</h3>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Track data flows in real-time with comprehensive dashboards and alerting capabilities.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <h3 className="text-xl font-semibold text-gray-900">Enterprise Security</h3>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Bank-grade encryption, role-based access control, and comprehensive audit logging.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+
+        {/* Footer */}
+        <footer className="mt-24 bg-white border-t border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <p className="text-center text-gray-500 text-sm">
+              © {new Date().getFullYear()} ContinuityBridge. All rights reserved.
+            </p>
+          </div>
+        </footer>
+      </div>
+    );
+  }
+
+  // Platform deployment: Show 404 security page
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4">
       <div className="max-w-2xl w-full text-center">
