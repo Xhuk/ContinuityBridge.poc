@@ -312,6 +312,9 @@ next-env.d.ts
 # PROJECT-SPECIFIC
 # ============================================================================
 
+# Separate landing page project (lives in its own repo)
+silentfox-landing/
+
 # Documentation files (auto-generated, not version controlled)
 *.md
 
