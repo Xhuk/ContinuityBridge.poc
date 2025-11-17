@@ -2,6 +2,7 @@ import { Router } from "express";
 import { ExportOrchestrator } from "../export/export-orchestrator";
 import { ManifestManager } from "../export/manifest-manager";
 import { LicenseManager } from "../export/license-manager";
+import { GitHubBackupService } from "../services/github-backup.js";
 import { db } from "../../db";
 import { flowDefinitions } from "../../schema";
 import { eq } from "drizzle-orm";
@@ -26,6 +27,7 @@ router.post("/generate", authenticateUser, requireSuperAdmin, async (req, res) =
       maxFlows,
       environment = "production",
       includeInactive = false,
+      enableGitHubBackup = true,
     } = req.body;
 
     if (!organizationId || !organizationName) {
@@ -45,7 +47,62 @@ router.post("/generate", authenticateUser, requireSuperAdmin, async (req, res) =
       includeInactive,
     });
 
-    res.json(result);
+    // GitHub backup (if enabled)
+    let backupResult = null;
+    if (enableGitHubBackup) {
+      try {
+        const githubBackup = new GitHubBackupService();
+        
+        // Collect all generated files for backup
+        const files: Array<{ path: string; content: string; description?: string }> = [];
+        
+        // Read export directory
+        const exportPath = path.join(process.cwd(), "exports", `export-${result.exportId}`);
+        const exportFiles = await fs.readdir(exportPath, { recursive: true });
+        
+        for (const file of exportFiles) {
+          const filePath = path.join(exportPath, file as string);
+          const stat = await fs.stat(filePath);
+          
+          if (stat.isFile()) {
+            const content = await fs.readFile(filePath, "utf-8");
+            files.push({
+              path: `exports/${organizationId}/${file}`,
+              content,
+              description: `Exported ${path.extname(file as string)} file`,
+            });
+          }
+        }
+        
+        backupResult = await githubBackup.backupCustomerDeployment({
+          customerName: organizationName,
+          organizationId,
+          environment: environment as any,
+          files,
+          metadata: {
+            promotedBy: req.user?.email || "system",
+            promotedAt: new Date().toISOString(),
+            version: result.version || "1.0.0",
+            configSnapshot: {
+              licenseType,
+              environment,
+              flowCount: result.manifest?.flowCount || 0,
+              exportId: result.exportId,
+            },
+          },
+        });
+        
+        console.log("GitHub backup completed", backupResult);
+      } catch (backupError: any) {
+        console.warn("GitHub backup failed (non-critical):", backupError.message);
+        // Don't fail export if backup fails
+      }
+    }
+
+    res.json({
+      ...result,
+      backup: backupResult,
+    });
   } catch (error: any) {
     console.error("Export generation failed:", error);
     res.status(500).json({ error: error.message });
