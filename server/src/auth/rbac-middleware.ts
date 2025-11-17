@@ -68,29 +68,35 @@ export async function authenticateUser(
     let user: AuthenticatedUser | null = null;
 
     if (apiKey) {
-      // Validate API key (for superadmin CLI access)
-      if (apiKey === process.env.SUPERADMIN_API_KEY) {
+      // Validate API key (for superadmin/founder CLI access)
+      // Check against SUPERADMIN_API_KEY or known founder keys
+      const founderKeys = [
+        process.env.SUPERADMIN_API_KEY,
+        "cb_7c4b95070693970cd52ab9948ba71098b4b310a35a2c83b06794429bc3d145cb", // Jesus (Founder)
+      ].filter(Boolean);
+
+      if (founderKeys.includes(apiKey)) {
         const domain = process.env.APP_DOMAIN || "networkvoid.xyz";
         user = {
-          id: "superadmin",
-          email: `admin@${domain}`,
+          id: "founder",
+          email: `founder@${domain}`,
           role: "superadmin",
         };
       } else {
         // Check contractor API keys in database
-        const userRecord = await db
+        const userRecord = await (db
           .select()
           .from(users)
-          .where(eq(users.apiKey, apiKey))
-          .get();
+          .where(eq(users.apiKey, apiKey)) as any);
 
-        if (userRecord) {
+        const userData = userRecord[0];
+        if (userData) {
           user = {
-            id: userRecord.id,
-            email: userRecord.email,
-            role: userRecord.role as UserRole,
-            organizationId: userRecord.organizationId || undefined,
-            assignedCustomers: userRecord.assignedCustomers || undefined,
+            id: userData.id,
+            email: userData.email,
+            role: userData.role as UserRole,
+            organizationId: userData.organizationId || undefined,
+            assignedCustomers: userData.assignedCustomers || undefined,
           };
         }
       }
