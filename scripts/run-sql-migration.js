@@ -31,11 +31,31 @@ async function runMigration() {
     
     const pool = new Pool({ connectionString: DATABASE_URL });
     
-    // Read the SQL migration file
-    const migrationSQL = readFileSync(
-      join(__dirname, 'add-confirmation-columns.sql'),
-      'utf-8'
-    );
+    // Try multiple paths for the SQL file (handles both dev and production builds)
+    let migrationSQL;
+    const possiblePaths = [
+      join(__dirname, 'add-confirmation-columns.sql'),           // Dev: scripts/
+      join(__dirname, '..', 'scripts', 'add-confirmation-columns.sql'), // Prod: from dist/
+      join(process.cwd(), 'scripts', 'add-confirmation-columns.sql'),   // Fallback: from project root
+    ];
+    
+    let sqlPath = null;
+    for (const path of possiblePaths) {
+      try {
+        migrationSQL = readFileSync(path, 'utf-8');
+        sqlPath = path;
+        break;
+      } catch (err) {
+        continue; // Try next path
+      }
+    }
+    
+    if (!migrationSQL) {
+      console.log('[Migration] ⚠️  SQL migration file not found, skipping...');
+      process.exit(0);
+    }
+    
+    console.log(`[Migration] 📄 Using SQL file: ${sqlPath}`);
     
     // Execute the migration
     await pool.query(migrationSQL);
