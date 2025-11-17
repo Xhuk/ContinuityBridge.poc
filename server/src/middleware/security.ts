@@ -80,9 +80,16 @@ export const corsConfig = cors({
       process.env.APP_URL,
       `https://${process.env.APP_DOMAIN}`,
       'https://networkvoid.xyz',
+      'https://demo-poc-vuw3.onrender.com', // Render deployment
     ].filter(Boolean);
 
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow requests with no origin (same-origin requests, static assets)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
