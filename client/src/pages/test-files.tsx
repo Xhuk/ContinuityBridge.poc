@@ -28,6 +28,7 @@ interface TestFile {
   fileSize: number;
   uploadedAt: string;
   notes?: NoteIteration[]; // Visible to consultants & founders, NOT customers
+  founderNotes?: string; // Only visible to superadmin
   mlApproved?: boolean;
   mlApprovedBy?: string;
   mlApprovedAt?: string;
@@ -47,6 +48,8 @@ export default function TestFiles() {
   const [description, setDescription] = useState("");
   const [initialNote, setInitialNote] = useState(""); // For upload dialog
   const [newNote, setNewNote] = useState(""); // For adding iterations
+  const [founderNotes, setFounderNotes] = useState(""); // For superadmin founder notes
+  const [editingNotes, setEditingNotes] = useState(""); // For editing existing notes
 
   // Get user role from auth context (production-ready)
   const userRole = user?.role || "customer_user";
@@ -197,6 +200,45 @@ export default function TestFiles() {
       });
     },
   });
+
+  // Update founder notes mutation (superadmin only)
+  const updateNotesMutation = useMutation({
+    mutationFn: async ({ fileId, notes }: { fileId: string; notes: string }) => {
+      const response = await fetch(
+        `/api/system-instances/${selectedSystemInstance}/test-files/${fileId}/founder-notes`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ founderNotes: notes }),
+        }
+      );
+      if (!response.ok) throw new Error("Failed to update notes");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["/api/system-instances", selectedSystemInstance, "test-files"],
+      });
+      setNotesDialogOpen(false);
+      toast({
+        title: "Notes saved",
+        description: "Founder notes updated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Save failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Save notes function
+  const saveNotes = () => {
+    if (!selectedFile) return;
+    updateNotesMutation.mutate({ fileId: selectedFile.id, notes: editingNotes });
+  };
 
   const handleDownload = (file: TestFile) => {
     window.open(
