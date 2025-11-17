@@ -67,7 +67,7 @@ router.post("/generate", authenticateUser, requireSuperAdmin, async (req, res) =
           if (stat.isFile()) {
             const content = await fs.readFile(filePath, "utf-8");
             files.push({
-              path: `exports/${organizationId}/${file}`,
+              path: `${environment}/${organizationId}/${file}`,
               content,
               description: `Exported ${path.extname(file as string)} file`,
             });

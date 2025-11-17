@@ -83,7 +83,7 @@ export class GitHubBackupService {
     try {
       // Sanitize customer name for branch name
       const sanitizedName = this.sanitizeBranchName(config.customerName);
-      const branchName = `customer/${sanitizedName}-${config.environment}`;
+      const branchName = `${config.environment}/${sanitizedName}`;
 
       log.info("Starting GitHub backup", {
         customerName: config.customerName,
@@ -270,18 +270,18 @@ export class GitHubBackupService {
       });
 
       const customerBranches = branches
-        .filter((branch) => branch.name.startsWith("customer/"))
-        .map(async (branch) => {
+        .filter((branch: any) => {
+          // Match branches like: dev/acme-corp, prod/techstart, staging/manufacturing-inc
+          return /^(dev|test|staging|prod)\//.test(branch.name);
+        })
+        .map(async (branch: any) => {
           const { data: commit } = await this.octokit!.repos.getCommit({
             owner: this.owner,
             repo: this.repo,
             ref: branch.commit.sha,
           });
 
-          const [, nameEnv] = branch.name.split("customer/");
-          const lastDash = nameEnv.lastIndexOf("-");
-          const customerName = nameEnv.substring(0, lastDash);
-          const environment = nameEnv.substring(lastDash + 1);
+          const [environment, customerName] = branch.name.split("/");
 
           return {
             branchName: branch.name,
