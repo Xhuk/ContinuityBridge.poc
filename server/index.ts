@@ -2,8 +2,9 @@ import express, { type Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { securityHeaders, corsConfig, apiRateLimit, sanitizeRequest, isHealthCheck } from "./src/middleware/security.js";
+import { securityHeaders, corsConfig, apiRateLimit, authRateLimit, secretsVaultRateLimit, sanitizeRequest, isHealthCheck } from "./src/middleware/security.js";
 import { checkFirstRun, displayReadinessBanner } from "./src/setup/first-run.js";
+import { validateAndLogEnvironment } from "./src/core/env-validator.js";
 
 const app = express();
 
@@ -81,6 +82,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Validate environment variables before startup
+  validateAndLogEnvironment();
+
   // First-run setup and system readiness check
   const readiness = await checkFirstRun();
   displayReadinessBanner(readiness);

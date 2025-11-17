@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DialogFooter } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { NodeDefinition } from "@shared/schema";
 import type { Node } from "@xyflow/react";
 
@@ -56,9 +57,9 @@ export function DynamicNodeConfig({
         throw new Error("No node type");
       }
 
-      const url = `/api/node-definitions/${node.data.type}`;
+      const url = `/api/node-definitions/${node?.data?.type}`;
       console.log('[DynamicNodeConfig] Fetching node definition', {
-        nodeType: node.data.type,
+        nodeType: node?.data?.type,
         url,
       });
 
@@ -107,7 +108,7 @@ export function DynamicNodeConfig({
 
       const data = await response.json();
       console.log('[DynamicNodeConfig] Node definition loaded successfully', {
-        nodeType: node.data.type,
+        nodeType: node?.data?.type,
         definition: data,
         configFieldsCount: data.configFields?.length || 0,
       });
@@ -127,7 +128,7 @@ export function DynamicNodeConfig({
       const filterDirection = interfaceField?.filterDirection;
       
       console.log('[DynamicNodeConfig] Fetching interfaces for interface-type fields', {
-        nodeType: node.data.type,
+        nodeType: node?.data?.type,
         filterDirection,
       });
       
@@ -158,6 +159,58 @@ export function DynamicNodeConfig({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Frontend validation
+    const errors: string[] = [];
+    if (nodeDefinition?.configFields) {
+      for (const field of nodeDefinition.configFields) {
+        const value = config[field.name];
+        
+        // Required field validation
+        if (field.required && (value === undefined || value === null || value === "")) {
+          errors.push(`${field.label} is required`);
+          continue;
+        }
+        
+        // Email validation
+        if (field.type === "text" && field.name.toLowerCase().includes("email") && value) {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(String(value))) {
+            errors.push(`${field.label} must be a valid email address`);
+          }
+        }
+        
+        // Password validation
+        if (field.type === "password" && field.required && value) {
+          if (String(value).length < 8) {
+            errors.push(`${field.label} must be at least 8 characters long`);
+          }
+          if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(String(value))) {
+            errors.push(`${field.label} must contain uppercase, lowercase, and number`);
+          }
+        }
+        
+        // Number validation
+        if (field.type === "number" && value !== undefined && value !== null && value !== "") {
+          const numValue = Number(value);
+          if (isNaN(numValue)) {
+            errors.push(`${field.label} must be a valid number`);
+          }
+        }
+      }
+    }
+    
+    // Display validation errors
+    if (errors.length > 0) {
+      console.error('[DynamicNodeConfig] Validation errors', errors);
+      // We'll set validation errors in state to display them properly
+      setValidationErrors(errors);
+      return;
+    }
+    
+    // Clear validation errors if submission is valid
+    setValidationErrors([]);
+    
     console.log('[DynamicNodeConfig] Saving configuration', {
       nodeId: node?.id,
       nodeType: node?.data?.type,
@@ -165,6 +218,9 @@ export function DynamicNodeConfig({
     });
     onSave(config);
   };
+
+  // Add validation errors state
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Log loading state
   if (isLoading) {
@@ -217,6 +273,18 @@ export function DynamicNodeConfig({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Display validation errors */}
+      {validationErrors.length > 0 && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            <ul className="list-disc pl-5 space-y-1">
+              {validationErrors.map((error, index) => (
+                <li key={index}>{error}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
       {nodeDefinition.configFields.map((field) => {
         const value = config[field.name] ?? field.default ?? "";
 

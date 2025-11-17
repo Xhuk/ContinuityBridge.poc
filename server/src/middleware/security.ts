@@ -3,6 +3,9 @@ import helmet from 'helmet';
 import cors from 'cors';
 import { body, validationResult } from 'express-validator';
 import type { Request, Response, NextFunction } from 'express';
+import { logger } from '../core/logger.js';
+
+const securityLog = logger.child("SecurityMiddleware");
 
 /**
  * Security Middleware for Production Environment
@@ -13,12 +16,13 @@ import type { Request, Response, NextFunction } from 'express';
  * - CORS configuration
  * - Input validation
  * - Request sanitization
+ * - Audit logging for security events
  */
 
 const isProd = process.env.NODE_ENV === 'production';
 
 /**
- * Helmet - Security headers
+ * Enhanced Helmet - Security headers with comprehensive protection
  */
 export const securityHeaders = helmet({
   contentSecurityPolicy: isProd ? {
@@ -32,6 +36,7 @@ export const securityHeaders = helmet({
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       frameSrc: ["'none'"],
+      upgradeInsecureRequests: [],
     },
   } : false,
   hsts: isProd ? {
@@ -39,6 +44,24 @@ export const securityHeaders = helmet({
     includeSubDomains: true,
     preload: true,
   } : false,
+  frameguard: {
+    action: 'deny',
+  },
+  hidePoweredBy: true,
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: {
+    policy: 'strict-origin-when-cross-origin',
+  },
+  crossOriginEmbedderPolicy: true,
+  crossOriginOpenerPolicy: true,
+  crossOriginResourcePolicy: true,
+  originAgentCluster: true,
+  dnsPrefetchControl: true,
+  ieNoOpen: true,
+  permittedCrossDomainPolicies: {
+    permittedPolicies: 'none',
+  },
 });
 
 /**
@@ -112,18 +135,62 @@ export const exportRateLimit = rateLimit({
   message: 'Export limit reached, please try again later',
 });
 
+// Secrets vault rate limit (highly sensitive operations)
+export const secretsVaultRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 3, // Only 3 attempts per 15 minutes
+  message: 'Too many vault access attempts, please try again later',
+  skipSuccessfulRequests: true,
+  handler: (req, res) => {
+    // Log security event
+    securityLog.warn('Secrets vault rate limit exceeded', {
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      path: req.path,
+      timestamp: new Date().toISOString(),
+    });
+    
+    res.status(429).json({
+      error: 'Rate limit exceeded',
+      message: 'Too many vault access attempts, please try again later',
+    });
+  }
+});
+
+/**
+ * Audit Logging for Security Events
+ */
+export const securityAuditLog = (event: string, details: Record<string, any>) => {
+  securityLog.info(`[Security Audit] ${event}`, {
+    ...details,
+    timestamp: new Date().toISOString(),
+  });
+  
+  // TODO: Persist audit logs to database for compliance in production
+  // For now, logs are written to file via Winston
+};
+
 /**
  * Input Validation Middleware
  */
 export const validateRequest = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    // Create user-friendly error messages
+    const userFriendlyErrors = errors.array().map(err => ({
+      field: err.type === 'field' ? err.path : 'unknown',
+      message: err.msg,
+      // Provide more context for common validation errors
+      ...(err.msg.includes('required') && { suggestion: 'This field is required' }),
+      ...(err.msg.includes('email') && { suggestion: 'Please enter a valid email address' }),
+      ...(err.msg.includes('password') && { suggestion: 'Password must be at least 8 characters with uppercase, lowercase, and number' }),
+      ...(err.msg.includes('API key') && { suggestion: 'API key must be in the correct format' }),
+    }));
+    
     return res.status(400).json({
       error: 'Validation failed',
-      details: errors.array().map(err => ({
-        field: err.type === 'field' ? err.path : undefined,
-        message: err.msg,
-      })),
+      message: 'Please check the form and try again',
+      details: userFriendlyErrors,
     });
   }
   next();

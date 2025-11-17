@@ -16,6 +16,7 @@ import type { SystemInstanceTestFile } from "../../schema.js";
 import { db } from "../../db.js";
 import { secretsMasterKeys } from "../../schema.js";
 import { eq } from "drizzle-orm";
+import { secretsVaultRateLimit } from "../middleware/security.js";
 
 const log = logger.child("REST-API");
 
@@ -1480,7 +1481,7 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
   });
 
   // POST /api/secrets/initialize - Initialize vault with master seed
-  app.post("/api/secrets/initialize", async (req, res) => {
+  app.post("/api/secrets/initialize", secretsVaultRateLimit, async (req, res) => {
     try {
       if (!storage || !storage.getMasterKey || !storage.saveMasterKey) {
         return res.status(501).json({ error: "Secrets vault not available" });
@@ -1530,7 +1531,7 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
   });
 
   // POST /api/secrets/unlock - Unlock vault with master seed (rate limited)
-  app.post("/api/secrets/unlock", async (req, res) => {
+  app.post("/api/secrets/unlock", secretsVaultRateLimit, async (req, res) => {
     try {
       if (!storage || !storage.getMasterKey) {
         return res.status(501).json({ error: "Secrets vault not available" });
