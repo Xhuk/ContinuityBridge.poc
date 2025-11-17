@@ -1,17 +1,17 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database (Master + Customer Databases)
   postgres:
     image: postgres:16-alpine
     container_name: continuitybridge-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: continuitybridge
-      POSTGRES_USER: cbuser
+      POSTGRES_DB: continuitybridge_main
+      POSTGRES_USER: cbadmin
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_production_password}
     volumes:
-      # Persist data on host machine
+      # Persist all databases on host machine
       - ./postgres-data:/var/lib/postgresql/data
       # Optional: Custom PostgreSQL config
       # - ./postgresql.conf:/etc/postgresql/postgresql.conf
@@ -19,7 +19,7 @@ services:
       # Expose only on localhost (use nginx/reverse proxy for external access)
       - "127.0.0.1:5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cbuser -d continuitybridge"]
+      test: ["CMD-SHELL", "pg_isready -U cbadmin -d continuitybridge_main"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,7 +39,7 @@ services:
     environment:
       NODE_ENV: production
       DB_TYPE: postgres
-      DATABASE_URL: postgresql://cbuser:${POSTGRES_PASSWORD:-changeme_production_password}@postgres:5432/continuitybridge
+      DATABASE_URL: postgresql://cbadmin:${POSTGRES_PASSWORD:-changeme_production_password}@postgres:5432/continuitybridge_main
       PORT: 5000
       APP_DOMAIN: ${APP_DOMAIN:-yourdomain.com}
       APP_URL: ${APP_URL:-https://yourdomain.com}
