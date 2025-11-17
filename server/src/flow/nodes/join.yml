@@ -1,0 +1,50 @@
+id: join
+category: logic
+label: Join (Data Stitching)
+description: Wait for and combine multiple streams of data using correlation keys
+icon: GitMerge
+
+inputs: 2
+outputs: 1
+
+configFields:
+  - name: correlationKey
+    label: Correlation Key
+    type: text
+    required: true
+    placeholder: orderId
+    helpText: Field name to correlate data streams (e.g., orderId, trackingNumber)
+
+  - name: waitTimeout
+    label: Wait Timeout (seconds)
+    type: number
+    required: false
+    default: 3600
+    helpText: Maximum time to wait for all streams (default 1 hour)
+
+  - name: requiredStreams
+    label: Required Streams
+    type: number
+    required: false
+    default: 2
+    helpText: Number of streams that must arrive before joining
+
+  - name: joinStrategy
+    label: Join Strategy
+    type: select
+    required: false
+    default: merge
+    options:
+      - merge
+      - nested
+      - array
+    helpText: How to combine the data (merge fields, nested objects, or array)
+
+  - name: outputField
+    label: Output Field
+    type: text
+    required: false
+    default: joinedData
+    helpText: Field to store joined result
+
+executor: executeJoin

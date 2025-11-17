@@ -1,0 +1,60 @@
+# Scheduler Node - Timer-based flow trigger (cron)
+# Category: trigger
+
+id: scheduler
+category: trigger
+label: Scheduler (Timer)
+description: Triggers flow execution on a time-based schedule using cron expressions
+icon: Calendar
+
+# Input/Output handles
+inputs: 0        # Triggers have no inputs
+outputs: 1       # Outputs trigger event
+
+# Configuration fields (UI form)
+configFields:
+  - name: cronExpression
+    label: Cron Expression
+    type: text
+    required: true
+    placeholder: "0 */15 * * * *"
+    helpText: "Cron expression (e.g., '0 */15 * * * *' = every 15 minutes)"
+
+  - name: timezone
+    label: Timezone
+    type: text
+    required: false
+    default: UTC
+    placeholder: America/New_York
+    helpText: Timezone for schedule execution (IANA timezone name)
+
+  - name: initialPayload
+    label: Initial Payload (JSON)
+    type: textarea
+    required: false
+    placeholder: '{"type": "scheduled_run", "timestamp": "{{now}}"}'
+    helpText: JSON payload to pass to flow execution (supports {{now}} template)
+
+  - name: enabled
+    label: Enabled
+    type: boolean
+    required: false
+    default: true
+    helpText: Enable/disable this scheduled trigger
+
+  - name: maxConcurrentRuns
+    label: Max Concurrent Runs
+    type: number
+    required: false
+    default: 1
+    helpText: Maximum number of concurrent executions (0 = unlimited)
+
+  - name: skipIfRunning
+    label: Skip If Already Running
+    type: boolean
+    required: false
+    default: true
+    helpText: Skip execution if previous run is still in progress
+
+# Backend executor function
+executor: executeScheduler

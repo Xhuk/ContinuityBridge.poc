@@ -1,0 +1,58 @@
+id: azure_blob_connector
+category: output
+label: Azure Blob Connector
+description: Upload, download, or manage files in Azure Blob Storage
+icon: Cloud
+
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: operation
+    label: Operation
+    type: select
+    required: true
+    default: upload
+    options:
+      - upload
+      - download
+      - delete
+      - list
+    helpText: Azure Blob operation to perform
+
+  - name: connectionString
+    label: Connection String
+    type: text
+    required: true
+    placeholder: DefaultEndpointsProtocol=https;AccountName=...
+    helpText: Azure Storage account connection string
+
+  - name: containerName
+    label: Container Name
+    type: text
+    required: true
+    placeholder: uploads
+    helpText: Blob container name
+
+  - name: blobName
+    label: Blob Name
+    type: text
+    required: false
+    placeholder: "{{$.filename}}"
+    helpText: Blob name (supports template variables like {{$.field}})
+
+  - name: sourceField
+    label: Source Field
+    type: text
+    required: false
+    default: fileContent
+    helpText: Field containing file content to upload
+
+  - name: outputField
+    label: Output Field
+    type: text
+    required: false
+    default: blobUrl
+    helpText: Field to store blob URL or download content
+
+executor: executeAzureBlobConnector

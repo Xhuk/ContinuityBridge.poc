@@ -21,7 +21,11 @@ import { executeSftpConnector } from "./executors/sftp-connector";
 import { executeAzureBlobConnector } from "./executors/azure-blob-connector";
 import { executeSftpPoller } from "./executors/sftp-poller";
 import { executeAzureBlobPoller } from "./executors/azure-blob-poller";
+import { executeDatabasePoller } from "./executors/database-poller";
 import { executeScheduler } from "./executors/scheduler";
+import { executeHttpRequest } from "./executors/http-request";
+import { executeEmailNotification } from "./executors/email-notification";
+import { executeErrorHandler } from "./executors/error-handler";
 
 /**
  * Flow Orchestrator - Executes flows by traversing nodes and executing them in sequence
@@ -61,7 +65,11 @@ export class FlowOrchestrator {
     this.registerExecutor("executeAzureBlobConnector", executeAzureBlobConnector);
     this.registerExecutor("executeSftpPoller", executeSftpPoller);
     this.registerExecutor("executeAzureBlobPoller", executeAzureBlobPoller);
+    this.registerExecutor("executeDatabasePoller", executeDatabasePoller);
     this.registerExecutor("executeScheduler", executeScheduler);
+    this.registerExecutor("executeHttpRequest", executeHttpRequest);
+    this.registerExecutor("executeEmailNotification", executeEmailNotification);
+    this.registerExecutor("executeErrorHandler", executeErrorHandler);
   }
 
   /**
@@ -175,6 +183,7 @@ export class FlowOrchestrator {
       traceId: flowRun.traceId,
       runId: flowRun.id,
       emulationMode,
+      storage: this.storage,  // Pass storage for error logging
     };
 
     // Recursive execution
@@ -336,9 +345,13 @@ export class FlowOrchestrator {
       database_connector: "executeDatabaseConnector",
       sftp_connector: "executeSftpConnector",
       azure_blob_connector: "executeAzureBlobConnector",
+      database_poller: "executeDatabasePoller",
       sftp_poller: "executeSftpPoller",
       azure_blob_poller: "executeAzureBlobPoller",
       scheduler: "executeScheduler",
+      http_request: "executeHttpRequest",
+      email_notification: "executeEmailNotification",
+      error_handler: "executeErrorHandler",
     };
 
     return executorMap[node.type] || node.type;

@@ -10,6 +10,7 @@ As a **Consultant**, you are a customer-scoped administrator who manages integra
 ### What You Can Do
 ✅ **Customer Management**
 - Access only your assigned customer organizations
+- **Select which customer tenant to work with** (multi-customer support)
 - View and manage flows for assigned customers
 - Create, edit, and test integration flows
 - Configure data mappings and transformations
@@ -40,7 +41,74 @@ As a **Consultant**, you are a customer-scoped administrator who manages integra
 
 ## Key Features
 
-### 1. Flow Builder
+### 1. Tenant Selection (Multi-Customer Access)
+
+#### Login and Tenant Selection
+
+When you log in via email or magic link, you'll be presented with a **Tenant Selection** screen if you're assigned to multiple customers.
+
+**Tenant Selection Process**:
+1. Log in with your email/magic link
+2. System loads your assigned customer tenants
+3. See list of available tenants grouped by organization:
+
+**Example Tenant List**:
+```
+ACME Corporation
+  🔵 acme-001-dev       (Development)
+  🟡 acme-001-test      (Testing)
+  🟣 acme-001-staging   (Staging/UAT)
+  🔴 acme-001-prod      (Production)
+
+BigCo Industries
+  🔵 bigco-123-dev      (Development)
+  🟡 bigco-123-test     (Testing)
+  🔴 bigco-123-prod     (Production)
+```
+
+4. Click on the tenant you want to work with
+5. Session is scoped to that tenant and environment
+6. Dashboard loads with tenant-specific data
+
+**Environment Color Coding**:
+- 🔵 **Blue** = DEV (Development)
+- 🟡 **Yellow** = TEST (Testing)
+- 🟣 **Purple** = STAGING (UAT)
+- 🔴 **Red** = PROD (Production)
+
+#### Switching Tenants
+
+To switch to a different customer or environment:
+1. Log out
+2. Log back in
+3. Select different tenant from the list
+
+**⚠️ Note**: You can only access tenants you've been explicitly assigned to by a Superadmin.
+
+#### Tenant Naming Convention
+
+Tenants follow Azure-style naming:
+```
+{organization-slug}-{instance-number}-{environment}
+
+Examples:
+- acme-001-dev
+- bigco-123-prod
+- widgets-042-staging
+```
+
+#### What Changes After Selection
+
+Once you select a tenant:
+- ✅ All flows scoped to that customer/environment
+- ✅ All interfaces for that organization
+- ✅ Error dashboard filtered to that tenant
+- ✅ Users list shows only that organization
+- ✅ All API calls scoped to selected tenant
+
+---
+
+### 2. Flow Builder
 
 #### Creating a New Flow
 1. Navigate to **Flows** page

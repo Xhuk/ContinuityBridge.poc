@@ -1,0 +1,64 @@
+id: http_request
+category: transform
+label: HTTP Request
+description: Make HTTP API call to external service
+icon: globe
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: method
+    label: HTTP Method
+    type: select
+    required: true
+    default: GET
+    options:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+    helpText: "HTTP request method"
+
+  - name: url
+    label: URL
+    type: text
+    required: true
+    placeholder: "https://api.example.com/orders/{{orderId}}"
+    helpText: "Target URL with {{variable}} placeholders"
+
+  - name: headers
+    label: Headers (JSON)
+    type: code
+    required: false
+    placeholder: |
+      {
+        "Authorization": "Bearer {{token}}",
+        "Content-Type": "application/json"
+      }
+    helpText: "HTTP headers as JSON object"
+
+  - name: body
+    label: Request Body
+    type: code
+    required: false
+    placeholder: '{"data": "{{payload}}"}'
+    helpText: "Request body (for POST/PUT/PATCH)"
+
+  - name: timeout
+    label: Timeout (seconds)
+    type: number
+    required: false
+    default: 30
+    placeholder: "30"
+    helpText: "Request timeout in seconds"
+
+  - name: retryCount
+    label: Retry Count
+    type: number
+    required: false
+    default: 0
+    placeholder: "0"
+    helpText: "Number of retry attempts on failure"
+
+executor: http_request

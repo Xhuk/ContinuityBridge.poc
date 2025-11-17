@@ -1,0 +1,64 @@
+# Logger Node - Log data to system logs
+# Category: transform
+
+id: logger
+category: transform
+label: Logger
+description: Logs data to system logs with configurable level and formatting (passthrough node)
+icon: FileText
+
+# Input/Output handles
+inputs: 1        # Input data to log
+outputs: 1       # Outputs same data (passthrough)
+
+# Configuration fields (UI form)
+configFields:
+  - name: logLevel
+    label: Log Level
+    type: select
+    required: true
+    default: info
+    options:
+      - debug
+      - info
+      - warn
+      - error
+    helpText: Severity level for log entries
+
+  - name: message
+    label: Log Message Template
+    type: text
+    required: false
+    placeholder: "Processing order {{orderId}}"
+    helpText: Template for log message (supports {{field}} placeholders)
+
+  - name: includePayload
+    label: Include Full Payload
+    type: boolean
+    required: false
+    default: true
+    helpText: If true, log the entire input payload
+
+  - name: payloadFields
+    label: Specific Fields to Log (Optional)
+    type: textarea
+    required: false
+    placeholder: "orderId, customerName, totalAmount"
+    helpText: Comma-separated list of fields to log (if includePayload is false)
+
+  - name: logToFile
+    label: Log to File
+    type: boolean
+    required: false
+    default: true
+    helpText: Write logs to daily rotation files
+
+  - name: logToDatabase
+    label: Log to Database
+    type: boolean
+    required: false
+    default: false
+    helpText: Persist logs to system_logs table
+
+# Backend executor function
+executor: executeLogger

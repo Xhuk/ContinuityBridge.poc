@@ -55,9 +55,9 @@ router.post("/generate", authenticateUser, requireSuperAdmin, async (req, res) =
 /**
  * GET /api/export/manifest
  * Get current manifest (all assets with status)
- * 🔒 Contractors can view to see their work status
+ * 🔒 Consultants can view to see their work status
  */
-router.get("/manifest", authenticateUser, requireContractor, async (req, res) => {
+router.get("/manifest", authenticateUser, requireConsultant, async (req, res) => {
   try {
     const manifestManager = new ManifestManager();
     const manifest = await manifestManager.generateManifest("development");

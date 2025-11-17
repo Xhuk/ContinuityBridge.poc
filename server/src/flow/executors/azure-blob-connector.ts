@@ -109,56 +109,76 @@ export const executeAzureBlobConnector: NodeExecutor = async (
     };
   }
 
-  // PRODUCTION MODE - TODO: Implement Azure Blob Storage client
-  throw new Error(
-    `Azure Blob Connector not yet implemented for production. ` +
-    `Operation: ${operation}, Container: ${containerName}. ` +
-    `TODO: Install '@azure/storage-blob' and implement blob operations. ` +
-    `Use emulation mode for testing.`
-  );
-  
-  /* PRODUCTION IMPLEMENTATION TEMPLATE:
-  
-  import { BlobServiceClient } from '@azure/storage-blob';
-  
-  const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
-  const containerClient = blobServiceClient.getContainerClient(containerName);
-  const blockBlobClient = containerClient.getBlockBlobClient(processedBlobName);
-  
-  switch (operation) {
-    case 'upload':
-      const fileContent = (input as any)[sourceField];
-      await blockBlobClient.upload(fileContent, fileContent.length);
-      const uploadUrl = blockBlobClient.url;
-      return {
-        output: { ...input, blobUrl: uploadUrl },
-        metadata: { azureOperation: 'upload', blobUrl: uploadUrl }
-      };
+  // PRODUCTION MODE - Real Azure Blob operations
+  try {
+    const { BlobServiceClient } = await import("@azure/storage-blob");
+    
+    const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+    const blockBlobClient = containerClient.getBlockBlobClient(processedBlobName);
+    
+    switch (operation) {
+      case "upload": {
+        const fileContent = (input as any)[sourceField];
+        if (!fileContent) {
+          throw new Error(`Source field '${sourceField}' not found in payload`);
+        }
+        const content = typeof fileContent === "string" ? fileContent : JSON.stringify(fileContent);
+        await blockBlobClient.upload(content, content.length);
+        const uploadUrl = blockBlobClient.url;
+        
+        return {
+          output: { ...input as any, blobUrl: uploadUrl },
+          metadata: { azureOperation: "upload", blobUrl: uploadUrl, blobName: processedBlobName },
+        };
+      }
       
-    case 'download':
-      const downloadResponse = await blockBlobClient.download();
-      const downloadedContent = await streamToBuffer(downloadResponse.readableStreamBody);
-      return {
-        output: { ...input, downloadedBlob: downloadedContent.toString() },
-        metadata: { azureOperation: 'download' }
-      };
+      case "download": {
+        const downloadResponse = await blockBlobClient.download();
+        if (!downloadResponse.readableStreamBody) {
+          throw new Error("Failed to download blob - no readable stream");
+        }
+        const downloadedContent = await streamToBuffer(downloadResponse.readableStreamBody);
+        
+        return {
+          output: { ...input as any, downloadedBlob: downloadedContent.toString() },
+          metadata: { azureOperation: "download", blobName: processedBlobName },
+        };
+      }
       
-    case 'delete':
-      await blockBlobClient.delete();
-      return {
-        output: input,
-        metadata: { azureOperation: 'delete' }
-      };
+      case "delete": {
+        await blockBlobClient.delete();
+        
+        return {
+          output: input,
+          metadata: { azureOperation: "delete", blobName: processedBlobName },
+        };
+      }
+      
+      default:
+        throw new Error(`Unsupported Azure Blob operation: ${operation}`);
+    }
+  } catch (error: any) {
+    // If @azure/storage-blob not installed, throw helpful error
+    if (error.code === "MODULE_NOT_FOUND" || error.message?.includes("Cannot find module")) {
+      throw new Error(
+        `Azure Blob Connector requires '@azure/storage-blob' package. ` +
+        `Install with: npm install @azure/storage-blob. ` +
+        `Use emulation mode for testing without Azure Storage.`
+      );
+    }
+    throw error;
   }
-  
-  async function streamToBuffer(readableStream): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const chunks = [];
-      readableStream.on('data', (data) => chunks.push(data instanceof Buffer ? data : Buffer.from(data)));
-      readableStream.on('end', () => resolve(Buffer.concat(chunks)));
-      readableStream.on('error', reject);
-    });
-  }
-  
-  */
 };
+
+// Helper to convert stream to buffer
+async function streamToBuffer(readableStream: NodeJS.ReadableStream): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    readableStream.on("data", (data) => {
+      chunks.push(data instanceof Buffer ? data : Buffer.from(data));
+    });
+    readableStream.on("end", () => resolve(Buffer.concat(chunks)));
+    readableStream.on("error", reject);
+  });
+}

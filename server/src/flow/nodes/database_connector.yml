@@ -1,0 +1,57 @@
+id: database_connector
+category: transform
+label: Database Connector
+description: Execute SQL queries or NoSQL operations on databases
+icon: Database
+
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: dbType
+    label: Database Type
+    type: select
+    required: true
+    default: postgres
+    options:
+      - postgres
+      - mysql
+      - mssql
+      - mongodb
+      - sqlite
+    helpText: Type of database to connect to
+
+  - name: connectionString
+    label: Connection String
+    type: text
+    required: true
+    placeholder: "postgresql://user:pass@host:5432/dbname"
+    helpText: Database connection string
+
+  - name: operation
+    label: Operation
+    type: select
+    required: true
+    default: query
+    options:
+      - query
+      - insert
+      - update
+      - delete
+    helpText: Database operation to perform
+
+  - name: query
+    label: SQL Query / NoSQL Command
+    type: textarea
+    required: true
+    placeholder: "SELECT * FROM products WHERE sku = '{{$.sku}}'"
+    helpText: SQL query or NoSQL command (supports template variables)
+
+  - name: outputField
+    label: Output Field
+    type: text
+    required: false
+    default: queryResults
+    helpText: Field name to store query results
+
+executor: executeDatabaseConnector

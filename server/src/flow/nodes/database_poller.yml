@@ -1,0 +1,71 @@
+id: database_poller
+category: trigger
+label: Database Poller
+description: Poll database for new or updated records
+icon: Database
+
+inputs: 0
+outputs: 1
+
+configFields:
+  - name: dbType
+    label: Database Type
+    type: select
+    required: true
+    default: postgres
+    options:
+      - postgres
+      - mysql
+      - mssql
+      - mongodb
+      - sqlite
+    helpText: Type of database to connect to
+
+  - name: connectionString
+    label: Connection String
+    type: text
+    required: true
+    placeholder: "postgresql://user:pass@host:5432/dbname"
+    helpText: Database connection string
+
+  - name: query
+    label: SQL Query
+    type: textarea
+    required: true
+    placeholder: "SELECT * FROM orders WHERE status = 'pending'"
+    helpText: Query to fetch records
+
+  - name: trackingMode
+    label: Tracking Mode
+    type: select
+    required: true
+    default: timestamp
+    options:
+      - timestamp
+      - sequence
+      - checksum
+    helpText: How to track which records have been processed
+
+  - name: trackingField
+    label: Tracking Field
+    type: text
+    required: true
+    default: created_at
+    placeholder: created_at
+    helpText: Field to track for new records (e.g., created_at, id)
+
+  - name: pollInterval
+    label: Poll Interval (seconds)
+    type: number
+    required: false
+    default: 300
+    helpText: How often to poll database (minimum 60 seconds)
+
+  - name: outputField
+    label: Output Field
+    type: text
+    required: false
+    default: polledRecords
+    helpText: Field to store polled records
+
+executor: executeDatabasePoller

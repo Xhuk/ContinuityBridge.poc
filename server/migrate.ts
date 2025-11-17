@@ -12,6 +12,72 @@ export async function ensureTables() {
   }
 
   try {
+    // ============================================================================
+    // USERS AND AUTHENTICATION TABLES
+    // ============================================================================
+
+    // Create users table (authentication and RBAC)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT,
+        role TEXT NOT NULL DEFAULT 'customer_user',
+        api_key TEXT UNIQUE,
+        organization_id TEXT,
+        organization_name TEXT,
+        assigned_customers TEXT,
+        max_customers INTEGER,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        last_login_at TEXT,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_users_api_key ON users(api_key)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_users_organization ON users(organization_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)
+    `);
+
+    // Create magic_links table (passwordless authentication)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS magic_links (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        expires_at TEXT NOT NULL,
+        used INTEGER NOT NULL DEFAULT 0,
+        used_at TEXT,
+        ip_address TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_magic_links_token ON magic_links(token)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_magic_links_email ON magic_links(email)
+    `);
+
+    // ============================================================================
+    // HIERARCHY TABLES (Account → Tenant → Ecosystem → Environment → Instance)
+    // ============================================================================
+
     // Create hierarchy tables (Account → Tenant → Ecosystem → Environment → System Instance)
     
     // Create accounts table (Monetization layer)
@@ -585,6 +651,192 @@ export async function ensureTables() {
       CREATE INDEX IF NOT EXISTS idx_system_instance_auth_enabled ON system_instance_auth(system_instance_id, enabled)
     `);
 
+    // ============================================================================
+    // AI QUOTA MANAGEMENT TABLES (Per-Project Gemini AI)
+    // ============================================================================
+
+    // Create ai_quota_settings table (per-project AI enablement)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS ai_quota_settings (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL UNIQUE,
+        organization_name TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        trial_enabled INTEGER NOT NULL DEFAULT 1,
+        trial_expires_at TEXT,
+        daily_request_limit INTEGER NOT NULL DEFAULT 15,
+        monthly_request_limit INTEGER NOT NULL DEFAULT 450,
+        enabled_by TEXT,
+        enabled_at TEXT,
+        disabled_at TEXT,
+        disabled_reason TEXT,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create ai_usage_tracking table (per-request tracking)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS ai_usage_tracking (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        feature_type TEXT NOT NULL,
+        request_date TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create indices for AI quota tables
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_ai_quota_organization ON ai_quota_settings(organization_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_ai_usage_organization ON ai_usage_tracking(organization_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_ai_usage_date ON ai_usage_tracking(request_date)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_ai_usage_feature ON ai_usage_tracking(feature_type)
+    `);
+
+    // ============================================================================
+    // ERROR TRIAGE TABLES
+    // ============================================================================
+
+    // Create error_reports table (error triage dashboard)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS error_reports (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        organization_name TEXT NOT NULL,
+        flow_id TEXT,
+        flow_name TEXT NOT NULL,
+        flow_version TEXT NOT NULL,
+        run_id TEXT,
+        trace_id TEXT,
+        node_id TEXT,
+        node_name TEXT NOT NULL,
+        node_type TEXT NOT NULL,
+        error_message_simple TEXT NOT NULL,
+        error_message_full TEXT,
+        error_stack TEXT,
+        severity TEXT NOT NULL DEFAULT 'medium',
+        environment TEXT NOT NULL DEFAULT 'production',
+        execution_mode TEXT NOT NULL DEFAULT 'live',
+        triage_status TEXT NOT NULL DEFAULT 'new',
+        assigned_to TEXT,
+        assigned_to_email TEXT,
+        resolution_notes TEXT,
+        context_snapshot TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create error_comments table
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS error_comments (
+        id TEXT PRIMARY KEY,
+        error_report_id TEXT NOT NULL REFERENCES error_reports(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        comment_type TEXT NOT NULL DEFAULT 'general',
+        author_id TEXT,
+        author_email TEXT,
+        author_role TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create error_escalation_tickets table
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS error_escalation_tickets (
+        id TEXT PRIMARY KEY,
+        error_report_id TEXT NOT NULL REFERENCES error_reports(id) ON DELETE CASCADE,
+        ticket_system TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        priority TEXT NOT NULL DEFAULT 'medium',
+        external_ticket_id TEXT,
+        external_url TEXT,
+        status TEXT NOT NULL DEFAULT 'open',
+        created_by TEXT,
+        created_by_email TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create indices for error triage tables
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_error_reports_organization ON error_reports(organization_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_error_reports_flow ON error_reports(flow_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_error_reports_status ON error_reports(triage_status)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_error_reports_severity ON error_reports(severity)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_error_reports_created ON error_reports(created_at)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_error_comments_report ON error_comments(error_report_id)
+    `);
+
+    // ============================================================================
+    // SYSTEM LOGS TABLE
+    // ============================================================================
+
+    // Create system_logs table (for superadmin audit)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS system_logs (
+        id TEXT PRIMARY KEY,
+        level TEXT NOT NULL,
+        message TEXT NOT NULL,
+        context TEXT,
+        scope TEXT,
+        user_id TEXT,
+        organization_id TEXT,
+        ip_address TEXT,
+        timestamp TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_system_logs_timestamp ON system_logs(timestamp)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_system_logs_level ON system_logs(level)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_system_logs_scope ON system_logs(scope)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_system_logs_user ON system_logs(user_id)
+    `);
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_system_logs_organization ON system_logs(organization_id)
+    `);
     console.log("[Database] Tables initialized successfully");
   } catch (error) {
     console.error("[Database] Error creating tables:", error);

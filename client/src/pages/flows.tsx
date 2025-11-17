@@ -11,6 +11,7 @@ import {
   addEdge,
   Handle,
   Position,
+  useEdges,
   type Node,
   type Edge,
   type NodeChange,
@@ -49,6 +50,8 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SystemInstanceSelector } from "@/components/SystemInstanceSelector";
+import { DynamicNodeConfig } from "@/components/DynamicNodeConfig";
+import type { NodeDefinition } from "@shared/schema";
 import {
   Save,
   Play,
@@ -204,24 +207,90 @@ const NODE_TYPES = [
     category: "transformer",
     color: "hsl(240 10% 50%)",
   },
+  {
+    type: "http_request",
+    label: "HTTP Request",
+    category: "transformer",
+    color: "hsl(200 75% 55%)",
+  },
+  {
+    type: "email_notification",
+    label: "Email Notification",
+    category: "output",
+    color: "hsl(340 75% 55%)",
+  },
+  {
+    type: "error_handler",
+    label: "Error Handler",
+    category: "router",
+    color: "hsl(25 85% 55%)",
+  },
 ];
 
 // Custom node component with connection handles and animations
-function CustomNode({ data, selected }: { data: any; selected?: boolean }) {
+function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id: string }) {
   const nodeType = NODE_TYPES.find((t) => t.type === data.type);
   const color = nodeType?.color || "hsl(240 5% 64%)";
   const category = nodeType?.category || "";
   const [isHovered, setIsHovered] = useState(false);
+  
+  // Get edges to check connections
+  const edges = useEdges();
+  const hasIncoming = edges.some((e: Edge) => e.target === id);
+  const hasOutgoing = edges.some((e: Edge) => e.source === id);
 
   // Determine which handles to show based on node category
   const showTargetHandle = category !== "trigger"; // Triggers don't accept inputs
   const showSourceHandle = category !== "output"; // Outputs don't produce outputs
+  
+  // Missing connection indicators
+  const needsIncoming = showTargetHandle && !hasIncoming;
+  const needsOutgoing = showSourceHandle && !hasOutgoing;
+  const hasConnectionWarning = needsIncoming || needsOutgoing;
 
   // Show handles when hovered OR selected
   const handlesVisible = isHovered || selected;
   
   // Execution status from node data
   const executionStatus = data.executionStatus; // 'pending' | 'running' | 'completed' | 'failed' | 'skipped'
+  
+  // Determine trigger type for pollers/schedulers
+  const getTriggerType = () => {
+    if (category !== 'trigger') return null;
+    
+    const config = data.config || {};
+    
+    // Check for scheduled/polling triggers
+    if (data.type === 'scheduler' || config.cronExpression) {
+      return { icon: Calendar, label: 'Scheduled', color: 'text-purple-600 dark:text-purple-400' };
+    }
+    
+    if (config.pollInterval || data.type.includes('_poller')) {
+      const intervalSeconds = config.pollInterval || 60;
+      const intervalMinutes = Math.round(intervalSeconds / 60);
+      return { 
+        icon: Clock, 
+        label: intervalMinutes >= 60 
+          ? `Every ${Math.round(intervalMinutes / 60)}h` 
+          : `Every ${intervalMinutes}m`,
+        color: 'text-blue-600 dark:text-blue-400'
+      };
+    }
+    
+    // Webhook/event-driven triggers
+    if (data.type === 'ingress' || data.type === 'interface_source') {
+      return { icon: Send, label: 'Event-driven', color: 'text-green-600 dark:text-green-400' };
+    }
+    
+    // Manual triggers
+    if (data.type === 'manual_trigger') {
+      return { icon: Play, label: 'Manual', color: 'text-gray-600 dark:text-gray-400' };
+    }
+    
+    return null;
+  };
+  
+  const triggerInfo = getTriggerType();
   
   // Dynamic output handles for Distributor node
   const isDistributor = data.type === 'distributor';
@@ -308,12 +377,48 @@ function CustomNode({ data, selected }: { data: any; selected?: boolean }) {
       variants={nodeVariants}
       initial="idle"
       animate={getAnimationState()}
-      className="relative px-4 py-3 rounded-lg border-2 bg-card min-w-[180px] cursor-pointer"
-      style={{ borderColor: color }}
+      className={`relative px-4 py-3 rounded-lg border-2 bg-card min-w-[180px] cursor-pointer ${
+        hasConnectionWarning ? 'shadow-[0_0_0_2px_rgba(251,191,36,0.3)]' : ''
+      }`}
+      style={{ borderColor: hasConnectionWarning ? 'hsl(38 92% 50%)' : color }}
       data-testid={`node-${data.type}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      {/* Missing Connection Warning Badge */}
+      {hasConnectionWarning && (
+        <div className="absolute -top-2 -right-2 z-10">
+          <div className="relative">
+            <motion.div
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="absolute inset-0 bg-amber-400 rounded-full blur-sm opacity-60"
+            />
+            <div className="relative bg-amber-400 text-amber-950 rounded-full w-5 h-5 flex items-center justify-center">
+              <AlertCircle className="w-3 h-3" />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Connection Status Tooltip */}
+      {hasConnectionWarning && isHovered && (
+        <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 z-20 bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 rounded-md px-3 py-2 shadow-lg whitespace-nowrap">
+          <div className="text-xs font-medium text-amber-900 dark:text-amber-100">
+            {needsIncoming && needsOutgoing && "⚠️ Missing input and output connections"}
+            {needsIncoming && !needsOutgoing && "⚠️ Missing input connection"}
+            {!needsIncoming && needsOutgoing && "⚠️ Missing output connection"}
+          </div>
+          <div className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">
+            {category === "trigger" && needsOutgoing && "Connect this trigger to a parser or transformer"}
+            {category === "parser" && needsIncoming && "Connect a trigger or data source"}
+            {category === "parser" && needsOutgoing && "Connect to a transformer or output"}
+            {category === "transform" && needsIncoming && "Connect input from parser or trigger"}
+            {category === "transform" && needsOutgoing && "Connect to another transform or output"}
+            {category === "output" && needsIncoming && "Connect input from transformer"}
+          </div>
+        </div>
+      )}
       {/* Target Handle (Left - Input) - Dynamic for Join Node */}
       {showTargetHandle && !hasMultipleInputs && (
         <Handle
@@ -392,7 +497,16 @@ function CustomNode({ data, selected }: { data: any; selected?: boolean }) {
           <div className="ml-auto">{getStatusBadge()}</div>
         )}
       </div>
-      {data.config && Object.keys(data.config).length > 0 && (
+      
+      {/* Trigger type indicator */}
+      {triggerInfo && (
+        <div className={`flex items-center gap-1 text-xs mt-1 ${triggerInfo.color}`}>
+          <triggerInfo.icon className="w-3 h-3" />
+          <span className="font-medium">{triggerInfo.label}</span>
+        </div>
+      )}
+      
+      {data.config && Object.keys(data.config).length > 0 && !triggerInfo && (
         <div className="text-xs text-muted-foreground mt-1">
           <Settings className="inline w-3 h-3 mr-1" />
           Configured
@@ -501,6 +615,11 @@ export default function Flows() {
   const [currentFlowId, setCurrentFlowId] = useState<string | null>(null);
   const [selectedSystemInstance, setSelectedSystemInstance] = useState<string>("default-dev");
   
+  // Connection suggestion state (Make.com style)
+  const [connectionSource, setConnectionSource] = useState<{ nodeId: string; handleId?: string } | null>(null);
+  const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number } | null>(null);
+  const [showNodeSuggestions, setShowNodeSuggestions] = useState(false);
+  
   // Phase 1: Execution visualization state
   const [isExecuting, setIsExecuting] = useState(false);
   const [executedPaths, setExecutedPaths] = useState<Set<string>>(new Set());
@@ -542,9 +661,39 @@ export default function Flows() {
 
   // Connect handler
   const onConnect: OnConnect = useCallback(
-    (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
+    (connection: Connection) => {
+      setEdges((eds) => addEdge(connection, eds));
+      setShowNodeSuggestions(false);
+      setConnectionSource(null);
+    },
     []
   );
+  
+  // Connection start handler (when user starts dragging from a handle)
+  const onConnectStart = useCallback((_event: any, { nodeId, handleId }: any) => {
+    setConnectionSource({ nodeId, handleId });
+    setShowNodeSuggestions(true);
+  }, []);
+  
+  // Connection end handler (when user releases the drag)
+  const onConnectEnd = useCallback((event: any) => {
+    // If dropped on canvas (not on a handle), show suggestions at cursor position
+    const targetIsPane = (event.target as HTMLElement)?.classList.contains('react-flow__pane');
+    
+    if (targetIsPane && reactFlowWrapper.current && connectionSource) {
+      const bounds = reactFlowWrapper.current.getBoundingClientRect();
+      setCursorPosition({
+        x: event.clientX - bounds.left,
+        y: event.clientY - bounds.top,
+      });
+      // Keep suggestions open for selection
+    } else {
+      // Connected to a node or cancelled
+      setShowNodeSuggestions(false);
+      setConnectionSource(null);
+      setCursorPosition(null);
+    }
+  }, [connectionSource]);
 
   // Add node to canvas
   const addNode = (nodeType: string) => {
@@ -567,11 +716,149 @@ export default function Flows() {
 
     setNodes((nds) => [...nds, newNode]);
   };
+  
+  // Get compatible node types based on source node category
+  const getCompatibleNodeTypes = (sourceNodeId: string) => {
+    const sourceNode = nodes.find(n => n.id === sourceNodeId);
+    if (!sourceNode) return [];
+    
+    const sourceType = NODE_TYPES.find(t => t.type === sourceNode.data.type);
+    const sourceCategory = sourceType?.category;
+    
+    // Compatibility matrix (Make.com style)
+    const compatibilityMap: Record<string, string[]> = {
+      trigger: ['parser', 'transformer', 'builder', 'output', 'router'],
+      parser: ['transformer', 'builder', 'output', 'router'],
+      transformer: ['transformer', 'builder', 'output', 'router'],
+      builder: ['output', 'transformer', 'router'],
+      router: ['parser', 'transformer', 'builder', 'output'],
+      output: [], // Outputs don't connect to anything (terminal nodes)
+    };
+    
+    const allowedCategories = compatibilityMap[sourceCategory || ''] || [];
+    return NODE_TYPES.filter(t => allowedCategories.includes(t.category));
+  };
+  
+  // Add node at cursor position and connect to source
+  const addNodeWithConnection = (nodeType: string, position: { x: number; y: number }) => {
+    const type = NODE_TYPES.find((t) => t.type === nodeType);
+    if (!type || !connectionSource) return;
+
+    const newNode: Node = {
+      id: `${nodeType}-${Date.now()}`,
+      type: "default",
+      position,
+      data: {
+        label: type.label,
+        type: nodeType,
+        config: {},
+      },
+    };
+
+    setNodes((nds) => [...nds, newNode]);
+    
+    // Auto-connect from source to new node
+    setEdges((eds) => addEdge({
+      source: connectionSource.nodeId,
+      sourceHandle: connectionSource.handleId || null,
+      target: newNode.id,
+      targetHandle: null,
+    }, eds));
+    
+    // Clean up
+    setShowNodeSuggestions(false);
+    setConnectionSource(null);
+    setCursorPosition(null);
+  };
 
   // Node click handler - show config or test panel
   const onNodeClick = (_event: any, node: Node) => {
     setSelectedNode(node);
     // Don't auto-open config dialog anymore - let user choose
+  };
+  
+  // Validate if node can be tested (has valid scenario)
+  const canTestNode = (node: Node | null): { valid: boolean; reason?: string } => {
+    if (!node) return { valid: false, reason: 'No node selected' };
+    if (!currentFlowId) return { valid: false, reason: 'Flow not saved' };
+    
+    const nodeType = NODE_TYPES.find(t => t.type === node.data.type);
+    const category = nodeType?.category;
+    
+    // Check if node has required configuration
+    const hasConfig = node.data.config && Object.keys(node.data.config).length > 0;
+    
+    // Trigger nodes (entry points) - can always test with empty input
+    if (category === 'trigger') {
+      return { valid: true };
+    }
+    
+    // Non-trigger nodes need incoming connections to have valid input
+    const hasIncomingEdge = edges.some(e => e.target === node.id);
+    
+    if (!hasIncomingEdge) {
+      return { 
+        valid: false, 
+        reason: 'Node needs input connection (or add a trigger node before it)' 
+      };
+    }
+    
+    // Check if node is configured (if it requires config)
+    if (!hasConfig && category !== 'trigger') {
+      return { 
+        valid: false, 
+        reason: 'Node not configured yet' 
+      };
+    }
+    
+    return { valid: true };
+  };
+  
+  // Check if flow has valid entry and exit points
+  const validateFlowStructure = (): { valid: boolean; issues: string[] } => {
+    const issues: string[] = [];
+    
+    // Check for at least one trigger/entry node
+    const hasEntryPoint = nodes.some(node => {
+      const nodeType = NODE_TYPES.find(t => t.type === node.data.type);
+      return nodeType?.category === 'trigger';
+    });
+    
+    if (!hasEntryPoint) {
+      issues.push('No entry point (trigger node) found');
+    }
+    
+    // Check for at least one output/exit node
+    const hasExitPoint = nodes.some(node => {
+      const nodeType = NODE_TYPES.find(t => t.type === node.data.type);
+      return nodeType?.category === 'output';
+    });
+    
+    if (!hasExitPoint) {
+      issues.push('No exit point (output node) found');
+    }
+    
+    // Check for disconnected nodes (except triggers)
+    const disconnectedNodes = nodes.filter(node => {
+      const nodeType = NODE_TYPES.find(t => t.type === node.data.type);
+      const category = nodeType?.category;
+      
+      if (category === 'trigger') return false; // Triggers can be disconnected
+      
+      const hasIncoming = edges.some(e => e.target === node.id);
+      const hasOutgoing = edges.some(e => e.source === node.id);
+      
+      return !hasIncoming && !hasOutgoing;
+    });
+    
+    if (disconnectedNodes.length > 0) {
+      issues.push(`${disconnectedNodes.length} disconnected node(s)`);
+    }
+    
+    return {
+      valid: issues.length === 0,
+      issues,
+    };
   };
   
   // Node context menu handler (right-click)
@@ -959,7 +1246,18 @@ export default function Flows() {
           </Button>
           <Button
             size="sm"
-            onClick={() => executeMutation.mutate()}
+            onClick={() => {
+              const flowValidation = validateFlowStructure();
+              if (!flowValidation.valid) {
+                toast({
+                  title: "Flow validation issues",
+                  description: flowValidation.issues.join(', '),
+                  variant: "destructive",
+                });
+                return;
+              }
+              executeMutation.mutate();
+            }}
             disabled={!currentFlowId || executeMutation.isPending}
             data-testid="button-execute-flow"
           >
@@ -1007,9 +1305,19 @@ export default function Flows() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onConnectStart={onConnectStart}
+            onConnectEnd={onConnectEnd}
             onNodeClick={onNodeClick}
             onNodeContextMenu={onNodeContextMenu}
             nodeTypes={nodeTypes}
+            defaultEdgeOptions={{
+              type: 'smoothstep',
+              animated: false,
+              style: { 
+                strokeWidth: 3,
+                stroke: 'hsl(var(--primary) / 0.6)',
+              },
+            }}
             fitView
             className="bg-muted/30 rounded-lg border border-border"
             data-testid="flow-canvas"
@@ -1023,8 +1331,32 @@ export default function Flows() {
               }}
             />
             <Panel position="top-right" className="bg-background/80 backdrop-blur p-2 rounded-lg border border-border">
-              <div className="text-xs text-muted-foreground">
-                {nodes.length} nodes, {edges.length} connections
+              <div className="flex flex-col gap-1">
+                <div className="text-xs text-muted-foreground">
+                  {nodes.length} nodes, {edges.length} connections
+                </div>
+                {nodes.length > 0 && (() => {
+                  const flowValidation = validateFlowStructure();
+                  return (
+                    <div className={`text-xs font-medium flex items-center gap-1 ${
+                      flowValidation.valid 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : 'text-amber-600 dark:text-amber-400'
+                    }`}>
+                      {flowValidation.valid ? (
+                        <>
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Valid flow structure</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="w-3 h-3" />
+                          <span>{flowValidation.issues.length} issue(s)</span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </Panel>
             
@@ -1065,26 +1397,211 @@ export default function Flows() {
             
             {/* Floating Action Button - Test Node (Lower Right) */}
             <AnimatePresence>
-              {selectedNode && currentFlowId && (
-                <Panel position="bottom-right">
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0, rotate: -90 }}
-                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                    exit={{ opacity: 0, scale: 0, rotate: 90 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <Button
-                      size="lg"
-                      className="rounded-full w-14 h-14 shadow-2xl"
-                      onClick={() => openTestPanel(selectedNode)}
-                      data-testid="fab-test-node"
+              {selectedNode && (() => {
+                const testValidation = canTestNode(selectedNode);
+                const isEnabled = testValidation.valid;
+                
+                return (
+                  <Panel position="bottom-right">
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0, rotate: -90 }}
+                      animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                      exit={{ opacity: 0, scale: 0, rotate: 90 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      whileHover={{ scale: isEnabled ? 1.1 : 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                     >
-                      <Beaker className="w-6 h-6" />
+                      <div className="relative">
+                        <Button
+                          size="lg"
+                          className={`rounded-full w-14 h-14 shadow-2xl transition-all ${
+                            isEnabled 
+                              ? 'bg-primary hover:bg-primary/90' 
+                              : 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed opacity-60'
+                          }`}
+                          disabled={!isEnabled}
+                          onClick={() => {
+                            if (isEnabled) {
+                              openTestPanel(selectedNode);
+                            }
+                          }}
+                          data-testid="fab-test-node"
+                        >
+                          <Beaker className="w-6 h-6" />
+                        </Button>
+                        
+                        {/* Validation tooltip */}
+                        {!isEnabled && testValidation.reason && (
+                          <motion.div
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="absolute right-full mr-3 top-1/2 -translate-y-1/2 whitespace-nowrap bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 rounded-md px-3 py-2 shadow-lg"
+                          >
+                            <div className="text-xs font-medium text-amber-900 dark:text-amber-100">
+                              ⚠️ {testValidation.reason}
+                            </div>
+                          </motion.div>
+                        )}
+                        
+                        {/* Valid indicator */}
+                        {isEnabled && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background"
+                          >
+                            <motion.div
+                              animate={{ scale: [1, 1.2, 1] }}
+                              transition={{ duration: 2, repeat: Infinity }}
+                              className="w-full h-full bg-green-400 rounded-full opacity-75"
+                            />
+                          </motion.div>
+                        )}
+                      </div>
+                    </motion.div>
+                  </Panel>
+                );
+              })()}
+            </AnimatePresence>
+            
+            {/* Radial Node Suggestions Menu (Make.com style) */}
+            <AnimatePresence>
+              {showNodeSuggestions && connectionSource && cursorPosition && (
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: cursorPosition.x,
+                    top: cursorPosition.y,
+                    transform: 'translate(-50%, -50%)',
+                  }}
+                >
+                  <motion.div
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                    className="relative pointer-events-auto"
+                  >
+                    {/* Center dot */}
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full z-20" />
+                    
+                    {/* Radial menu segments */}
+                    <div className="relative w-[280px] h-[280px]">
+                      {getCompatibleNodeTypes(connectionSource.nodeId).map((nodeType, index, array) => {
+                        const totalNodes = array.length;
+                        const angleStep = (2 * Math.PI) / totalNodes;
+                        const angle = index * angleStep - Math.PI / 2; // Start from top
+                        const radius = 100; // Distance from center
+                        
+                        const x = Math.cos(angle) * radius;
+                        const y = Math.sin(angle) * radius;
+                        
+                        return (
+                          <motion.div
+                            key={nodeType.type}
+                            initial={{ scale: 0, x: 0, y: 0 }}
+                            animate={{ scale: 1, x, y }}
+                            exit={{ scale: 0, x: 0, y: 0 }}
+                            transition={{ 
+                              delay: index * 0.03,
+                              type: 'spring',
+                              stiffness: 400,
+                              damping: 20
+                            }}
+                            whileHover={{ scale: 1.15, zIndex: 50 }}
+                            whileTap={{ scale: 0.95 }}
+                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+                            onClick={() => {
+                              if (cursorPosition && reactFlowWrapper.current) {
+                                // Convert screen coordinates to flow coordinates
+                                const bounds = reactFlowWrapper.current.getBoundingClientRect();
+                                const position = {
+                                  x: cursorPosition.x,
+                                  y: cursorPosition.y,
+                                };
+                                addNodeWithConnection(nodeType.type, position);
+                              }
+                            }}
+                          >
+                            <div 
+                              className="group relative px-3 py-2 rounded-lg border-2 bg-card shadow-lg min-w-[120px]"
+                              style={{ borderColor: nodeType.color }}
+                            >
+                              {/* Connecting line from center */}
+                              <svg
+                                className="absolute left-1/2 top-1/2 pointer-events-none"
+                                style={{
+                                  width: `${Math.abs(x) + 60}px`,
+                                  height: `${Math.abs(y) + 40}px`,
+                                  transform: `translate(${x > 0 ? '-100%' : '0%'}, ${y > 0 ? '-100%' : '0%'})`,
+                                }}
+                              >
+                                <line
+                                  x1={x > 0 ? '100%' : '0%'}
+                                  y1={y > 0 ? '100%' : '0%'}
+                                  x2={x > 0 ? `${(60 / (Math.abs(x) + 60)) * 100}%` : `${100 - (60 / (Math.abs(x) + 60)) * 100}%`}
+                                  y2={y > 0 ? `${(40 / (Math.abs(y) + 40)) * 100}%` : `${100 - (40 / (Math.abs(y) + 40)) * 100}%`}
+                                  stroke={nodeType.color}
+                                  strokeWidth="2"
+                                  strokeDasharray="4 2"
+                                  opacity="0.4"
+                                />
+                              </svg>
+                              
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="w-2 h-2 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: nodeType.color }}
+                                />
+                                <div className="font-medium text-xs whitespace-nowrap">
+                                  {nodeType.label}
+                                </div>
+                              </div>
+                              
+                              {/* Category badge */}
+                              <div className="text-[10px] text-muted-foreground mt-0.5 capitalize">
+                                {nodeType.category}
+                              </div>
+                              
+                              {/* Hover glow effect */}
+                              <div 
+                                className="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-30 transition-opacity"
+                                style={{ 
+                                  backgroundColor: nodeType.color,
+                                  filter: 'blur(8px)',
+                                }}
+                              />
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Cancel button at center */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-background/95 backdrop-blur border-2 border-border shadow-lg hover:bg-destructive hover:text-destructive-foreground z-30"
+                      onClick={() => {
+                        setShowNodeSuggestions(false);
+                        setConnectionSource(null);
+                        setCursorPosition(null);
+                      }}
+                    >
+                      <X className="w-4 h-4" />
                     </Button>
+                    
+                    {/* Instruction text */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                      className="absolute left-1/2 -translate-x-1/2 top-full mt-6 text-xs text-muted-foreground bg-background/90 backdrop-blur px-3 py-1 rounded-md border border-border whitespace-nowrap"
+                    >
+                      Click a node to add and connect
+                    </motion.div>
                   </motion.div>
-                </Panel>
+                </div>
               )}
             </AnimatePresence>
           </ReactFlow>
@@ -1093,14 +1610,14 @@ export default function Flows() {
 
       {/* Node Configuration Dialog */}
       <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
-        <DialogContent data-testid="dialog-node-config">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" data-testid="dialog-node-config">
           <DialogHeader>
             <DialogTitle>Configure {String(selectedNode?.data?.label || "Node")}</DialogTitle>
             <DialogDescription>
               Edit the configuration for this node
             </DialogDescription>
           </DialogHeader>
-          <NodeConfigForm
+          <DynamicNodeConfig
             node={selectedNode}
             onSave={saveNodeConfig}
             onCancel={() => setConfigDialogOpen(false)}
@@ -1296,6 +1813,7 @@ export default function Flows() {
 }
 
 // Node configuration form component
+// Uses DynamicNodeConfig to automatically render forms from YAML definitions
 function NodeConfigForm({
   node,
   onSave,
@@ -1307,6 +1825,30 @@ function NodeConfigForm({
   onCancel: () => void;
   systemInstanceId?: string;
 }): JSX.Element | null {
+  if (!node) return null;
+
+  // Use DynamicNodeConfig for most node types (reads from YAML)
+  const dynamicNodeTypes = [
+    "manual_trigger", "scheduler", "sftp_poller", "azure_blob_poller", "database_poller",
+    "xml_parser", "json_builder", "csv_parser", "object_mapper", "custom_javascript",
+    "validation", "conditional", "logger", "interface_source", "interface_destination",
+    "sftp_connector", "azure_blob_connector", "database_connector",
+    "bydm_parser", "bydm_mapper", "distributor",
+    "http_request", "email_notification", "error_handler"
+  ];
+
+  if (typeof node.data.type === 'string' && dynamicNodeTypes.includes(node.data.type)) {
+    return (
+      <DynamicNodeConfig
+        node={node}
+        onSave={onSave}
+        onCancel={onCancel}
+        systemInstanceId={systemInstanceId}
+      />
+    );
+  }
+
+  // Legacy hardcoded configs for special cases (data_source, ingress, join, egress)
   const [config, setConfig] = useState<Record<string, any>>(
     node?.data.config || {}
   );
@@ -1314,8 +1856,6 @@ function NodeConfigForm({
   useEffect(() => {
     setConfig(node?.data.config || {});
   }, [node]);
-
-  if (!node) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1326,7 +1866,7 @@ function NodeConfigForm({
   const renderConfigFields = () => {
     switch (node.data.type) {
       case "data_source":
-        return <DataSourceNodeConfig config={config} setConfig={setConfig} systemInstanceId={selectedSystemInstance} />;
+        return <DataSourceNodeConfig config={config} setConfig={setConfig} systemInstanceId={systemInstanceId} />;
 
       case "ingress":
         return <IngressNodeConfig config={config} setConfig={setConfig} />;
@@ -1336,226 +1876,6 @@ function NodeConfigForm({
 
       case "egress":
         return <EgressNodeConfig config={config} setConfig={setConfig} />;
-
-      case "sftp_poller":
-        return <SftpPollerNodeConfig config={config} setConfig={setConfig} />;
-
-      case "azure_blob_poller":
-        return <AzureBlobPollerNodeConfig config={config} setConfig={setConfig} />;
-
-      case "scheduler":
-        return <SchedulerNodeConfig config={config} setConfig={setConfig} />;
-
-      case "sftp_connector":
-        return <SftpConnectorNodeConfig config={config} setConfig={setConfig} />;
-
-      case "azure_blob_connector":
-        return <AzureBlobConnectorNodeConfig config={config} setConfig={setConfig} />;
-
-      case "database_connector":
-        return <DatabaseConnectorNodeConfig config={config} setConfig={setConfig} />;
-
-      case "logger":
-        return <LoggerNodeConfig config={config} setConfig={setConfig} />;
-
-      case "xml_parser":
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="xpath">XPath Expression</Label>
-              <Input
-                id="xpath"
-                value={config.xpath || ""}
-                onChange={(e) =>
-                  setConfig({ ...config, xpath: e.target.value })
-                }
-                placeholder="//Item"
-                data-testid="input-xpath"
-              />
-            </div>
-          </div>
-        );
-
-      case "json_builder":
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="template">JSON Template</Label>
-              <Textarea
-                id="template"
-                value={config.template || ""}
-                onChange={(e) =>
-                  setConfig({ ...config, template: e.target.value })
-                }
-                placeholder='{"key": "value"}'
-                className="font-mono text-sm"
-                rows={6}
-                data-testid="input-json-template"
-              />
-            </div>
-          </div>
-        );
-
-      case "object_mapper":
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="mapping">Field Mapping (YAML)</Label>
-              <Textarea
-                id="mapping"
-                value={config.mapping || ""}
-                onChange={(e) =>
-                  setConfig({ ...config, mapping: e.target.value })
-                }
-                placeholder="destination.field: source.field"
-                className="font-mono text-sm"
-                rows={6}
-                data-testid="input-mapping"
-              />
-            </div>
-          </div>
-        );
-
-      case "interface_source":
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="interfaceId">Interface ID</Label>
-              <Input
-                id="interfaceId"
-                value={config.interfaceId || ""}
-                onChange={(e) =>
-                  setConfig({ ...config, interfaceId: e.target.value })
-                }
-                placeholder="interface-id"
-                data-testid="input-interface-id"
-              />
-            </div>
-            <div>
-              <Label htmlFor="method">HTTP Method</Label>
-              <Select
-                value={config.method || "GET"}
-                onValueChange={(value) =>
-                  setConfig({ ...config, method: value })
-                }
-              >
-                <SelectTrigger data-testid="select-method">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="GET">GET</SelectItem>
-                  <SelectItem value="POST">POST</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="path">API Path (optional)</Label>
-              <Input
-                id="path"
-                value={config.path || ""}
-                onChange={(e) =>
-                  setConfig({ ...config, path: e.target.value })
-                }
-                placeholder="/api/orders"
-                data-testid="input-path"
-              />
-            </div>
-          </div>
-        );
-
-      case "interface_destination":
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="interfaceId">Interface ID</Label>
-              <Input
-                id="interfaceId"
-                value={config.interfaceId || ""}
-                onChange={(e) =>
-                  setConfig({ ...config, interfaceId: e.target.value })
-                }
-                placeholder="interface-id"
-                data-testid="input-interface-id"
-              />
-            </div>
-            <div>
-              <Label htmlFor="method">HTTP Method</Label>
-              <Select
-                value={config.method || "POST"}
-                onValueChange={(value) =>
-                  setConfig({ ...config, method: value })
-                }
-              >
-                <SelectTrigger data-testid="select-method">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="POST">POST</SelectItem>
-                  <SelectItem value="PUT">PUT</SelectItem>
-                  <SelectItem value="PATCH">PATCH</SelectItem>
-                  <SelectItem value="DELETE">DELETE</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="path">API Path (optional)</Label>
-              <Input
-                id="path"
-                value={config.path || ""}
-                onChange={(e) =>
-                  setConfig({ ...config, path: e.target.value })
-                }
-                placeholder="/api/orders"
-                data-testid="input-path"
-              />
-            </div>
-          </div>
-        );
-
-      case "csv_parser":
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="delimiter">Delimiter</Label>
-              <Input
-                id="delimiter"
-                value={config.delimiter || ","}
-                onChange={(e) =>
-                  setConfig({ ...config, delimiter: e.target.value })
-                }
-                placeholder=","
-                maxLength={1}
-                data-testid="input-delimiter"
-              />
-            </div>
-            <div>
-              <Label htmlFor="hasHeader">Has Header Row</Label>
-              <Select
-                value={config.hasHeader !== false ? "true" : "false"}
-                onValueChange={(value) =>
-                  setConfig({ ...config, hasHeader: value === "true" })
-                }
-              >
-                <SelectTrigger data-testid="select-has-header">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">Yes</SelectItem>
-                  <SelectItem value="false">No</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        );
-
-      case "validation":
-        return <ValidationNodeConfig config={config} setConfig={setConfig} />;
-
-      case "conditional":
-        return <ConditionalNodeConfig config={config} setConfig={setConfig} />;
-
-      case "distributor":
-        return <DistributorNodeConfig config={config} setConfig={setConfig} />;
 
       default:
         return (

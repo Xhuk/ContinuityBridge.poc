@@ -1,0 +1,51 @@
+id: azure_blob_connector
+category: output
+label: Azure Blob Connector
+description: Upload files to Azure Blob Storage
+icon: cloud-upload
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: connectionString
+    label: Connection String
+    type: password
+    required: true
+    placeholder: "DefaultEndpointsProtocol=https;AccountName=..."
+    helpText: "Azure Storage account connection string"
+
+  - name: containerName
+    label: Container Name
+    type: text
+    required: true
+    placeholder: "outbound-files"
+    helpText: "Name of the blob container"
+
+  - name: blobPath
+    label: Blob Path
+    type: text
+    required: true
+    placeholder: "orders/{{orderId}}_{{timestamp}}.json"
+    helpText: "Blob name/path with {{variable}} placeholders"
+
+  - name: contentType
+    label: Content Type
+    type: select
+    required: true
+    default: application/json
+    options:
+      - application/json
+      - application/xml
+      - text/csv
+      - text/plain
+      - application/octet-stream
+    helpText: "MIME type of uploaded content"
+
+  - name: overwrite
+    label: Overwrite Existing
+    type: checkbox
+    required: false
+    default: false
+    helpText: "Overwrite blob if it already exists"
+
+executor: azure_blob_connector

@@ -1,0 +1,61 @@
+id: azure_blob_poller
+category: trigger
+label: Azure Blob Poller
+description: Poll Azure Blob Storage for new files on a schedule
+icon: cloud
+inputs: 0
+outputs: 1
+
+configFields:
+  - name: connectionString
+    label: Connection String
+    type: password
+    required: true
+    placeholder: "DefaultEndpointsProtocol=https;AccountName=..."
+    helpText: "Azure Storage account connection string"
+
+  - name: containerName
+    label: Container Name
+    type: text
+    required: true
+    placeholder: "incoming-files"
+    helpText: "Name of the blob container to monitor"
+
+  - name: blobPrefix
+    label: Blob Prefix (Path)
+    type: text
+    required: false
+    placeholder: "orders/inbound/"
+    helpText: "Optional: Filter blobs by prefix (directory path)"
+
+  - name: filePattern
+    label: File Pattern
+    type: text
+    required: false
+    placeholder: "*.xml"
+    default: "*"
+    helpText: "Glob pattern to match files (e.g., *.xml, order_*.json)"
+
+  - name: pollInterval
+    label: Poll Interval (minutes)
+    type: number
+    required: true
+    default: 5
+    placeholder: "5"
+    helpText: "How often to check for new files"
+
+  - name: deleteAfterProcess
+    label: Delete After Processing
+    type: checkbox
+    required: false
+    default: false
+    helpText: "Automatically delete files after successful processing"
+
+  - name: moveToContainer
+    label: Move To Container
+    type: text
+    required: false
+    placeholder: "processed"
+    helpText: "Optional: Move processed files to different container"
+
+executor: azure_blob_poller

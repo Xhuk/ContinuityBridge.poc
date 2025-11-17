@@ -192,35 +192,112 @@ const queryFiltersSchema = z.object({
 // ============================================================================
 
 /**
- * Validates that a system instance exists.
- * Returns true if exists, false otherwise.
+ * Validates that a system instance exists AND belongs to the authenticated user's organization.
+ * Returns the instance if valid, throws error otherwise.
  * 
- * TODO (CRITICAL - BLOCKS PRODUCTION): Tenant ownership validation not implemented.
- * 
- * CURRENT IMPLEMENTATION:
+ * PRODUCTION IMPLEMENTATION:
  * - ✅ Checks if system instance exists (returns 404 if not found)
- * - ❌ Does NOT verify tenant ownership (requires authentication middleware)
+ * - ✅ Verifies tenant ownership via organizationId matching
+ * - ✅ Superadmin can access all instances
+ * - ✅ Consultants can access assigned customer instances
+ * - ✅ Customers can only access their own instances
  * 
- * FOR PRODUCTION:
- * 1. Add authentication middleware to identify request tenant
- * 2. Load system instance → environment → ecosystem → tenant (via JOIN or cascade)
- * 3. Compare authenticated tenant ID to instance's tenant ID
- * 4. Return 403 if mismatch (cross-tenant access attempt)
- * 
- * SECURITY RISK: Without tenant verification, any caller who knows a system instance ID
- * can manage auth configs for that instance, even if it belongs to a different tenant.
- * 
- * MITIGATION: Do NOT register these routes until authentication middleware exists.
- * This function is implemented and tested but routes are gated from production use.
+ * SECURITY: Prevents cross-tenant access attempts
  */
-async function ensureSystemInstanceExists(storage: IStorage, systemInstanceId: string): Promise<boolean> {
+async function validateSystemInstanceAccess(
+  storage: IStorage,
+  systemInstanceId: string,
+  user?: { id: string; role: string; organizationId?: string; assignedCustomers?: string[] }
+): Promise<any> {
   if (!storage.getSystemInstance) {
-    console.warn("[SystemAuthRoutes] getSystemInstance not implemented - skipping existence check (INSECURE)");
-    return true;
+    throw new Error("getSystemInstance not implemented");
   }
 
   const instance = await storage.getSystemInstance(systemInstanceId);
-  return instance !== undefined;
+  if (!instance) {
+    const error: any = new Error("System instance not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // If no user provided (unauthenticated), deny access
+  if (!user) {
+    const error: any = new Error("Authentication required");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  // Superadmin can access all instances
+  if (user.role === "superadmin") {
+    return instance;
+  }
+
+  // Get the organizationId from the instance's hierarchy
+  // System Instance → Environment → Ecosystem → Tenant
+  let instanceOrgId: string | undefined;
+  
+  // Use metadata or environmentId to determine ownership
+  if ((instance as any).organizationId) {
+    instanceOrgId = (instance as any).organizationId;
+  } else if (instance.metadata && typeof instance.metadata === 'object') {
+    // Check metadata for organizationId
+    instanceOrgId = (instance.metadata as any).organizationId;
+  }
+  
+  // If environmentId exists, try to fetch hierarchy (if methods available)
+  if (!instanceOrgId && instance.environmentId) {
+    try {
+      const { db } = await import("../../db.js");
+      const { environments, ecosystems } = await import("../../schema.js");
+      const { eq } = await import("drizzle-orm");
+      
+      const environment = await (db.select() as any)
+        .from(environments)
+        .where(eq(environments.id, instance.environmentId))
+        .get();
+      
+      if (environment?.ecosystemId) {
+        const ecosystem = await (db.select() as any)
+          .from(ecosystems)
+          .where(eq(ecosystems.id, environment.ecosystemId))
+          .get();
+        
+        if (ecosystem?.tenantId) {
+          instanceOrgId = ecosystem.tenantId;
+        }
+      }
+    } catch (dbError) {
+      // If hierarchy lookup fails, continue without organizationId
+      console.warn("[SystemAuthRoutes] Failed to lookup instance hierarchy:", dbError);
+    }
+  }
+
+  // If we can't determine organizationId, deny access (fail-safe)
+  if (!instanceOrgId) {
+    const error: any = new Error("Unable to determine instance ownership");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  // Check tenant ownership
+  if (user.role === "consultant") {
+    // Consultant must have this org in assigned customers
+    const assignedCustomers = user.assignedCustomers || [];
+    if (!assignedCustomers.includes(instanceOrgId)) {
+      const error: any = new Error("Access denied: Instance belongs to unassigned customer");
+      error.statusCode = 403;
+      throw error;
+    }
+  } else {
+    // Customer admin/user must match organizationId
+    if (user.organizationId !== instanceOrgId) {
+      const error: any = new Error("Access denied: Cross-tenant access not allowed");
+      error.statusCode = 403;
+      throw error;
+    }
+  }
+
+  return instance;
 }
 
 /**
@@ -255,11 +332,8 @@ export function registerSystemAuthRoutes(app: Express, storage: IStorage) {
     try {
       const { id } = req.params;
 
-      // Ensure system instance exists
-      const exists = await ensureSystemInstanceExists(storage, id);
-      if (!exists) {
-        return errorResponse(res, 404, "System instance not found");
-      }
+      // Validate access and tenant ownership
+      await validateSystemInstanceAccess(storage, id, (req as any).user);
 
       // Parse and validate query filters
       const queryResult = queryFiltersSchema.safeParse(req.query);
@@ -277,7 +351,8 @@ export function registerSystemAuthRoutes(app: Express, storage: IStorage) {
       return res.json(auths);
     } catch (error: any) {
       console.error("[SystemAuthRoutes] Error listing auth configs:", error);
-      return errorResponse(res, 500, "Internal server error");
+      const statusCode = error.statusCode || 500;
+      return errorResponse(res, statusCode, error.message || "Internal server error");
     }
   });
 
@@ -289,11 +364,8 @@ export function registerSystemAuthRoutes(app: Express, storage: IStorage) {
     try {
       const { id } = req.params;
 
-      // Ensure system instance exists
-      const exists = await ensureSystemInstanceExists(storage, id);
-      if (!exists) {
-        return errorResponse(res, 404, "System instance not found");
-      }
+      // Validate access and tenant ownership
+      await validateSystemInstanceAccess(storage, id, (req as any).user);
 
       // Validate request body
       const validationResult = createSystemAuthSchema.safeParse(req.body);
@@ -332,7 +404,8 @@ export function registerSystemAuthRoutes(app: Express, storage: IStorage) {
       }
     } catch (error: any) {
       console.error("[SystemAuthRoutes] Error creating auth config:", error);
-      return errorResponse(res, 500, "Internal server error");
+      const statusCode = error.statusCode || 500;
+      return errorResponse(res, statusCode, error.message || "Internal server error");
     }
   });
 
@@ -344,11 +417,8 @@ export function registerSystemAuthRoutes(app: Express, storage: IStorage) {
     try {
       const { id, authId } = req.params;
 
-      // Ensure system instance exists
-      const exists = await ensureSystemInstanceExists(storage, id);
-      if (!exists) {
-        return errorResponse(res, 404, "System instance not found");
-      }
+      // Validate access and tenant ownership
+      await validateSystemInstanceAccess(storage, id, (req as any).user);
 
       // Validate request body
       const validationResult = updateSystemAuthSchema.safeParse(req.body);
@@ -395,7 +465,8 @@ export function registerSystemAuthRoutes(app: Express, storage: IStorage) {
       }
     } catch (error: any) {
       console.error("[SystemAuthRoutes] Error updating auth config:", error);
-      return errorResponse(res, 500, "Internal server error");
+      const statusCode = error.statusCode || 500;
+      return errorResponse(res, statusCode, error.message || "Internal server error");
     }
   });
 
@@ -407,11 +478,8 @@ export function registerSystemAuthRoutes(app: Express, storage: IStorage) {
     try {
       const { id, authId } = req.params;
 
-      // Ensure system instance exists
-      const exists = await ensureSystemInstanceExists(storage, id);
-      if (!exists) {
-        return errorResponse(res, 404, "System instance not found");
-      }
+      // Validate access and tenant ownership
+      await validateSystemInstanceAccess(storage, id, (req as any).user);
 
       // Check if auth config exists and belongs to this system instance
       const existingAuth = await storage.getSystemAuth!(authId);
@@ -429,9 +497,10 @@ export function registerSystemAuthRoutes(app: Express, storage: IStorage) {
       return res.status(204).send();
     } catch (error: any) {
       console.error("[SystemAuthRoutes] Error deleting auth config:", error);
-      return errorResponse(res, 500, "Internal server error");
+      const statusCode = error.statusCode || 500;
+      return errorResponse(res, statusCode, error.message || "Internal server error");
     }
   });
 
-  console.log("[SystemAuthRoutes] System auth routes registered");
+  console.log("[SystemAuthRoutes] System auth routes registered with tenant ownership validation");
 }

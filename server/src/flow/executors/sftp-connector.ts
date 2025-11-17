@@ -84,45 +84,78 @@ export const executeSftpConnector: NodeExecutor = async (
     };
   }
 
-  // PRODUCTION MODE - TODO: Implement real SFTP client
-  throw new Error(
-    `SFTP Connector not yet implemented for production. ` +
-    `Operation: ${operation}, Host: ${sftpHost}. ` +
-    `TODO: Install 'ssh2-sftp-client' and implement SFTP operations. ` +
-    `Use emulation mode for testing.`
-  );
-  
-  /* PRODUCTION IMPLEMENTATION TEMPLATE:
-  
-  import SftpClient from 'ssh2-sftp-client';
-  
-  const sftp = new SftpClient();
-  await sftp.connect({
-    host: sftpHost,
-    port: sftpPort,
-    username: sftpUsername,
-    password: sftpPassword,
-  });
-  
+  // PRODUCTION MODE - Real SFTP operations
   try {
-    switch (operation) {
-      case 'upload':
-        const fileContent = (input as any)[sourceField];
-        await sftp.put(Buffer.from(fileContent), remotePath);
-        break;
-      case 'download':
-        const data = await sftp.get(remotePath);
-        return { output: { ...input, downloadedFile: data.toString() } };
-      case 'move':
-        await sftp.rename(remotePath, config.destinationPath);
-        break;
-      case 'delete':
-        await sftp.delete(remotePath);
-        break;
+    const SftpClient = (await import("ssh2-sftp-client")).default;
+    const sftp = new SftpClient();
+
+    await sftp.connect({
+      host: sftpHost,
+      port: sftpPort,
+      username: sftpUsername,
+      password: sftpPassword,
+    });
+
+    try {
+      switch (operation) {
+        case "upload": {
+          const fileContent = (input as any)[sourceField];
+          if (!fileContent) {
+            throw new Error(`Source field '${sourceField}' not found in payload`);
+          }
+          const buffer = Buffer.from(typeof fileContent === "string" ? fileContent : JSON.stringify(fileContent));
+          await sftp.put(buffer, remotePath);
+          
+          return {
+            output: { ...input as any, sftpUploadPath: remotePath },
+            metadata: { sftpOperation: "upload", remotePath, bytesUploaded: buffer.length },
+          };
+        }
+        
+        case "download": {
+          const data = await sftp.get(remotePath);
+          const content = data.toString();
+          
+          return {
+            output: { ...input as any, downloadedFile: content },
+            metadata: { sftpOperation: "download", remotePath, bytesDownloaded: content.length },
+          };
+        }
+        
+        case "move": {
+          const destPath = config.destinationPath || `${remotePath}.processed`;
+          await sftp.rename(remotePath, destPath);
+          
+          return {
+            output: input,
+            metadata: { sftpOperation: "move", from: remotePath, to: destPath },
+          };
+        }
+        
+        case "delete": {
+          await sftp.delete(remotePath);
+          
+          return {
+            output: input,
+            metadata: { sftpOperation: "delete", remotePath },
+          };
+        }
+        
+        default:
+          throw new Error(`Unsupported SFTP operation: ${operation}`);
+      }
+    } finally {
+      await sftp.end();
     }
-  } finally {
-    await sftp.end();
+  } catch (error: any) {
+    // If ssh2-sftp-client not installed, throw helpful error
+    if (error.code === "MODULE_NOT_FOUND" || error.message?.includes("Cannot find module")) {
+      throw new Error(
+        `SFTP Connector requires 'ssh2-sftp-client' package. ` +
+        `Install with: npm install ssh2-sftp-client. ` +
+        `Use emulation mode for testing without SFTP server.`
+      );
+    }
+    throw error;
   }
-  
-  */
 };

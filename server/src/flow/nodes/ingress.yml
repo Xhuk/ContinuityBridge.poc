@@ -1,0 +1,82 @@
+# Ingress Node - Inbound Entry Point (Authenticated Webhook)
+# Category: trigger
+
+id: ingress
+category: trigger
+label: Ingress (Inbound)
+description: Creates an authenticated endpoint to receive payloads from external systems (e.g., SAP, WMS)
+icon: Upload
+
+# Input/Output handles
+inputs: 0        # Triggers have no inputs
+outputs: 1       # Outputs received payload
+
+# Configuration fields (UI form)
+configFields:
+  - name: endpointName
+    label: Endpoint Name
+    type: text
+    required: true
+    placeholder: e.g., sap_order_ingress, wms_shipment_webhook
+    helpText: A unique identifier for this ingress endpoint
+
+  - name: authMethod
+    label: Authentication Method
+    type: select
+    required: true
+    default: api_key
+    options:
+      - api_key
+      - bearer_token
+      - basic_auth
+      - oauth2
+    helpText: How external systems will authenticate
+
+  - name: allowedIPs
+    label: Allowed IP Addresses (Optional)
+    type: textarea
+    required: false
+    placeholder: 192.168.1.100, 10.0.0.0/24
+    helpText: Comma-separated list of allowed IPs or CIDR ranges. Leave empty to allow all.
+
+  - name: payloadFormat
+    label: Expected Payload Format
+    type: select
+    required: true
+    default: json
+    options:
+      - json
+      - xml
+      - csv
+      - text
+    helpText: Format of incoming payload data
+
+  - name: validateSchema
+    label: Validate Against Schema
+    type: boolean
+    required: false
+    default: false
+    helpText: If true, validate incoming payload against an interface schema
+
+  - name: interfaceId
+    label: Interface Schema (if validation enabled)
+    type: interface
+    required: false
+    helpText: Select interface schema for payload validation
+
+  - name: enableLogging
+    label: Enable Request Logging
+    type: boolean
+    required: false
+    default: true
+    helpText: Log all incoming requests to system logs
+
+  - name: rateLimitPerMinute
+    label: Rate Limit (requests/minute)
+    type: number
+    required: false
+    default: 60
+    helpText: Maximum requests per minute from same IP (0 = unlimited)
+
+# Backend executor function
+executor: executeIngress

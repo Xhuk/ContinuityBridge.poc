@@ -997,6 +997,8 @@ export const secretsMasterKeys = sqliteTable("secrets_master_keys", {
   
   // Recovery and audit
   recoveryCodeHash: text("recovery_code_hash"), // Optional recovery code hash
+  failedAttempts: integer("failed_attempts").notNull().default(0), // Failed unlock attempts counter
+  lockedUntil: text("locked_until"), // Lockout timestamp if vault is locked
   lastUnlocked: text("last_unlocked"),
   
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -1046,6 +1048,87 @@ export const secretsVault = sqliteTable("secrets_vault", {
 
 export type SecretsVaultEntry = typeof secretsVault.$inferSelect;
 export type InsertSecretsVaultEntry = typeof secretsVault.$inferInsert;
+
+// ============================================================================
+// AI QUOTA MANAGEMENT (Gemini API) - PER-PROJECT QUOTA
+// ============================================================================
+
+// AI Quota Settings Table (PER-PROJECT - each project has its own quota)
+// Single Gemini API key used by entire application
+// organizationId = projectId for per-project quota tracking
+// Consultants can only use AI if enabled for their specific project
+export const aiQuotaSettings = sqliteTable("ai_quota_settings", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  // Project context (organizationId = projectId for per-project tracking)
+  organizationId: text("organization_id").notNull().unique(), // projectId
+  organizationName: text("organization_name").notNull(), // projectName
+  
+  // Enablement (Superadmin-only control per project)
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false), // DISABLED by default
+  
+  // Trial period (30 days free per project)
+  trialEnabled: integer("trial_enabled", { mode: "boolean" }).notNull().default(true),
+  trialExpiresAt: text("trial_expires_at"), // Auto-disable after expiration
+  
+  // Per-PROJECT quota limits (15 req/day, 450 req/month per project)
+  dailyRequestLimit: integer("daily_request_limit").notNull().default(15), // Free tier: 15 req/day per project
+  monthlyRequestLimit: integer("monthly_request_limit").notNull().default(450), // 15 * 30 days
+  
+  // Audit trail
+  enabledBy: text("enabled_by"), // Superadmin user ID who enabled AI
+  enabledAt: text("enabled_at"),
+  disabledAt: text("disabled_at"),
+  disabledReason: text("disabled_reason"), // "Trial expired", "Quota exceeded", etc.
+  
+  // Metadata
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type AIQuotaSettings = typeof aiQuotaSettings.$inferSelect;
+export type InsertAIQuotaSettings = typeof aiQuotaSettings.$inferInsert;
+
+// AI Usage Tracking Table (Per-request tracking with project context)
+// Tracks WHICH tenant/project made each request for analytics and AI improvement
+// organizationId = projectId to match quota settings
+export const aiUsageTracking = sqliteTable("ai_usage_tracking", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  // Project context (organizationId = projectId for per-project tracking)
+  organizationId: text("organization_id").notNull(), // projectId - which project made the request
+  
+  // Feature type
+  featureType: text("feature_type").notNull().$type<
+    "mapping" | "diagnosis" | "flow_suggestion" | "test_data" | "explanation"
+  >(),
+  
+  // Request details
+  requestDate: text("request_date").notNull(), // YYYY-MM-DD for daily aggregation
+  timestamp: text("timestamp").notNull(),
+  
+  // Extended metadata for AI improvement and project tracking
+  metadata: text("metadata", { mode: "json" }).$type<{
+    organizationName?: string;  // Tenant name
+    projectId?: string;          // Project ID (redundant but useful)
+    projectName?: string;        // Project name
+    flowId?: string;             // Which flow (for context)
+    flowName?: string;           // Flow name
+    nodeType?: string;           // Node type being configured
+    inputSize?: number;          // Request size in bytes
+    outputSize?: number;         // Response size in bytes
+    durationMs?: number;         // Processing time
+    success?: boolean;           // Did request succeed?
+    errorType?: string;          // Error classification if failed
+  }>(),
+  
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type AIUsageTracking = typeof aiUsageTracking.$inferSelect;
+export type InsertAIUsageTracking = typeof aiUsageTracking.$inferInsert;
 
 // Decrypted secret payloads (type-safe interfaces, never stored)
 export interface SmtpSecretPayload {
@@ -1484,6 +1567,22 @@ export const systemInstanceTestFiles = sqliteTable("system_instance_test_files",
   fileSize: integer("file_size").notNull(), // Size in bytes
   
   uploadedAt: text("uploaded_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  
+  // Iteration notes (markdown format) for ML training - visible to consultants & founders
+  // Structured as array of iterations tracking each consultant/founder update
+  // Customers CANNOT see these notes
+  notes: text("notes", { mode: "json" }).$type<Array<{
+    iteration: number;
+    author: string; // Email address
+    authorRole: "superadmin" | "consultant";
+    timestamp: string;
+    content: string; // Markdown format
+  }>>(),
+  
+  // Founder approval for ML training
+  mlApproved: integer("ml_approved", { mode: "boolean" }).default(false),
+  mlApprovedBy: text("ml_approved_by"), // Founder email who approved
+  mlApprovedAt: text("ml_approved_at"),
   
   metadata: text("metadata", { mode: "json" }).$type<{
     originalName?: string;

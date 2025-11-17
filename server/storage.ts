@@ -104,6 +104,8 @@ export interface IStorage {
   getTestFileQuota?(systemInstanceId: string): Promise<{ count: number; totalSize: number }>;
   createTestFile?(file: InsertSystemInstanceTestFile): Promise<SystemInstanceTestFile>;
   deleteTestFile?(id: string): Promise<boolean>;
+  addTestFileNote?(id: string, author: string, authorRole: "superadmin" | "consultant", content: string): Promise<boolean>;
+  approveTestFileForML?(id: string, approvedBy: string): Promise<boolean>;
   
   // Filesystem helpers for test files (used by API layer)
   writeTestFileToDisk?(

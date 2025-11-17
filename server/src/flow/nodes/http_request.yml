@@ -1,0 +1,93 @@
+# HTTP Request Node - Generic HTTP/REST API caller
+# Category: transformer
+
+id: http_request
+category: transformer
+label: HTTP Request
+description: Make HTTP requests to any API endpoint (GET, POST, PUT, DELETE)
+icon: Send
+
+# Input/Output handles
+inputs: 1        # Input data to send
+outputs: 1       # Outputs response from API
+
+# Configuration fields (UI form)
+configFields:
+  - name: url
+    label: URL
+    type: text
+    required: true
+    placeholder: https://api.example.com/endpoint
+    helpText: Full URL for the HTTP request (supports {{variable}} templates)
+
+  - name: method
+    label: HTTP Method
+    type: select
+    required: true
+    default: GET
+    options:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+    helpText: HTTP method for the request
+
+  - name: headers
+    label: Headers (JSON)
+    type: textarea
+    required: false
+    placeholder: '{"Content-Type": "application/json", "Authorization": "Bearer {{token}}"}'
+    helpText: HTTP headers as JSON object (supports {{variable}} templates)
+
+  - name: body
+    label: Request Body
+    type: textarea
+    required: false
+    placeholder: '{"key": "{{$.fieldName}}"}'
+    helpText: Request body (supports {{variable}} templates from input data)
+
+  - name: queryParams
+    label: Query Parameters (JSON)
+    type: textarea
+    required: false
+    placeholder: '{"param1": "value1", "param2": "{{$.id}}"}'
+    helpText: URL query parameters as JSON object
+
+  - name: timeout
+    label: Timeout (ms)
+    type: number
+    required: false
+    default: 30000
+    helpText: Request timeout in milliseconds
+
+  - name: retryAttempts
+    label: Retry Attempts
+    type: number
+    required: false
+    default: 0
+    helpText: Number of retry attempts on failure
+
+  - name: followRedirects
+    label: Follow Redirects
+    type: boolean
+    required: false
+    default: true
+    helpText: Automatically follow HTTP redirects
+
+  - name: validateSSL
+    label: Validate SSL Certificates
+    type: boolean
+    required: false
+    default: true
+    helpText: Validate SSL/TLS certificates
+
+  - name: responseField
+    label: Response Output Field
+    type: text
+    required: false
+    default: response
+    helpText: Field name to store response data (default: response)
+
+# Backend executor function
+executor: executeHttpRequest

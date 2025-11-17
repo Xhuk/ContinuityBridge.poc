@@ -1,0 +1,72 @@
+id: azure_blob_poller
+category: trigger
+label: Azure Blob Poller
+description: Poll Azure Blob Storage for new files
+icon: Cloud
+
+inputs: 0
+outputs: 1
+
+configFields:
+  - name: connectionString
+    label: Connection String
+    type: text
+    required: true
+    placeholder: DefaultEndpointsProtocol=https;AccountName=...
+    helpText: Azure Storage account connection string
+
+  - name: containerName
+    label: Container Name
+    type: text
+    required: true
+    placeholder: uploads
+    helpText: Blob container to poll
+
+  - name: blobPrefix
+    label: Blob Prefix
+    type: text
+    required: false
+    placeholder: inbound/
+    helpText: Filter blobs by prefix (folder path)
+
+  - name: blobPattern
+    label: Blob Pattern
+    type: text
+    required: false
+    default: "*.xml"
+    placeholder: "*.xml"
+    helpText: File pattern to match (e.g., *.xml, *.json)
+
+  - name: trackingMode
+    label: Tracking Mode
+    type: select
+    required: true
+    default: filename
+    options:
+      - filename
+      - etag
+      - checksum
+    helpText: How to track which files have been processed
+
+  - name: pollInterval
+    label: Poll Interval (seconds)
+    type: number
+    required: false
+    default: 300
+    helpText: How often to check for new files (minimum 60 seconds)
+
+  - name: downloadFiles
+    label: Download Files
+    type: boolean
+    required: false
+    default: true
+    helpText: Download file content (or just return metadata)
+
+  - name: deleteAfterDownload
+    label: Delete After Download
+    type: boolean
+    required: false
+    default: false
+    helpText: Delete blob after successful download
+
+executor: executeAzureBlobPoller

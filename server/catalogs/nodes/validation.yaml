@@ -1,0 +1,31 @@
+id: validation
+category: logic
+label: Validation
+description: Validate data against rules and route to success/error outputs
+icon: check-circle
+inputs: 1
+outputs: 2
+
+configFields:
+  - name: rules
+    label: Validation Rules (YAML)
+    type: textarea
+    required: true
+    placeholder: |
+      field_name:
+        type: string
+        required: true
+        minLength: 5
+      quantity:
+        type: number
+        required: true
+        min: 1
+    helpText: "YAML validation rules. Supported types: string, number, boolean, email, url, date"
+
+  - name: strictMode
+    label: Strict Mode
+    type: boolean
+    default: false
+    helpText: "Reject data with extra fields not defined in rules"
+
+executor: validation

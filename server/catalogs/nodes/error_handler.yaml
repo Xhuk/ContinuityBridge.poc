@@ -1,0 +1,51 @@
+id: error_handler
+category: logic
+label: Error Handler
+description: Catch and handle errors from upstream nodes
+icon: alert-triangle
+inputs: 1
+outputs: 2
+
+configFields:
+  - name: retryCount
+    label: Retry Count
+    type: number
+    required: false
+    default: 0
+    placeholder: "0"
+    helpText: "Number of automatic retry attempts"
+
+  - name: retryDelay
+    label: Retry Delay (seconds)
+    type: number
+    required: false
+    default: 5
+    placeholder: "5"
+    helpText: "Delay between retry attempts"
+
+  - name: logErrors
+    label: Log Errors
+    type: checkbox
+    required: false
+    default: true
+    helpText: "Automatically log error details to system logs"
+
+  - name: notifyOnError
+    label: Send Notifications
+    type: checkbox
+    required: false
+    default: false
+    helpText: "Trigger error notification (email/webhook)"
+
+  - name: fallbackBehavior
+    label: Fallback Behavior
+    type: select
+    required: true
+    default: route_to_error
+    options:
+      - route_to_error
+      - route_to_success
+      - stop_flow
+    helpText: "What to do after max retries exhausted"
+
+executor: error_handler

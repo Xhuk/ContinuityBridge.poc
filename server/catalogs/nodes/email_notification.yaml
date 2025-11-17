@@ -1,0 +1,59 @@
+id: email_notification
+category: output
+label: Email Notification
+description: Send email notifications with payload data
+icon: mail
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: to
+    label: To (Recipients)
+    type: textarea
+    required: true
+    placeholder: "user@example.com\nadmin@example.com"
+    helpText: "Email recipients (one per line, supports {{variables}})"
+
+  - name: cc
+    label: CC
+    type: textarea
+    required: false
+    placeholder: "manager@example.com"
+    helpText: "CC recipients (one per line)"
+
+  - name: subject
+    label: Subject
+    type: text
+    required: true
+    placeholder: "Order {{orderId}} Processed Successfully"
+    helpText: "Email subject with {{variable}} placeholders"
+
+  - name: body
+    label: Email Body
+    type: textarea
+    required: true
+    placeholder: |
+      Order {{orderId}} has been processed.
+      
+      Customer: {{customerName}}
+      Total: ${{total}}
+    helpText: "Email body content with {{variable}} placeholders"
+
+  - name: bodyFormat
+    label: Body Format
+    type: select
+    required: true
+    default: text
+    options:
+      - text
+      - html
+    helpText: "Plain text or HTML email"
+
+  - name: attachPayload
+    label: Attach Payload as JSON
+    type: checkbox
+    required: false
+    default: false
+    helpText: "Include full payload as JSON attachment"
+
+executor: email_notification

@@ -1,0 +1,17 @@
+id: manual_trigger
+category: trigger
+label: Manual Trigger
+description: Manually trigger a flow execution for testing
+icon: play
+inputs: 0
+outputs: 1
+
+configFields:
+  - name: description
+    label: Description
+    type: textarea
+    required: false
+    placeholder: "Describe when this trigger should be manually activated..."
+    helpText: "Optional note about when to manually run this flow"
+
+executor: manual_trigger

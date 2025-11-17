@@ -1,0 +1,67 @@
+id: sftp_connector
+category: output
+label: SFTP Connector
+description: Upload files to SFTP server
+icon: upload-cloud
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: host
+    label: SFTP Host
+    type: text
+    required: true
+    placeholder: "sftp.example.com"
+    helpText: "SFTP server hostname or IP address"
+
+  - name: port
+    label: Port
+    type: number
+    required: false
+    default: 22
+    placeholder: "22"
+    helpText: "SFTP server port (default: 22)"
+
+  - name: username
+    label: Username
+    type: text
+    required: true
+    placeholder: "sftp_user"
+    helpText: "SFTP authentication username"
+
+  - name: password
+    label: Password
+    type: password
+    required: false
+    placeholder: "••••••••"
+    helpText: "SFTP password (leave empty if using private key)"
+
+  - name: privateKey
+    label: Private Key
+    type: textarea
+    required: false
+    placeholder: "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+    helpText: "SSH private key for authentication"
+
+  - name: remotePath
+    label: Remote Path
+    type: text
+    required: true
+    placeholder: "/outbound"
+    helpText: "Destination directory on SFTP server"
+
+  - name: filename
+    label: Filename
+    type: text
+    required: true
+    placeholder: "order_{{orderId}}_{{timestamp}}.xml"
+    helpText: "Output filename with {{variable}} placeholders"
+
+  - name: overwrite
+    label: Overwrite Existing
+    type: checkbox
+    required: false
+    default: false
+    helpText: "Overwrite file if it already exists"
+
+executor: sftp_connector

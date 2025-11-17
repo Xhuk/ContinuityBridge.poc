@@ -82,12 +82,121 @@ export const executeDatabaseConnector: NodeExecutor = async (
     }
   }
 
-  // Production mode - Execute real database query
-  throw new Error(
-    `Database connector not yet implemented for production. ` +
-    `Database: ${dbType}, Operation: ${operation}. ` +
-    `Use emulation mode for testing, or implement database client libraries.`
-  );
+  // PRODUCTION MODE - Real database connections
+  try {
+    let result: any;
+
+    switch (dbType) {
+      case "postgres": {
+        const { Client } = await import("pg");
+        const client = new Client({ connectionString });
+        await client.connect();
+        try {
+          const res = await client.query(processedQuery);
+          result = operation === "query" ? res.rows : { affectedRows: res.rowCount };
+        } finally {
+          await client.end();
+        }
+        break;
+      }
+
+      case "mysql": {
+        const mysql = await import("mysql2/promise");
+        const connection = await mysql.createConnection(connectionString);
+        try {
+          const [rows, fields] = await connection.execute(processedQuery);
+          result = operation === "query" ? rows : { affectedRows: (rows as any).affectedRows };
+        } finally {
+          await connection.end();
+        }
+        break;
+      }
+
+      case "mssql": {
+        const sql = await import("mssql");
+        const pool = await sql.connect(connectionString);
+        try {
+          const res = await pool.request().query(processedQuery);
+          result = operation === "query" ? res.recordset : { affectedRows: res.rowsAffected[0] };
+        } finally {
+          await pool.close();
+        }
+        break;
+      }
+
+      case "mongodb": {
+        const { MongoClient } = await import("mongodb");
+        const client = new MongoClient(connectionString);
+        await client.connect();
+        try {
+          const db = client.db();
+          // Parse collection and operation from query
+          // Simple format: "collection.find({field: value})"
+          const match = processedQuery.match(/([\w]+)\.([\w]+)\((.*)\)/);
+          if (!match) throw new Error("Invalid MongoDB query format. Use: collection.method({...})");
+          
+          const [, collectionName, method, argsStr] = match;
+          const collection = db.collection(collectionName);
+          const args = argsStr ? JSON.parse(argsStr) : {};
+          
+          if (method === "find") {
+            result = await collection.find(args).toArray();
+          } else if (method === "insertOne") {
+            const res = await collection.insertOne(args);
+            result = { insertedId: res.insertedId, affectedRows: 1 };
+          } else if (method === "updateOne") {
+            const res = await collection.updateOne(args.filter || {}, args.update || {});
+            result = { affectedRows: res.modifiedCount };
+          } else if (method === "deleteOne") {
+            const res = await collection.deleteOne(args);
+            result = { affectedRows: res.deletedCount };
+          } else {
+            throw new Error(`Unsupported MongoDB method: ${method}`);
+          }
+        } finally {
+          await client.close();
+        }
+        break;
+      }
+
+      default:
+        throw new Error(`Unsupported database type: ${dbType}`);
+    }
+
+    // Return formatted response
+    if (operation === "query") {
+      return {
+        output: {
+          ...input as any,
+          [outputField]: result,
+        },
+        metadata: {
+          databaseOperation: operation,
+          dbType,
+          rowsAffected: Array.isArray(result) ? result.length : 1,
+        },
+      };
+    } else {
+      return {
+        output: input,
+        metadata: {
+          databaseOperation: operation,
+          dbType,
+          rowsAffected: result.affectedRows || 0,
+          insertId: result.insertedId || result.insertId,
+        },
+      };
+    }
+  } catch (error: any) {
+    // If production libraries not installed, provide helpful error
+    if (error.code === 'MODULE_NOT_FOUND') {
+      throw new Error(
+        `Database driver not installed for ${dbType}. ` +
+        `Install: npm install ${getDatabaseDriver(dbType)}`
+      );
+    }
+    throw error;
+  }
 };
 
 /**
@@ -152,4 +261,18 @@ function generateMockDatabaseResult(operation: string, query: string): any {
     // For insert/update/delete, return affected rows count
     return { affectedRows: 1, insertId: Math.floor(Math.random() * 10000) };
   }
+}
+
+/**
+ * Get npm package name for database driver
+ */
+function getDatabaseDriver(dbType: string): string {
+  const drivers: Record<string, string> = {
+    postgres: "pg",
+    mysql: "mysql2",
+    mssql: "mssql",
+    mongodb: "mongodb",
+    sqlite: "better-sqlite3",
+  };
+  return drivers[dbType] || dbType;
 }

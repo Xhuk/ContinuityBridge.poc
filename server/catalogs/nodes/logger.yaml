@@ -1,0 +1,43 @@
+id: logger
+category: transform
+label: Logger
+description: Log payload data for debugging and monitoring
+icon: file-text
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: logLevel
+    label: Log Level
+    type: select
+    required: true
+    default: info
+    options:
+      - debug
+      - info
+      - warn
+      - error
+    helpText: "Severity level for this log entry"
+
+  - name: message
+    label: Log Message
+    type: text
+    required: false
+    placeholder: "Processing order {{orderId}}"
+    helpText: "Custom message with {{variable}} placeholders"
+
+  - name: includePayload
+    label: Include Full Payload
+    type: checkbox
+    required: false
+    default: true
+    helpText: "Log the entire data object (warning: may be large)"
+
+  - name: fieldsToLog
+    label: Specific Fields to Log
+    type: textarea
+    required: false
+    placeholder: "orderId\ncustomerName\ntotalAmount"
+    helpText: "Only log these fields (one per line, leave empty to log all)"
+
+executor: logger

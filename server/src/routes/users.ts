@@ -90,10 +90,25 @@ router.post("/", authenticateUser, async (req, res) => {
       organizationId,
       organizationName,
       assignedCustomers, // Only for consultants
+      maxCustomers, // Contract limit for consultants (number of end customers they can manage)
     } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: "Email is required" });
+    }
+
+    // Validate consultant limits
+    if (role === "consultant") {
+      if (!maxCustomers || maxCustomers < 1) {
+        return res.status(400).json({ 
+          error: "maxCustomers is required for consultants (must be >= 1)" 
+        });
+      }
+      if (assignedCustomers && assignedCustomers.length > maxCustomers) {
+        return res.status(400).json({ 
+          error: `Cannot assign ${assignedCustomers.length} customers. Contract limit is ${maxCustomers}` 
+        });
+      }
     }
 
     const userRole = req.user?.role;
@@ -148,7 +163,10 @@ router.post("/", authenticateUser, async (req, res) => {
       enabled: true,
       passwordHash: null,  // No password - API key auth only
       lastLoginAt: null,
-      metadata: {},
+      metadata: role === "consultant" ? {
+        maxCustomers: maxCustomers || 1,
+        contractedCustomers: maxCustomers || 1,
+      } : {},
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

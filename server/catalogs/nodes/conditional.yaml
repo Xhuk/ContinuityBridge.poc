@@ -1,0 +1,67 @@
+id: conditional
+category: logic
+label: Conditional
+description: Route data based on conditional logic (if/else)
+icon: git-branch
+inputs: 1
+outputs: 2
+
+configFields:
+  - name: interfaceId
+    label: Interface (for Schema)
+    type: interface
+    required: false
+    helpText: "Optional: Select interface to use its condition schema"
+
+  - name: field
+    label: Field to Check
+    type: text
+    required: false
+    placeholder: "e.g., status, quantity, region"
+    helpText: "Field name to evaluate"
+
+  - name: operator
+    label: Operator
+    type: select
+    required: false
+    options:
+      - equals
+      - not_equals
+      - greater_than
+      - less_than
+      - in
+      - contains
+      - starts_with
+      - ends_with
+    default: equals
+    helpText: "Comparison operator"
+
+  - name: value
+    label: Value
+    type: text
+    required: false
+    placeholder: "Value to compare against"
+    helpText: "The value to check the field against"
+
+  - name: conditions
+    label: Advanced Conditions (YAML)
+    type: textarea
+    required: false
+    placeholder: |
+      # Single condition:
+      field: status
+      operator: equals
+      value: shipped
+
+      # Multiple conditions:
+      conditions:
+        - field: quantity
+          operator: greater_than
+          value: 100
+        - field: region
+          operator: equals
+          value: US
+      logic: AND
+    helpText: "YAML conditions for complex logic"
+
+executor: conditional

@@ -1,0 +1,105 @@
+# Egress Node - Outbound data transmission (HTTP webhook/API)
+# Category: output
+
+id: egress
+category: output
+label: Egress (Outbound)
+description: Sends data to external systems via HTTP/HTTPS (webhook, REST API)
+icon: Send
+
+# Input/Output handles
+inputs: 1        # Input data to send
+outputs: 1       # Outputs response from external system
+
+# Configuration fields (UI form)
+configFields:
+  - name: url
+    label: Destination URL
+    type: text
+    required: true
+    placeholder: https://api.example.com/orders
+    helpText: Full URL to send data to
+
+  - name: method
+    label: HTTP Method
+    type: select
+    required: true
+    default: POST
+    options:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+    helpText: HTTP method for the request
+
+  - name: headers
+    label: Custom Headers (JSON)
+    type: textarea
+    required: false
+    placeholder: '{"Content-Type": "application/json", "X-API-Key": "{{apiKey}}"}'
+    helpText: JSON object of HTTP headers (supports {{variable}} templates)
+
+  - name: authMethod
+    label: Authentication
+    type: select
+    required: false
+    default: none
+    options:
+      - none
+      - bearer_token
+      - api_key
+      - basic_auth
+      - oauth2
+    helpText: Authentication method for destination API
+
+  - name: authToken
+    label: Auth Token/API Key
+    type: text
+    required: false
+    helpText: Bearer token or API key value
+
+  - name: timeout
+    label: Timeout (seconds)
+    type: number
+    required: false
+    default: 30
+    helpText: Request timeout in seconds
+
+  - name: retryAttempts
+    label: Retry Attempts
+    type: number
+    required: false
+    default: 3
+    helpText: Number of retry attempts on failure
+
+  - name: retryDelay
+    label: Retry Delay (ms)
+    type: number
+    required: false
+    default: 1000
+    helpText: Delay between retries in milliseconds
+
+  - name: validateSSL
+    label: Validate SSL Certificate
+    type: boolean
+    required: false
+    default: true
+    helpText: If false, accept self-signed certificates (not recommended for production)
+
+  - name: followRedirects
+    label: Follow Redirects
+    type: boolean
+    required: false
+    default: true
+    helpText: Automatically follow HTTP redirects
+
+  - name: includeResponseInOutput
+    label: Include Response in Output
+    type: boolean
+    required: false
+    default: true
+    helpText: If true, output contains response data from destination
+
+# Backend executor function
+executor: executeEgress

@@ -1,0 +1,70 @@
+# Error Handler Node - Try/catch wrapper for graceful error handling
+# Category: router
+
+id: error_handler
+category: router
+label: Error Handler
+description: Wrap nodes in try/catch logic with alternative error path
+icon: AlertCircle
+
+# Input/Output handles
+inputs: 1        # Input data to process
+outputs: 2       # Output 1: Success, Output 2: Error
+
+# Configuration fields (UI form)
+configFields:
+  - name: errorHandlingStrategy
+    label: Error Handling Strategy
+    type: select
+    required: true
+    default: catch_and_continue
+    options:
+      - catch_and_continue
+      - catch_and_retry
+      - catch_and_fail
+    helpText: How to handle errors when they occur
+
+  - name: retryAttempts
+    label: Retry Attempts
+    type: number
+    required: false
+    default: 3
+    helpText: Number of retry attempts (for catch_and_retry strategy)
+
+  - name: retryDelay
+    label: Retry Delay (ms)
+    type: number
+    required: false
+    default: 1000
+    helpText: Delay between retry attempts in milliseconds
+
+  - name: logErrors
+    label: Log Errors
+    type: boolean
+    required: false
+    default: true
+    helpText: Log errors to system logs
+
+  - name: includeStackTrace
+    label: Include Stack Trace
+    type: boolean
+    required: false
+    default: true
+    helpText: Include full stack trace in error output
+
+  - name: defaultValue
+    label: Default Value on Error
+    type: textarea
+    required: false
+    placeholder: '{"status": "error", "message": "Processing failed"}'
+    helpText: Default value to output on error (JSON)
+
+  - name: errorField
+    label: Error Output Field
+    type: text
+    required: false
+    default: error
+    helpText: Field name to store error details
+
+# Backend executor function
+executor: executeErrorHandler

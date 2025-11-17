@@ -1,0 +1,32 @@
+id: distributor
+category: logic
+label: Distributor
+description: Send payload to multiple output paths simultaneously
+icon: git-merge
+inputs: 1
+outputs: 3
+
+configFields:
+  - name: outputCount
+    label: Number of Outputs
+    type: number
+    required: true
+    default: 2
+    placeholder: "2"
+    helpText: "How many parallel output paths (max 10)"
+
+  - name: clonePayload
+    label: Clone Payload
+    type: checkbox
+    required: false
+    default: true
+    helpText: "Create independent copies for each output (prevents mutation issues)"
+
+  - name: continueOnError
+    label: Continue on Error
+    type: checkbox
+    required: false
+    default: false
+    helpText: "Send to remaining outputs even if one path fails"
+
+executor: distributor

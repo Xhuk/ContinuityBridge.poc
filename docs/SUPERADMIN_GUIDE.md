@@ -16,6 +16,9 @@ As a **Superadmin**, you have full system access and control over all customer o
 - Access all Error Triage Dashboard errors across all customers
 - System configuration and environment management
 - Release planning and deployment coordination
+- **Project management** for customer implementations
+- **Environment promotion filtering** (remove admin features from STAGING/PROD)
+- **Postman collection generation** with credentials
 
 ### Your Email
 Your superadmin account: **jesus.cruzado@gmail.com**
@@ -285,6 +288,7 @@ PROD:
 - Clones DEV configuration to STAGING environment
 - Same version number, different environment
 - Allows UAT validation before PROD
+- **⚠️ FILTERED**: SuperAdmin pages/routes are **automatically removed**
 
 **STAGING → PROD**:
 - Access: **Environment Promotion** → **Promote to Production**
@@ -292,6 +296,22 @@ PROD:
 - Status: **pending_approval** (requires your approval)
 - Cannot deploy until approved
 - Becomes immutable after deployment
+- **⚠️ FILTERED**: SuperAdmin AND Consultant pages/routes are **automatically removed**
+
+**Automatic Filtering Rules**:
+
+When promoting configurations, management layers are automatically excluded:
+
+| Source | Target | What Gets Removed |
+|--------|--------|-------------------|
+| DEV → STAGING | STAGING | ❌ SuperAdmin project management<br>❌ `/admin/projects` routes |
+| STAGING → PROD | PROD | ❌ SuperAdmin features<br>❌ Consultant tenant selection<br>❌ `/tenant-selector` routes<br>❌ Multi-tenant switching |
+
+**Why Filter?**
+- Customers don't need internal project management tools
+- Production deployments should only contain operational features
+- Cleaner, more secure customer environments
+- Reduces attack surface and complexity
 
 ---
 
@@ -436,7 +456,346 @@ Centralized knowledge base for integration patterns, troubleshooting, and best p
 
 ---
 
-### 8. System Logs & Monitoring
+### 8. Project Management (SuperAdmin Only)
+
+Access: **Menu → SuperAdmin → Projects**
+
+#### Purpose
+Manage customer implementation projects, track stages (dev/test/staging/prod), assign consultants, and coordinate go-live schedules.
+
+#### Creating a Project
+
+1. Navigate to **SuperAdmin → Projects**
+2. Click **+ New Project**
+3. Fill in project details:
+   - **Organization Name**: Customer company name
+   - **Project Goal**: "Implement SAP-to-WMS order sync"
+   - **Description**: Detailed project scope
+   - **Assigned Consultants**: Select consultants (multi-select)
+   - **Status**: Planning, In Progress, Completed, On Hold
+
+4. **Project Stages** (auto-created):
+   - **Development**: DEV environment setup and testing
+   - **Testing**: TEST environment validation
+   - **Staging/UAT**: Customer acceptance testing
+   - **Production**: Live deployment
+
+5. Click **Create Project**
+
+#### Managing Project Stages
+
+**Stage Tracking**:
+- Each stage has its own status: Not Started, In Progress, Completed, Blocked
+- Track start date and completion date
+- Add notes for each stage milestone
+
+**Stage Details**:
+```
+Stage: Development (DEV)
+Status: In Progress
+Start Date: 2025-01-15
+Notes: "Flow configured, pending mapping approval"
+
+Stage: Testing (TEST)
+Status: Not Started
+
+Stage: Staging (UAT)
+Status: Not Started
+
+Stage: Production (PROD)
+Status: Not Started
+```
+
+#### Consultant Assignment
+
+**Assigning Consultants**:
+1. Open project
+2. Click **Edit**
+3. Select consultants from **Assigned Consultants** dropdown
+4. Save changes
+
+**Consultant Notifications**:
+- Consultants receive email when assigned to project
+- Notifications sent when stage status changes
+- Alerts for blocked stages requiring attention
+
+#### Project Lifecycle
+
+**Planning Phase**:
+1. Create project with organization details
+2. Set project goals and scope
+3. Assign consultants
+4. Define stage milestones
+
+**Execution Phase**:
+1. Move Development stage to "In Progress"
+2. Consultants configure flows in DEV
+3. Mark Development as "Completed"
+4. Progress through Test → Staging → Prod
+
+**Completion**:
+1. All stages marked "Completed"
+2. Project status set to "Completed"
+3. Handoff to customer support team
+
+#### Viewing Projects
+
+**Project List**:
+- Filter by status (Planning, In Progress, Completed, On Hold)
+- Search by organization name
+- Sort by creation date, status, assigned consultants
+
+**Project Details**:
+- Organization information
+- Project goal and description
+- Stage progress tracker
+- Assigned consultants list
+- Creation and last updated timestamps
+
+#### Editing Projects
+
+**Allowed Changes**:
+- Update project goal or description
+- Change assigned consultants
+- Update project status
+- Modify stage status, dates, and notes
+
+**Cannot Change**:
+- Organization name (linked to tenant)
+- Project ID
+- Creation timestamp
+
+#### Deleting Projects
+
+1. Click **Delete** on project card
+2. Confirm deletion
+3. **Warning**: This action cannot be undone
+
+**⚠️ Important**: Projects are **automatically filtered out** when promoting to STAGING/PROD - they're only for internal management.
+
+---
+
+### 9. Postman Collection Export
+
+Access: **Settings → Postman** tab
+
+#### Purpose
+Generate Postman collections for API testing of configured interfaces and flows, with environment-specific authentication and sample payloads.
+
+#### Collection Features
+
+**Auto-Generated Content**:
+- ✅ All configured interfaces (inbound/outbound)
+- ✅ Flow webhook triggers
+- ✅ Flow manual execution endpoints
+- ✅ Authentication headers (API Key, Bearer, Basic Auth, OAuth2)
+- ✅ Sample request payloads (XML/JSON)
+- ✅ Environment variables (base_url, credentials)
+- ✅ Internal API endpoints (health, metrics, events)
+
+#### Generating a Collection
+
+1. Navigate to **Settings → Postman**
+2. Configure export options:
+
+**Environment Selection**:
+- **DEV**: `http://localhost:5000`
+- **STAGING**: `https://api.staging.com`
+- **PROD**: `https://api.production.com`
+
+**Include Secrets** (SuperAdmin Only):
+- ✅ **Enabled**: Exports actual API keys, tokens, passwords
+- ❌ **Disabled**: Uses placeholders (`{{api_key}}`, `{{bearer_token}}`)
+
+**Include Flow Triggers**:
+- ✅ Adds webhook and manual trigger endpoints
+- ❌ Excludes flow-related requests
+
+**Include Sample Payloads**:
+- ✅ Adds example XML/JSON request bodies
+- ❌ Requests have empty bodies
+
+3. Click **Download Collection**
+4. File downloads: `{organization}-{environment}-collection.json`
+
+#### Collection Structure
+
+```
+ContinuityBridge - DEV API Collection/
+├── Inbound Interfaces (Sources)/
+│   ├── SAP ERP (REST API)
+│   ├── Amazon Marketplace (GraphQL)
+│   └── SFTP File Monitor (SFTP)
+│
+├── Outbound Interfaces (Destinations)/
+│   ├── JDA WMS (SOAP)
+│   ├── Shipstation (REST API)
+│   └── Email Notification (SMTP)
+│
+├── Flow Triggers/
+│   ├── Trigger: Order Sync Flow
+│   ├── Manual Trigger: Order Sync Flow
+│   └── Trigger: Inventory Update Flow
+│
+└── ContinuityBridge Internal APIs/
+    ├── Health Check
+    ├── Metrics Snapshot
+    └── Recent Events
+```
+
+#### Authentication Examples
+
+**API Key Authentication**:
+```
+Header: X-API-Key
+Value: {{api_key}}  (placeholder)
+   or: sk_live_abc123...  (actual secret if SuperAdmin exports)
+```
+
+**Bearer Token**:
+```
+Auth Type: Bearer Token
+Token: {{bearer_token}}  (placeholder)
+    or: eyJhbGc...  (actual token if SuperAdmin exports)
+```
+
+**Basic Auth**:
+```
+Auth Type: Basic Auth
+Username: {{username}}  (placeholder)
+Password: {{password}}  (placeholder)
+```
+
+**OAuth2**:
+```
+Auth Type: OAuth2
+Token URL: https://api.example.com/oauth/token
+Client ID: {{oauth_client_id}}
+Client Secret: {{oauth_client_secret}}
+Grant Type: client_credentials
+```
+
+#### Sample Payload Examples
+
+**XML Payload** (for SOAP/XML interfaces):
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Request>
+  <Header>
+    <Timestamp>2025-01-15T10:30:00Z</Timestamp>
+    <InterfaceId>abc-123</InterfaceId>
+  </Header>
+  <Payload>
+    <Item>
+      <Id>SAMPLE-001</Id>
+      <Name>Sample Item</Name>
+      <Quantity>10</Quantity>
+    </Item>
+  </Payload>
+</Request>
+```
+
+**JSON Payload** (for REST/GraphQL interfaces):
+```json
+{
+  "header": {
+    "timestamp": "2025-01-15T10:30:00Z",
+    "interfaceId": "abc-123"
+  },
+  "payload": {
+    "items": [
+      {
+        "id": "SAMPLE-001",
+        "name": "Sample Item",
+        "quantity": 10
+      }
+    ]
+  }
+}
+```
+
+#### Using the Collection in Postman
+
+**Step 1: Import**
+1. Open Postman
+2. Click **Import**
+3. Select downloaded `.json` file
+4. Collection appears in sidebar
+
+**Step 2: Configure Variables**
+1. Click on collection name
+2. Go to **Variables** tab
+3. Set values:
+   - `base_url`: Your API endpoint
+   - `api_key`: Your API key (if not auto-filled)
+   - `bearer_token`: Your token
+   - `username`/`password`: Credentials
+
+**Step 3: Test Interfaces**
+1. Expand **Inbound Interfaces** folder
+2. Select an interface request
+3. Click **Send**
+4. View response
+
+**Step 4: Trigger Flows**
+1. Expand **Flow Triggers** folder
+2. Select flow to test
+3. Modify sample payload if needed
+4. Click **Send**
+5. Check flow execution in ContinuityBridge dashboard
+
+#### Regenerating Collections
+
+**When to Regenerate**:
+- ✅ After adding new interfaces
+- ✅ After creating new flows
+- ✅ After modifying authentication settings
+- ✅ After changing endpoint URLs
+- ✅ When switching environments
+
+**How to Regenerate**:
+1. Go to **Settings → Postman**
+2. Click **Regenerate** button
+3. System rebuilds collection with latest configuration
+4. Click **Download Collection**
+5. Re-import to Postman (replaces existing)
+
+#### Collection Statistics
+
+**Overview Dashboard** shows:
+- Total interfaces (by direction: inbound/outbound/bidirectional)
+- Protocol breakdown (REST API, SOAP, SFTP, GraphQL, etc.)
+- Authentication types (API Key, Bearer, OAuth2, Basic Auth)
+- Total flows
+- Enabled flows
+- Flows with webhook triggers
+
+#### Security Considerations
+
+**⚠️ SuperAdmin Access**:
+- Only SuperAdmin can export collections with actual credentials
+- Consultants and customers get placeholder variables
+- Prevents credential leakage to unauthorized users
+
+**Best Practices**:
+1. **Never commit** collections with real credentials to version control
+2. **Use environment variables** in Postman for secrets
+3. **Regenerate** credentials if collection is compromised
+4. **Export without secrets** for sharing with team members
+5. **Rotate API keys** periodically
+
+**Credential Placeholders** (non-SuperAdmin):
+```
+{{api_key}}          ← User must provide
+{{bearer_token}}     ← User must provide
+{{username}}         ← User must provide
+{{password}}         ← User must provide
+{{oauth_client_id}}  ← User must provide
+```
+
+---
+
+### 10. System Logs & Monitoring
 
 Access: **Menu → Logs**
 
@@ -934,5 +1293,6 @@ As Superadmin, you are the escalation point for all consultants.
 
 ---
 
-*Last Updated: 2025-11-15*
+*Last Updated: 2025-01-15*
 *Superadmin: jesus.cruzado@gmail.com*
+*Version: 2.0 (with Project Management, Environment Filtering, and Postman Export)*

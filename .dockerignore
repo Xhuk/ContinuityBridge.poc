@@ -1,0 +1,120 @@
+# ============================================================================
+# ContinuityBridge - Docker Ignore
+# Excludes sensitive files and development-only scripts from Docker builds
+# ============================================================================
+
+# ============================================================================
+# SENSITIVE FILES - NEVER INCLUDE IN CONTAINERS
+# ============================================================================
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Development seed scripts (contain hardcoded admin emails)
+scripts/
+!scripts/README.md
+
+# Database files
+data/
+*.sqlite
+*.sqlite3
+*.db
+
+# License and encryption keys
+*.enc
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Customer exports
+exports/
+continuitybridge-*.zip
+
+# Credentials
+credentials/
+secrets/
+*.credentials
+*.secret
+
+# ============================================================================
+# DEVELOPMENT FILES
+# ============================================================================
+
+# Source files (use compiled dist/)
+server/src/
+!server/src/setup/first-run.ts
+
+# Tests
+**/*.test.ts
+**/*.spec.ts
+__tests__/
+test/
+coverage/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# ============================================================================
+# BUILD ARTIFACTS (Use dist/ instead)
+# ============================================================================
+
+# Node modules (will be installed in container)
+node_modules/
+
+# Build cache
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# ============================================================================
+# EDITOR FILES
+# ============================================================================
+
+.vscode/
+.idea/
+*.sublime-*
+.DS_Store
+Thumbs.db
+
+# ============================================================================
+# DOCUMENTATION (Not needed in runtime)
+# ============================================================================
+
+docs/
+*.md
+!README.md
+
+# ============================================================================
+# KEEP THESE FILES (Required for runtime)
+# ============================================================================
+
+# Production environment template
+!.env.example
+
+# First-run setup (sanitized, no hardcoded credentials)
+!server/src/setup/first-run.ts
+
+# Runtime dependencies
+!package.json
+!package-lock.json
+
+# Compiled code
+!dist/

@@ -1,0 +1,37 @@
+id: bydm_mapper
+category: transform
+label: BYDM Mapper
+description: Map BYD Manufacturing data to target formats
+icon: FileCode
+
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: targetFormat
+    label: Target Format
+    type: select
+    required: true
+    default: standard
+    options:
+      - standard
+      - wms
+      - erp
+      - marketplace
+    helpText: Target format for mapped data
+
+  - name: mappingRules
+    label: Mapping Rules (YAML)
+    type: textarea
+    required: false
+    placeholder: "target.orderId: source.orderNumber\ntarget.items: source.lineItems"
+    helpText: YAML-based field mapping rules
+
+  - name: includeMetadata
+    label: Include Metadata
+    type: boolean
+    required: false
+    default: true
+    helpText: Include BYD-specific metadata in output
+
+executor: executeBYDMMapper

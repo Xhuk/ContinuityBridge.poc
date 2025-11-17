@@ -1,0 +1,134 @@
+# Email Notification Node - Send email alerts/notifications
+# Category: output
+
+id: email_notification
+category: output
+label: Email Notification
+description: Send email notifications via SMTP or email service provider
+icon: Send
+
+# Input/Output handles
+inputs: 1        # Input data for email content
+outputs: 1       # Outputs confirmation
+
+# Configuration fields (UI form)
+configFields:
+  - name: emailProvider
+    label: Email Provider
+    type: select
+    required: true
+    default: smtp
+    options:
+      - smtp
+      - resend
+    helpText: Use SMTP (customer servers) or Resend (founder accounts only)
+
+  - name: smtpHost
+    label: SMTP Host
+    type: text
+    required: false
+    placeholder: smtp.example.com
+    helpText: SMTP server hostname (required for SMTP provider)
+
+  - name: smtpPort
+    label: SMTP Port
+    type: number
+    required: false
+    default: 587
+    helpText: SMTP server port (587 for TLS, 465 for SSL)
+
+  - name: smtpUsername
+    label: SMTP Username
+    type: text
+    required: false
+    placeholder: user@example.com
+    helpText: SMTP authentication username
+
+  - name: smtpPassword
+    label: SMTP Password
+    type: password
+    required: false
+    helpText: SMTP authentication password
+
+  - name: smtpSecure
+    label: Use SSL/TLS
+    type: boolean
+    required: false
+    default: true
+    helpText: Use secure connection (SSL/TLS)
+
+  - name: to
+    label: To (Email Address)
+    type: text
+    required: true
+    placeholder: recipient@example.com
+    helpText: Recipient email address (supports {{variable}} templates)
+
+  - name: cc
+    label: CC (Optional)
+    type: text
+    required: false
+    placeholder: cc@example.com
+    helpText: CC email addresses (comma-separated)
+
+  - name: subject
+    label: Subject
+    type: text
+    required: true
+    placeholder: Order {{$.orderId}} Failed
+    helpText: Email subject line (supports {{variable}} templates)
+
+  - name: body
+    label: Email Body
+    type: textarea
+    required: true
+    placeholder: |
+      Order ID: {{$.orderId}}
+      Status: {{$.status}}
+      Error: {{$.error}}
+    helpText: Email body content (supports {{variable}} templates and HTML)
+
+  - name: bodyType
+    label: Body Type
+    type: select
+    required: true
+    default: text
+    options:
+      - text
+      - html
+    helpText: Email body format (plain text or HTML)
+
+  - name: from
+    label: From Address (Optional)
+    type: text
+    required: false
+    placeholder: noreply@continuitybridge.com
+    helpText: Sender email address (uses default if not specified)
+
+  - name: replyTo
+    label: Reply-To (Optional)
+    type: text
+    required: false
+    placeholder: support@company.com
+    helpText: Reply-to email address
+
+  - name: priority
+    label: Priority
+    type: select
+    required: false
+    default: normal
+    options:
+      - low
+      - normal
+      - high
+    helpText: Email priority level
+
+  - name: attachData
+    label: Attach Input Data as JSON
+    type: boolean
+    required: false
+    default: false
+    helpText: Attach input data as JSON file
+
+# Backend executor function
+executor: executeEmailNotification

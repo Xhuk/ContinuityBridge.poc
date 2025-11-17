@@ -9,6 +9,81 @@ import { logger } from "../core/logger";
 const router = Router();
 
 /**
+ * Filter configuration based on target environment
+ * - STAGING: Excludes SuperAdmin pages/routes
+ * - PROD: Excludes SuperAdmin AND Consultant pages/routes
+ */
+function filterConfigurationForEnvironment(config: any, targetEnv: "staging" | "prod"): any {
+  if (!config) return config;
+
+  const filtered = JSON.parse(JSON.stringify(config)); // Deep clone
+
+  // List of SuperAdmin-only routes/features to exclude
+  const superAdminRoutes = [
+    "/admin/projects",
+    "/api/admin/projects",
+  ];
+
+  // List of Consultant-only routes/features to exclude (only in PROD)
+  const consultantRoutes = [
+    "/tenant-selector",
+    "/api/consultant/tenants",
+    "/api/consultant/select-tenant",
+  ];
+
+  // Filter flows (if present)
+  if (filtered.flows && Array.isArray(filtered.flows)) {
+    filtered.flows = filtered.flows.filter((flow: any) => {
+      // Exclude SuperAdmin flows (both staging and prod)
+      if (flow.tags?.includes("superadmin-only")) return false;
+      // Exclude Consultant flows (only in prod)
+      if (targetEnv === "prod" && flow.tags?.includes("consultant-only")) return false;
+      return true;
+    });
+  }
+
+  // Filter routes/pages configuration (if present)
+  if (filtered.routes && Array.isArray(filtered.routes)) {
+    filtered.routes = filtered.routes.filter((route: string) => {
+      // Exclude SuperAdmin routes (both staging and prod)
+      if (superAdminRoutes.some(r => route.includes(r))) return false;
+      // Exclude Consultant routes (only in prod)
+      if (targetEnv === "prod" && consultantRoutes.some(r => route.includes(r))) return false;
+      return true;
+    });
+  }
+
+  // Filter settings/features (if present)
+  if (filtered.settings) {
+    // Remove SuperAdmin settings (both staging and prod)
+    delete filtered.settings?.superadminFeatures;
+    // Remove Consultant settings (only in prod)
+    if (targetEnv === "prod") {
+      delete filtered.settings?.consultantFeatures;
+      delete filtered.settings?.tenantSelection;
+    }
+  }
+
+  // Add metadata about filtering
+  filtered._filtered = {
+    environment: targetEnv,
+    excludedFeatures: targetEnv === "prod" 
+      ? ["SuperAdmin pages", "Consultant tenant selection", "Project management"]
+      : ["SuperAdmin pages", "Project management"],
+    filteredAt: new Date().toISOString(),
+  };
+
+  logger.info(`Configuration filtered for ${targetEnv.toUpperCase()}`, {
+    scope: "superadmin",
+    excludedRoutes: targetEnv === "prod" 
+      ? [...superAdminRoutes, ...consultantRoutes]
+      : superAdminRoutes,
+  });
+
+  return filtered;
+}
+
+/**
  * POST /api/environment-promotion/dev-to-staging
  * Promote DEV version to STAGING
  * 🔒 Contractor can promote dev → staging
@@ -46,6 +121,9 @@ router.post("/dev-to-staging", authenticateUser, async (req: Request, res: Respo
     const stagingVersionId = randomUUID();
     const stagingVersion = `${devVersion.versionMajor}.${devVersion.versionMinor}.${devVersion.versionPatch}`;
 
+    // Filter configuration: Remove SuperAdmin routes/features for STAGING
+    const filteredConfig = filterConfigurationForEnvironment(devVersion.configuration, "staging");
+
     await (db.insert(configurationVersions) as any).values({
       id: stagingVersionId,
       organizationId: devVersion.organizationId,
@@ -60,7 +138,7 @@ router.post("/dev-to-staging", authenticateUser, async (req: Request, res: Respo
       changeType: devVersion.changeType,
       status: "draft",
       isImmutable: false,
-      configuration: devVersion.configuration,
+      configuration: filteredConfig, // Filtered configuration (SuperAdmin excluded)
       changesSummary: devVersion.changesSummary,
       createdBy: req.user?.id || "",
       createdByEmail: req.user?.email || "",
@@ -139,6 +217,9 @@ router.post("/staging-to-prod", authenticateUser, async (req: Request, res: Resp
     const prodVersionId = randomUUID();
     const prodVersion = `${stagingVersion.versionMajor}.${stagingVersion.versionMinor}.${stagingVersion.versionPatch}`;
 
+    // Filter configuration: Remove SuperAdmin AND Consultant routes/features for PROD
+    const filteredConfig = filterConfigurationForEnvironment(stagingVersion.configuration, "prod");
+
     await (db.insert(configurationVersions) as any).values({
       id: prodVersionId,
       organizationId: stagingVersion.organizationId,
@@ -153,7 +234,7 @@ router.post("/staging-to-prod", authenticateUser, async (req: Request, res: Resp
       changeType: stagingVersion.changeType,
       status: "pending_approval", // PROD always requires approval
       isImmutable: false, // Will become immutable after deployment
-      configuration: stagingVersion.configuration,
+      configuration: filteredConfig, // Filtered configuration (SuperAdmin + Consultant excluded)
       changesSummary: stagingVersion.changesSummary,
       createdBy: req.user?.id || "",
       createdByEmail: req.user?.email || "",

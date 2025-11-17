@@ -41,6 +41,8 @@ export function getPayloadStorage() {
 import type { FlowOrchestrator } from "../flow/orchestrator.js";
 import type { IStorage } from "../../storage.js";
 import { registerAIMappingRoutes } from "./ai-mapping-routes.js";
+import aiRoutes from "./ai-routes.js";
+import aiAdminRoutes from "./ai-admin-routes.js";
 import exportRoutes from "../routes/export.js";
 import usersRoutes from "../routes/users.js";
 import authLoginRoutes from "../routes/auth-login.js";
@@ -61,6 +63,13 @@ import { authenticateUser } from "../auth/rbac-middleware.js";
 export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrator?: FlowOrchestrator, storage?: IStorage): void {
   // Register AI Mapping Generator routes (dev-only)
   registerAIMappingRoutes(app);
+  
+  // Register AI Assistant routes (Gemini-powered)
+  // Register AI routes (requires authentication)
+  app.use("/api/ai", authenticateUser, aiRoutes);
+  
+  // Register AI Admin routes (Superadmin only - authentication enforced in routes)
+  app.use("/api/ai/admin", authenticateUser, aiAdminRoutes);
   
   // Register Export/License Management routes
   app.use("/api/export", exportRoutes);

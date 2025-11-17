@@ -1,0 +1,36 @@
+id: json_builder
+category: builder
+label: JSON Builder
+description: Build JSON output from template with data mapping
+icon: braces
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: template
+    label: JSON Template
+    type: code
+    required: true
+    placeholder: |
+      {
+        "orderId": "{{order.id}}",
+        "customer": "{{customer.name}}",
+        "items": "{{items}}"
+      }
+    helpText: "JSON template with {{variable}} placeholders"
+
+  - name: strictMode
+    label: Strict Mode
+    type: checkbox
+    required: false
+    default: false
+    helpText: "Fail if template variables are missing from input data"
+
+  - name: prettyPrint
+    label: Pretty Print
+    type: checkbox
+    required: false
+    default: false
+    helpText: "Format output JSON with indentation"
+
+executor: json_builder

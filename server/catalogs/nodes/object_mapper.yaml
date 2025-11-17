@@ -1,0 +1,33 @@
+id: object_mapper
+category: transform
+label: Object Mapper
+description: Transform data by mapping fields from input to output structure
+icon: arrow-right-left
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: mappings
+    label: Field Mappings (JSON)
+    type: json
+    required: true
+    placeholder: |
+      {
+        "outputField": "inputField",
+        "customerName": "name",
+        "quantity": "qty"
+      }
+    helpText: "Map output fields to input fields. Use dot notation for nested fields (e.g., 'customer.address.city')"
+
+  - name: defaultValues
+    label: Default Values (JSON)
+    type: json
+    required: false
+    placeholder: |
+      {
+        "status": "pending",
+        "createdAt": "{{now}}"
+      }
+    helpText: "Default values for fields that don't exist in input. Supports {{now}}, {{uuid}}"
+
+executor: object_mapper

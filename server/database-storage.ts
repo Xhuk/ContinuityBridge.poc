@@ -671,10 +671,17 @@ export class DatabaseStorage implements IStorage {
       storageKey: file.storageKey,
       fileSize: file.fileSize,
       uploadedAt: now,
+      notes: file.notes || null,
+      mlApproved: file.mlApproved || false,
+      mlApprovedBy: file.mlApprovedBy || null,
+      mlApprovedAt: file.mlApprovedAt || null,
       metadata: file.metadata || null,
     };
 
-    await (db.insert(systemInstanceTestFiles) as any).values(testFile);
+    await (db.insert(systemInstanceTestFiles) as any).values({
+      ...testFile,
+      mlApproved: testFile.mlApproved ? 1 : 0,
+    });
 
     return testFile;
   }
@@ -691,6 +698,51 @@ export class DatabaseStorage implements IStorage {
 
     // Delete record from database
     await (db.delete(systemInstanceTestFiles) as any).where(eq(systemInstanceTestFiles.id, id));
+
+    return true;
+  }
+
+  async addTestFileNote(id: string, author: string, authorRole: "superadmin" | "consultant", content: string): Promise<boolean> {
+    const existing = await this.getTestFile(id);
+    
+    if (!existing) {
+      return false;
+    }
+
+    const currentNotes = existing.notes || [];
+    const nextIteration = currentNotes.length + 1;
+    
+    const newNote = {
+      iteration: nextIteration,
+      author,
+      authorRole,
+      timestamp: new Date().toISOString(),
+      content,
+    };
+
+    const updatedNotes = [...currentNotes, newNote];
+
+    await (db.update(systemInstanceTestFiles) as any)
+      .set({ notes: updatedNotes as any })
+      .where(eq(systemInstanceTestFiles.id, id));
+
+    return true;
+  }
+
+  async approveTestFileForML(id: string, approvedBy: string): Promise<boolean> {
+    const existing = await this.getTestFile(id);
+    
+    if (!existing) {
+      return false;
+    }
+
+    await (db.update(systemInstanceTestFiles) as any)
+      .set({ 
+        mlApproved: 1,
+        mlApprovedBy: approvedBy,
+        mlApprovedAt: new Date().toISOString(),
+      })
+      .where(eq(systemInstanceTestFiles.id, id));
 
     return true;
   }

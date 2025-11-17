@@ -1,0 +1,111 @@
+# SFTP Poller Node - Poll SFTP directory for files
+# Category: trigger
+
+id: sftp_poller
+category: trigger
+label: SFTP Poller
+description: Periodically checks SFTP directory for new files and triggers flow execution
+icon: FolderOpen
+
+# Input/Output handles
+inputs: 0        # Triggers have no inputs
+outputs: 1       # Outputs file content
+
+# Configuration fields (UI form)
+configFields:
+  - name: host
+    label: SFTP Host
+    type: text
+    required: true
+    placeholder: sftp.example.com
+    helpText: SFTP server hostname or IP address
+
+  - name: port
+    label: SFTP Port
+    type: number
+    required: false
+    default: 22
+    helpText: SFTP server port (default: 22)
+
+  - name: username
+    label: Username
+    type: text
+    required: true
+    placeholder: ftpuser
+    helpText: SFTP authentication username
+
+  - name: password
+    label: Password
+    type: text
+    required: false
+    helpText: SFTP password (if using password auth)
+
+  - name: privateKey
+    label: Private Key (Optional)
+    type: textarea
+    required: false
+    helpText: SSH private key for key-based authentication
+
+  - name: remotePath
+    label: Remote Directory Path
+    type: text
+    required: true
+    placeholder: /incoming/orders
+    helpText: Directory to poll for files
+
+  - name: filePattern
+    label: File Pattern (glob)
+    type: text
+    required: false
+    default: "*"
+    placeholder: "*.xml"
+    helpText: Glob pattern to match files (e.g., *.xml, order_*.json)
+
+  - name: pollInterval
+    label: Poll Interval (seconds)
+    type: number
+    required: true
+    default: 60
+    helpText: How often to check for new files
+
+  - name: processedAction
+    label: Action After Processing
+    type: select
+    required: true
+    default: move
+    options:
+      - move
+      - delete
+      - none
+    helpText: What to do with file after processing
+
+  - name: archivePath
+    label: Archive Directory (if move)
+    type: text
+    required: false
+    placeholder: /processed
+    helpText: Move processed files to this directory
+
+  - name: errorPath
+    label: Error Directory
+    type: text
+    required: false
+    placeholder: /errors
+    helpText: Move failed files to this directory
+
+  - name: maxFilesPerPoll
+    label: Max Files Per Poll
+    type: number
+    required: false
+    default: 10
+    helpText: Maximum files to process in one poll cycle
+
+  - name: sortByDate
+    label: Process Oldest First
+    type: boolean
+    required: false
+    default: true
+    helpText: If true, process files in chronological order
+
+# Backend executor function
+executor: executeSftpPoller

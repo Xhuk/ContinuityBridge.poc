@@ -1,0 +1,40 @@
+id: bydm_parser
+category: parser
+label: BYDM Parser
+description: Parse BYD Manufacturing XML payloads
+icon: FileCode
+
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: documentType
+    label: Document Type
+    type: select
+    required: true
+    default: order
+    options:
+      - order
+      - shipment
+      - inventory
+      - production
+    helpText: Type of BYD Manufacturing document
+
+  - name: outputFormat
+    label: Output Format
+    type: select
+    required: false
+    default: json
+    options:
+      - json
+      - normalized
+    helpText: Format of parsed output
+
+  - name: extractFields
+    label: Extract Fields (comma-separated)
+    type: text
+    required: false
+    placeholder: "orderId,quantity,sku"
+    helpText: Specific fields to extract (leave empty for all)
+
+executor: executeBYDMParser

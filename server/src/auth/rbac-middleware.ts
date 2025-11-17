@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { db } from "../../db";
 import { users } from "../../schema";
 import { eq } from "drizzle-orm";
+import jwt from "jsonwebtoken";
 
 /**
  * RBAC Middleware - Role-Based Access Control
@@ -21,6 +22,10 @@ export interface AuthenticatedUser {
   role: UserRole;
   organizationId?: string;
   assignedCustomers?: string[]; // For consultants with multi-customer access
+  selectedTenant?: {
+    tenantId: string;
+    environment: "dev" | "test" | "staging" | "prod";
+  };
 }
 
 declare global {
@@ -33,6 +38,15 @@ declare global {
 
 /**
  * Authenticate user from session/token
+ * Supports optional bypass in development via AUTH_GUARD_ENABLED env variable
+ * 
+ * FOUNDERS INSTANCE (Render/Vercel):
+ * - Production: ALWAYS enforced (cannot be disabled)
+ * - Development: Optional toggle via AUTH_GUARD_ENABLED (default: false)
+ * 
+ * CUSTOMER EXPORTS:
+ * - Receives configurable AUTH_GUARD_ENABLED in their .env template
+ * - Can toggle for their development/testing environments
  */
 export async function authenticateUser(
   req: Request,
@@ -40,6 +54,12 @@ export async function authenticateUser(
   next: NextFunction
 ) {
   try {
+    // PRODUCTION SECURITY: Authentication ALWAYS required
+    // No bypass allowed - all requests must be authenticated via:
+    // 1. API key (X-API-Key header)
+    // 2. Bearer token (Authorization header)
+    // 3. Session cookie (from magic link or password login)
+
     // Check for API key in header (for Render deployment)
     const apiKey = req.headers["x-api-key"] as string;
     const authHeader = req.headers["authorization"]?.replace("Bearer ", "");
@@ -79,13 +99,8 @@ export async function authenticateUser(
       const sessionToken = sessionCookie || authHeader;
       const decoded = decodeSessionToken(sessionToken);
       
-      if (decoded && decoded.exp > Date.now()) {
-        user = {
-          id: decoded.id,
-          email: decoded.email,
-          role: decoded.role,
-          organizationId: decoded.organizationId,
-        };
+      if (decoded) {
+        user = decoded;
       }
     }
 
@@ -133,15 +148,60 @@ export const requireSuperAdmin = requireRole("superadmin");
 export const requireConsultant = requireRole("superadmin", "consultant");
 
 /**
- * Decode session token (simplified - replace with JWT in production)
+ * Decode and verify JWT session token
  */
 function decodeSessionToken(token: string): AuthenticatedUser | null {
   try {
-    // TODO: Implement proper JWT verification
-    // For now, parse base64-encoded JSON (INSECURE - REPLACE IN PROD!)
-    const decoded = JSON.parse(Buffer.from(token, "base64").toString());
-    return decoded;
-  } catch {
+    const jwtSecret = process.env.JWT_SECRET || process.env.ENCRYPTION_KEY;
+    
+    if (!jwtSecret) {
+      console.error("JWT_SECRET or ENCRYPTION_KEY not set - cannot verify tokens");
+      return null;
+    }
+
+    // Verify and decode JWT
+    const decoded = jwt.verify(token, jwtSecret) as any;
+    
+    // Validate required fields
+    if (!decoded.id || !decoded.email || !decoded.role) {
+      return null;
+    }
+    
+    return {
+      id: decoded.id,
+      email: decoded.email,
+      role: decoded.role,
+      organizationId: decoded.organizationId,
+      assignedCustomers: decoded.assignedCustomers,
+      selectedTenant: decoded.selectedTenant,
+    };
+  } catch (error: any) {
+    // JWT verification failed (expired, invalid signature, etc.)
+    console.debug("JWT verification failed:", error.message);
     return null;
   }
+}
+
+/**
+ * Generate JWT session token
+ */
+export function generateSessionToken(user: AuthenticatedUser, expiresIn: string = "7d"): string {
+  const jwtSecret = process.env.JWT_SECRET || process.env.ENCRYPTION_KEY;
+  
+  if (!jwtSecret) {
+    throw new Error("JWT_SECRET or ENCRYPTION_KEY not set - cannot generate tokens");
+  }
+
+  return jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId,
+      assignedCustomers: user.assignedCustomers,
+      selectedTenant: user.selectedTenant,
+    },
+    jwtSecret,
+    { expiresIn } as jwt.SignOptions
+  );
 }

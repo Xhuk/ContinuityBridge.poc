@@ -116,97 +116,116 @@ export const executeAzureBlobPoller: NodeExecutor = async (
     };
   }
 
-  // PRODUCTION MODE - TODO: Implement real Azure Blob polling
-  throw new Error(
-    `Azure Blob Poller not yet implemented for production. ` +
-    `Container: ${containerName}, Prefix: ${blobPrefix}. ` +
-    `TODO: Install '@azure/storage-blob' and implement blob polling with scheduling. ` +
-    `Use emulation mode for testing.`
-  );
-
-  /* PRODUCTION IMPLEMENTATION TEMPLATE:
-  
-  import { BlobServiceClient } from '@azure/storage-blob';
-  import minimatch from 'minimatch';
-  
-  const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
-  const containerClient = blobServiceClient.getContainerClient(containerName);
-  
-  // List blobs with prefix
-  const blobs = [];
-  for await (const blob of containerClient.listBlobsFlat({ prefix: blobPrefix })) {
-    blobs.push(blob);
-  }
-  
-  // Filter by pattern
-  const matchingBlobs = blobs.filter(b => minimatch(b.name, blobPattern));
-  
-  // Filter new blobs based on tracking mode
-  let newBlobs = [];
-  if (trackingMode === 'filename') {
-    newBlobs = matchingBlobs.filter(b => 
-      !pollerState.fileChecksums?.some(fc => fc.filename === b.name)
-    );
-  } else if (trackingMode === 'etag') {
-    newBlobs = matchingBlobs.filter(b => 
-      !pollerState.fileChecksums?.some(fc => 
-        fc.filename === b.name && fc.checksum === b.properties.etag
-      )
-    );
-  }
-  
-  if (newBlobs.length === 0) {
-    throw new Error('No new blobs detected - stopping execution');
-  }
-  
-  // Process first new blob
-  const newBlob = newBlobs[0];
-  const blobClient = containerClient.getBlobClient(newBlob.name);
-  const downloadResponse = await blobClient.download();
-  const blobContent = await streamToBuffer(downloadResponse.readableStreamBody);
-  
-  // Update poller state
-  const updatedChecksums = [
-    ...(pollerState.fileChecksums || []),
-    {
-      filename: newBlob.name,
-      checksum: newBlob.properties.etag || '',
-      processedAt: new Date().toISOString(),
-    },
-  ];
-  
-  await db.update(pollerStates).set({
-    lastFile: newBlob.name,
-    lastProcessedAt: new Date().toISOString(),
-    fileChecksums: updatedChecksums,
-    updatedAt: new Date().toISOString(),
-  }).where(eq(pollerStates.id, pollerState.id)).run();
-  
-  return {
-    output: {
-      trigger: 'azure_blob_poller',
-      blob: {
-        name: newBlob.name,
-        url: blobClient.url,
-        content: blobContent.toString(),
-        size: newBlob.properties.contentLength,
-        contentType: newBlob.properties.contentType,
-        lastModified: newBlob.properties.lastModified,
-        etag: newBlob.properties.etag,
-      },
-    },
-  };
-  
-  async function streamToBuffer(readableStream): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const chunks = [];
-      readableStream.on('data', (data) => 
-        chunks.push(data instanceof Buffer ? data : Buffer.from(data))
+  // PRODUCTION MODE - Real Azure Blob polling
+  try {
+    const { BlobServiceClient } = await import("@azure/storage-blob");
+    const { minimatch } = await import("minimatch");
+    
+    const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+    
+    // List blobs with prefix
+    const blobs = [];
+    for await (const blob of containerClient.listBlobsFlat({ prefix: blobPrefix })) {
+      blobs.push(blob);
+    }
+    
+    // Filter by pattern
+    const matchingBlobs = blobs.filter(b => minimatch(b.name, blobPattern));
+    
+    // Filter new blobs based on tracking mode
+    let newBlobs = [];
+    if (trackingMode === "filename") {
+      newBlobs = matchingBlobs.filter(b => 
+        !pollerState.fileChecksums?.some(fc => fc.filename === b.name)
       );
-      readableStream.on('end', () => resolve(Buffer.concat(chunks)));
-      readableStream.on('error', reject);
-    });
+    } else if (trackingMode === "etag") {
+      newBlobs = matchingBlobs.filter(b => 
+        !pollerState.fileChecksums?.some(fc => 
+          fc.filename === b.name && fc.checksum === b.properties.etag
+        )
+      );
+    }
+    
+    if (newBlobs.length === 0) {
+      throw new Error("No new blobs detected - stopping execution");
+    }
+    
+    // Process first new blob
+    const newBlob = newBlobs[0];
+    const blobClient = containerClient.getBlobClient(newBlob.name);
+    const downloadResponse = await blobClient.download();
+    
+    if (!downloadResponse.readableStreamBody) {
+      throw new Error("Failed to download blob - no readable stream");
+    }
+    
+    const blobContent = await streamToBuffer(downloadResponse.readableStreamBody);
+    
+    // Update poller state
+    const updatedChecksums = [
+      ...(pollerState.fileChecksums || []).slice(-99), // Keep last 100 blobs
+      {
+        filename: newBlob.name,
+        checksum: newBlob.properties.etag || "",
+        processedAt: new Date().toISOString(),
+      },
+    ];
+    
+    await db.update(pollerStates).set({
+      lastFile: newBlob.name,
+      lastProcessedAt: new Date().toISOString(),
+      fileChecksums: updatedChecksums,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(pollerStates.id, pollerState.id)).run();
+    
+    return {
+      output: {
+        trigger: "azure_blob_poller",
+        blob: {
+          name: newBlob.name,
+          url: blobClient.url,
+          content: blobContent.toString(),
+          size: newBlob.properties.contentLength,
+          contentType: newBlob.properties.contentType,
+          lastModified: newBlob.properties.lastModified?.toISOString() || new Date().toISOString(),
+          etag: newBlob.properties.etag,
+        },
+        azure: {
+          containerName,
+          blobPrefix,
+        },
+        _metadata: {
+          pollerId: node.id,
+          trackingMode,
+        },
+      },
+      metadata: {
+        pollerType: "azure_blob",
+        blobDetected: true,
+      },
+    };
+  } catch (error: any) {
+    // If libraries not installed, throw helpful error
+    if (error.code === "MODULE_NOT_FOUND" || error.message?.includes("Cannot find module")) {
+      throw new Error(
+        `Azure Blob Poller requires '@azure/storage-blob' and 'minimatch' packages. ` +
+        `Install with: npm install @azure/storage-blob minimatch. ` +
+        `Use emulation mode for testing without Azure Storage.`
+      );
+    }
+    throw error;
   }
-  
-  */
 };
+
+// Helper to convert stream to buffer
+async function streamToBuffer(readableStream: NodeJS.ReadableStream): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    readableStream.on("data", (data) => 
+      chunks.push(data instanceof Buffer ? data : Buffer.from(data))
+    );
+    readableStream.on("end", () => resolve(Buffer.concat(chunks)));
+    readableStream.on("error", reject);
+  });
+}

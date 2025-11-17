@@ -1,0 +1,69 @@
+# Distributor Node - Route data to multiple output branches based on rules
+# Category: logic
+
+id: distributor
+category: logic
+label: Distributor
+description: Routes data to multiple output branches based on conditional rules (1-to-many routing)
+icon: GitMerge
+
+# Input/Output handles
+inputs: 1        # Single input
+outputs: 0       # Dynamic outputs based on rules (configured in UI)
+
+# Configuration fields (UI form)
+configFields:
+  - name: mode
+    label: Distribution Mode
+    type: select
+    required: true
+    default: rules
+    options:
+      - rules
+      - broadcast
+      - round_robin
+    helpText: |
+      - rules: Route based on conditional rules
+      - broadcast: Send to all outputs
+      - round_robin: Distribute evenly across outputs
+
+  - name: rules
+    label: Distribution Rules (YAML)
+    type: textarea
+    required: false
+    placeholder: |
+      - name: High Priority
+        field: priority
+        operator: equals
+        value: high
+        output: 0
+      - name: Medium Priority
+        field: priority
+        operator: equals
+        value: medium
+        output: 1
+    helpText: YAML list of routing rules (field, operator, value, output index)
+
+  - name: defaultOutput
+    label: Default Output (if no rules match)
+    type: number
+    required: false
+    default: 0
+    helpText: Output index to send data when no rules match (0-based)
+
+  - name: sendToAll
+    label: Send to All Matching Outputs
+    type: boolean
+    required: false
+    default: false
+    helpText: If true, send data to ALL matching outputs. If false, send to first match only.
+
+  - name: includeMetadata
+    label: Include Rule Metadata in Output
+    type: boolean
+    required: false
+    default: false
+    helpText: If true, add metadata about which rule matched
+
+# Backend executor function
+executor: executeDistributor

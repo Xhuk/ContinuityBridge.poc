@@ -1,4 +1,5 @@
 import { FlowNode } from "@shared/schema";
+import type { IStorage } from "../../../storage/index.js";
 
 /**
  * Execution Context - Available to all node executors
@@ -9,6 +10,7 @@ export interface ExecutionContext {
   traceId: string;
   runId: string;
   emulationMode?: boolean;  // Test mode - bypass live auth, use mocked headers
+  storage?: IStorage;  // Storage instance for logging errors to events
 }
 
 /**

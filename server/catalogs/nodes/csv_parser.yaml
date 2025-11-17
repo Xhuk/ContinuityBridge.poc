@@ -1,0 +1,54 @@
+id: csv_parser
+category: parser
+label: CSV Parser
+description: Parse CSV data into JSON array of objects
+icon: table
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: delimiter
+    label: Delimiter
+    type: select
+    required: true
+    default: ","
+    options:
+      - ","
+      - ";"
+      - "\t"
+      - "|"
+    helpText: "Column separator character"
+
+  - name: hasHeader
+    label: Has Header Row
+    type: checkbox
+    required: false
+    default: true
+    helpText: "First row contains column names"
+
+  - name: encoding
+    label: Encoding
+    type: select
+    required: true
+    default: utf8
+    options:
+      - utf8
+      - latin1
+      - ascii
+    helpText: "Character encoding of CSV file"
+
+  - name: skipEmptyRows
+    label: Skip Empty Rows
+    type: checkbox
+    required: false
+    default: true
+    helpText: "Ignore blank lines in CSV"
+
+  - name: trimFields
+    label: Trim Whitespace
+    type: checkbox
+    required: false
+    default: true
+    helpText: "Remove leading/trailing spaces from field values"
+
+executor: csv_parser

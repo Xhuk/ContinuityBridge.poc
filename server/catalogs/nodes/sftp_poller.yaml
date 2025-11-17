@@ -1,0 +1,83 @@
+id: sftp_poller
+category: trigger
+label: SFTP Poller
+description: Poll SFTP server for new files on a schedule
+icon: folder-sync
+inputs: 0
+outputs: 1
+
+configFields:
+  - name: host
+    label: SFTP Host
+    type: text
+    required: true
+    placeholder: "sftp.example.com"
+    helpText: "SFTP server hostname or IP address"
+
+  - name: port
+    label: Port
+    type: number
+    required: false
+    default: 22
+    placeholder: "22"
+    helpText: "SFTP server port (default: 22)"
+
+  - name: username
+    label: Username
+    type: text
+    required: true
+    placeholder: "sftp_user"
+    helpText: "SFTP authentication username"
+
+  - name: password
+    label: Password
+    type: password
+    required: false
+    placeholder: "••••••••"
+    helpText: "SFTP password (leave empty if using private key)"
+
+  - name: privateKey
+    label: Private Key
+    type: textarea
+    required: false
+    placeholder: "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+    helpText: "SSH private key for authentication (alternative to password)"
+
+  - name: remotePath
+    label: Remote Path
+    type: text
+    required: true
+    placeholder: "/incoming"
+    helpText: "Directory path on SFTP server to monitor"
+
+  - name: filePattern
+    label: File Pattern
+    type: text
+    required: false
+    placeholder: "*.xml"
+    default: "*"
+    helpText: "Glob pattern to match files (e.g., *.xml, order_*.csv)"
+
+  - name: pollInterval
+    label: Poll Interval (minutes)
+    type: number
+    required: true
+    default: 5
+    placeholder: "5"
+    helpText: "How often to check for new files (in minutes)"
+
+  - name: deleteAfterProcess
+    label: Delete After Processing
+    type: checkbox
+    required: false
+    default: false
+    helpText: "Automatically delete files from SFTP after successful processing"
+
+  - name: moveToPath
+    label: Move To Path
+    type: text
+    required: false
+    placeholder: "/processed"
+    helpText: "Optional: Move processed files to this directory instead of deleting"
+
+executor: sftp_poller

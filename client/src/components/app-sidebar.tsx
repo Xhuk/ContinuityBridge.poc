@@ -1,4 +1,4 @@
-import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles } from "lucide-react";
+import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -12,6 +12,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/lib/auth";
 
 const menuItems = [
   {
@@ -55,14 +56,29 @@ const menuItems = [
     icon: Upload,
   },
   {
+    title: "Test Files",
+    url: "/test-files",
+    icon: FileText,
+  },
+  {
     title: "Settings",
     url: "/settings",
     icon: Cog,
   },
 ];
 
+const adminMenuItems = [
+  {
+    title: "Projects",
+    url: "/admin/projects",
+    icon: FolderKanban,
+  },
+];
+
 export function AppSidebar({ queueBackend }: { queueBackend?: string }) {
   const [location] = useLocation();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === "superadmin";
 
   return (
     <Sidebar>
@@ -93,6 +109,31 @@ export function AppSidebar({ queueBackend }: { queueBackend?: string }) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {isSuperAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              SuperAdmin
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminMenuItems.map((item) => {
+                  const isActive = location === item.url;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={isActive}>
+                        <Link href={item.url}>
+                          <item.icon className="h-5 w-5" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter>
         <div className="px-4 py-3 border-t border-sidebar-border">

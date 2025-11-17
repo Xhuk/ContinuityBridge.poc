@@ -1,0 +1,105 @@
+# SFTP Connector Node - Upload files to SFTP server
+# Category: output
+
+id: sftp_connector
+category: output
+label: SFTP Connector
+description: Uploads data as files to SFTP server
+icon: HardDrive
+
+# Input/Output handles
+inputs: 1        # Input data to upload
+outputs: 1       # Outputs upload confirmation
+
+# Configuration fields (UI form)
+configFields:
+  - name: host
+    label: SFTP Host
+    type: text
+    required: true
+    placeholder: sftp.example.com
+    helpText: SFTP server hostname or IP address
+
+  - name: port
+    label: SFTP Port
+    type: number
+    required: false
+    default: 22
+    helpText: SFTP server port (default: 22)
+
+  - name: username
+    label: Username
+    type: text
+    required: true
+    placeholder: ftpuser
+    helpText: SFTP authentication username
+
+  - name: password
+    label: Password
+    type: text
+    required: false
+    helpText: SFTP password (if using password auth)
+
+  - name: privateKey
+    label: Private Key (Optional)
+    type: textarea
+    required: false
+    helpText: SSH private key for key-based authentication
+
+  - name: remotePath
+    label: Remote Directory Path
+    type: text
+    required: true
+    placeholder: /outgoing/orders
+    helpText: Destination directory on SFTP server
+
+  - name: filename
+    label: Filename Template
+    type: text
+    required: true
+    placeholder: "order_{{orderId}}_{{timestamp}}.xml"
+    helpText: Filename template (supports {{field}} placeholders)
+
+  - name: fileFormat
+    label: File Format
+    type: select
+    required: true
+    default: xml
+    options:
+      - xml
+      - json
+      - csv
+      - text
+    helpText: Format to save data in
+
+  - name: createDirectories
+    label: Create Directories If Missing
+    type: boolean
+    required: false
+    default: true
+    helpText: Auto-create remote directory path if it doesn't exist
+
+  - name: overwriteExisting
+    label: Overwrite Existing Files
+    type: boolean
+    required: false
+    default: false
+    helpText: If true, overwrite file if it already exists
+
+  - name: backupOnOverwrite
+    label: Backup Before Overwrite
+    type: boolean
+    required: false
+    default: true
+    helpText: Create .bak file before overwriting (if overwrite is enabled)
+
+  - name: filePermissions
+    label: File Permissions (Unix)
+    type: text
+    required: false
+    default: "644"
+    placeholder: "644"
+    helpText: Unix file permissions (e.g., 644, 755)
+
+# Backend executor function
+executor: executeSftpConnector

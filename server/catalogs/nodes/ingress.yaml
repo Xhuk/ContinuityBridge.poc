@@ -1,0 +1,55 @@
+id: ingress
+category: trigger
+label: Ingress (Inbound)
+description: Create authenticated HTTP endpoint to receive payloads from external systems
+icon: upload
+inputs: 0
+outputs: 1
+
+configFields:
+  - name: endpointName
+    label: Endpoint Name
+    type: text
+    required: true
+    placeholder: "e.g., sap_order_ingress, wms_shipment_webhook"
+    helpText: "Unique identifier for this ingress endpoint"
+
+  - name: authMethod
+    label: Authentication Method
+    type: select
+    required: true
+    default: bearer
+    options:
+      - bearer
+      - api_key
+      - basic
+      - none
+    helpText: "How external systems authenticate when posting data"
+
+  - name: allowedIPs
+    label: Allowed IP Addresses
+    type: textarea
+    required: false
+    placeholder: "192.168.1.100\n10.0.0.0/24"
+    helpText: "Optional: Whitelist IP addresses (one per line, supports CIDR)"
+
+  - name: payloadFormat
+    label: Expected Payload Format
+    type: select
+    required: true
+    default: json
+    options:
+      - json
+      - xml
+      - form
+      - raw
+    helpText: "Format of incoming data"
+
+  - name: validateSchema
+    label: Validate Schema
+    type: checkbox
+    required: false
+    default: false
+    helpText: "Validate incoming payloads against interface schema"
+
+executor: ingress

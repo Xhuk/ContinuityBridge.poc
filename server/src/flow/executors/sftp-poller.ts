@@ -117,82 +117,113 @@ export const executeSftpPoller: NodeExecutor = async (
     };
   }
 
-  // PRODUCTION MODE - TODO: Implement real SFTP polling
-  throw new Error(
-    `SFTP Poller not yet implemented for production. ` +
-    `Host: ${sftpHost}, Path: ${remotePath}. ` +
-    `TODO: Install 'ssh2-sftp-client' and implement file polling with scheduling. ` +
-    `Use emulation mode for testing.`
-  );
-
-  /* PRODUCTION IMPLEMENTATION TEMPLATE:
-  
-  import SftpClient from 'ssh2-sftp-client';
-  import minimatch from 'minimatch';
-  
-  const sftp = new SftpClient();
-  await sftp.connect({
-    host: sftpHost,
-    port: sftpPort,
-    username: sftpUsername,
-    password: sftpPassword,
-  });
-  
+  // PRODUCTION MODE - Real SFTP polling
   try {
-    const files = await sftp.list(remotePath);
-    const matchingFiles = files.filter(f => minimatch(f.name, filePattern));
+    const SftpClient = (await import("ssh2-sftp-client")).default;
+    const minimatch = (await import("minimatch")).default;
+    const crypto = await import("crypto");
     
-    // Filter new files based on tracking mode
-    let newFiles = [];
-    if (trackingMode === 'filename') {
-      newFiles = matchingFiles.filter(f => 
-        !pollerState.fileChecksums?.some(fc => fc.filename === f.name)
-      );
-    } else {
-      // checksum mode - download and compare checksums
-      // Implementation depends on crypto hash calculation
-    }
+    const sftp = new SftpClient();
+    await sftp.connect({
+      host: sftpHost,
+      port: sftpPort,
+      username: sftpUsername,
+      password: sftpPassword,
+    });
     
-    if (newFiles.length === 0) {
-      throw new Error('No new files detected - stopping execution');
-    }
-    
-    // Process first new file
-    const newFile = newFiles[0];
-    const fileContent = await sftp.get(`${remotePath}/${newFile.name}`);
-    
-    // Update poller state
-    const updatedChecksums = [
-      ...(pollerState.fileChecksums || []),
-      {
-        filename: newFile.name,
-        checksum: 'sha256-hash-here',
-        processedAt: new Date().toISOString(),
-      },
-    ];
-    
-    await db.update(pollerStates).set({
-      lastFile: newFile.name,
-      lastProcessedAt: new Date().toISOString(),
-      fileChecksums: updatedChecksums,
-      updatedAt: new Date().toISOString(),
-    }).where(eq(pollerStates.id, pollerState.id)).run();
-    
-    return {
-      output: {
-        trigger: 'sftp_poller',
-        file: {
-          name: newFile.name,
-          path: `${remotePath}/${newFile.name}`,
-          content: fileContent.toString(),
-          size: newFile.size,
-          modifiedAt: newFile.modifyTime,
+    try {
+      const files = await sftp.list(remotePath);
+      const matchingFiles = files.filter(f => minimatch(f.name, filePattern));
+      
+      // Filter new files based on tracking mode
+      let newFiles = [];
+      if (trackingMode === "filename") {
+        newFiles = matchingFiles.filter(f => 
+          !pollerState.fileChecksums?.some(fc => fc.filename === f.name)
+        );
+      } else {
+        // checksum mode - download and hash files
+        for (const file of matchingFiles) {
+          const fullPath = `${remotePath}/${file.name}`.replace(/\/\//g, "/");
+          const buffer = await sftp.get(fullPath);
+          const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+          
+          const existingChecksum = pollerState.fileChecksums?.find(fc => fc.filename === file.name);
+          if (!existingChecksum || existingChecksum.checksum !== hash) {
+            newFiles.push({ ...file, checksum: hash });
+          }
+        }
+      }
+      
+      if (newFiles.length === 0) {
+        throw new Error("No new files detected - stopping execution");
+      }
+      
+      // Process first new file
+      const newFile = newFiles[0];
+      const fullPath = `${remotePath}/${newFile.name}`.replace(/\/\//g, "/");
+      const fileBuffer = await sftp.get(fullPath);
+      const fileContent = fileBuffer.toString();
+      
+      // Calculate checksum if not already done
+      const checksum = (newFile as any).checksum || 
+        crypto.createHash("sha256").update(fileBuffer).digest("hex");
+      
+      // Update poller state
+      const updatedChecksums = [
+        ...(pollerState.fileChecksums || []).slice(-99), // Keep last 100 files
+        {
+          filename: newFile.name,
+          checksum,
+          processedAt: new Date().toISOString(),
         },
-      },
-    };
-  } finally {
-    await sftp.end();
+      ];
+      
+      await db.update(pollerStates).set({
+        lastFile: newFile.name,
+        lastProcessedAt: new Date().toISOString(),
+        fileChecksums: updatedChecksums,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(pollerStates.id, pollerState.id)).run();
+      
+      return {
+        output: {
+          trigger: "sftp_poller",
+          file: {
+            name: newFile.name,
+            path: fullPath,
+            content: fileContent,
+            size: newFile.size,
+            modifiedAt: newFile.modifyTime || new Date().toISOString(),
+          },
+          sftp: {
+            host: sftpHost,
+            port: sftpPort,
+            remotePath,
+          },
+          _metadata: {
+            pollerId: node.id,
+            trackingMode,
+            checksum,
+          },
+        },
+        metadata: {
+          pollerType: "sftp",
+          fileDetected: true,
+        },
+      };
+    } finally {
+      await sftp.end();
+    }
+  } catch (error: any) {
+    // If libraries not installed, throw helpful error
+    if (error.code === "MODULE_NOT_FOUND" || error.message?.includes("Cannot find module")) {
+      throw new Error(
+        `SFTP Poller requires 'ssh2-sftp-client' and 'minimatch' packages. ` +
+        `Install with: npm install ssh2-sftp-client minimatch. ` +
+        `Use emulation mode for testing without SFTP server.`
+      );
+    }
+    throw error;
   }
-  
-  */
 };

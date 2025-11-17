@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import Dashboard from "@/pages/dashboard";
 import Events from "@/pages/events";
 import Queue from "@/pages/queue";
@@ -12,12 +13,16 @@ import Ingest from "@/pages/ingest";
 import DataSources from "@/pages/datasources";
 import Interfaces from "@/pages/interfaces";
 import Flows from "@/pages/flows";
+import TestFiles from "@/pages/test-files";
 import Settings from "@/pages/settings";
 import MappingGenerator from "@/pages/MappingGenerator";
+import Projects from "@/pages/admin/projects";
+import TenantSelector from "@/pages/tenant-selector";
 import NotFound from "@/pages/not-found";
 import type { QueueConfig } from "@shared/schema";
 
 function Router() {
+  const { user } = useAuth();
   const { data: queueConfig } = useQuery<QueueConfig>({
     queryKey: ["/api/queue/config"],
     refetchInterval: 10000,
@@ -27,6 +32,13 @@ function Router() {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
   };
+
+  // Consultant needs to select tenant first
+  const needsTenantSelection = user?.role === "consultant" && !user?.selectedTenant;
+
+  if (needsTenantSelection) {
+    return <TenantSelector />;
+  }
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
@@ -45,8 +57,12 @@ function Router() {
               <Route path="/interfaces" component={Interfaces} />
               <Route path="/flows" component={Flows} />
               <Route path="/ingest" component={Ingest} />
+              <Route path="/test-files" component={TestFiles} />
               <Route path="/mappergenerator" component={MappingGenerator} />
               <Route path="/settings" component={Settings} />
+              {user?.role === "superadmin" && (
+                <Route path="/admin/projects" component={Projects} />
+              )}
               <Route component={NotFound} />
             </Switch>
           </main>
@@ -59,10 +75,12 @@ function Router() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Router />
-        <Toaster />
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Router />
+          <Toaster />
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

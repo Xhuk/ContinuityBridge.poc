@@ -1,0 +1,54 @@
+id: database_connector
+category: transform
+label: Database Connector
+description: Execute SQL queries or stored procedures
+icon: database
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: connectionId
+    label: Database Connection
+    type: text
+    required: true
+    placeholder: "prod-sql-server"
+    helpText: "Reference to configured database connection"
+
+  - name: queryType
+    label: Query Type
+    type: select
+    required: true
+    default: select
+    options:
+      - select
+      - insert
+      - update
+      - delete
+      - stored_procedure
+    helpText: "Type of database operation"
+
+  - name: query
+    label: SQL Query
+    type: code
+    required: true
+    placeholder: |
+      SELECT * FROM orders 
+      WHERE order_id = {{orderId}}
+    helpText: "SQL query with {{variable}} placeholders"
+
+  - name: parameters
+    label: Query Parameters (JSON)
+    type: code
+    required: false
+    placeholder: '{"orderId": "{{payload.orderId}}"}'
+    helpText: "Parameterized values for SQL injection prevention"
+
+  - name: timeout
+    label: Timeout (seconds)
+    type: number
+    required: false
+    default: 30
+    placeholder: "30"
+    helpText: "Query timeout in seconds"
+
+executor: database_connector
