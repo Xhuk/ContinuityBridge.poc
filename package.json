@@ -9,7 +9,7 @@
     "dev:client": "vite",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production npm run db:migrate && node dist/index.js",
-    "db:migrate": "drizzle-kit push",
+    "db:migrate": "drizzle-kit push --force",
     "deploy:check": "node scripts/pre-deploy-check.js"
   },
   "engines": {
