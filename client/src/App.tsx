@@ -49,7 +49,7 @@ function Router() {
   if (!user) {
     return (
       <Switch>
-        <Route path="/login" component={Login} />
+        <Route path="/sys/auth/bridge" component={Login} />
         <Route component={Landing} />
       </Switch>
     );

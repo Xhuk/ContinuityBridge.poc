@@ -179,7 +179,7 @@ export default function Landing() {
                       type="button"
                       variant="outline"
                       className="w-full text-sm"
-                      onClick={() => setLocation("/login")}
+                      onClick={() => setLocation("/sys/auth/bridge")}
                     >
                       Go to Login Page
                     </Button>
