@@ -24,6 +24,7 @@ import Profile from "@/pages/profile";
 import Login from "@/pages/login";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
+import Wiki from "@/pages/wiki";
 import type { QueueConfig } from "@shared/schema";
 
 function Router() {
@@ -96,6 +97,9 @@ function Router() {
               <Route path="/mappergenerator" component={MappingGenerator} />
               <Route path="/settings" component={Settings} />
               <Route path="/profile" component={Profile} />
+              {(user?.role === "superadmin" || user?.role === "consultant") && (
+                <Route path="/wiki" component={Wiki} />
+              )}
               {user?.role === "superadmin" && (
                 <>
                   <Route path="/admin/projects" component={Projects} />

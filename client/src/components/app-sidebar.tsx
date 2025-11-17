@@ -1,4 +1,4 @@
-import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users } from "lucide-react";
+import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -80,6 +80,12 @@ const menuItems = [
 ];
 
 const adminMenuItems = [
+  {
+    title: "Wiki",
+    url: "/wiki",
+    icon: Book,
+    roles: ["superadmin", "consultant"],
+  },
   {
     title: "Projects",
     url: "/admin/projects",
