@@ -66,10 +66,9 @@ export class PollerDaemon {
   private async checkPollers(): Promise<void> {
     try {
       // Get all enabled pollers
-      const pollers = await db.select()
+      const pollers = await (db.select() as any)
         .from(pollerStates)
-        .where(eq(pollerStates.enabled, true))
-        .all();
+        .where(eq(pollerStates.enabled, true));
 
       if (pollers.length === 0) {
         return;
@@ -88,14 +87,13 @@ export class PollerDaemon {
           });
 
           // Update error state
-          await db.update(pollerStates)
+          await (db.update(pollerStates) as any)
             .set({
               lastError: error.message,
               lastErrorAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             })
-            .where(eq(pollerStates.id, poller.id))
-            .run();
+            .where(eq(pollerStates.id, poller.id));
         }
       }
     } catch (error: any) {
@@ -131,10 +129,11 @@ export class PollerDaemon {
     });
 
     // Get flow definition
-    const flow = await db.select()
+    const flows = await (db.select() as any)
       .from(flowDefinitions)
-      .where(eq(flowDefinitions.id, poller.flowId))
-      .get();
+      .where(eq(flowDefinitions.id, poller.flowId));
+    
+    const flow = flows[0];
 
     if (!flow) {
       log.warn(`Flow not found for poller`, {
@@ -168,15 +167,14 @@ export class PollerDaemon {
 
       // Update last processed time on success
       if (flowRun.status === "completed") {
-        await db.update(pollerStates)
+        await (db.update(pollerStates) as any)
           .set({
             lastProcessedAt: new Date().toISOString(),
             lastError: null,
             lastErrorAt: null,
             updatedAt: new Date().toISOString(),
           })
-          .where(eq(pollerStates.id, poller.id))
-          .run();
+          .where(eq(pollerStates.id, poller.id));
       }
     } catch (error: any) {
       // If error is "No new files detected", don't treat as error
@@ -187,13 +185,12 @@ export class PollerDaemon {
         });
 
         // Still update lastProcessedAt
-        await db.update(pollerStates)
+        await (db.update(pollerStates) as any)
           .set({
             lastProcessedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           })
-          .where(eq(pollerStates.id, poller.id))
-          .run();
+          .where(eq(pollerStates.id, poller.id));
       } else {
         throw error;
       }
