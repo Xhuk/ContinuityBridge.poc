@@ -19,10 +19,14 @@ interface WikiPage {
  * - Founders (superadmin): See all documentation (full version)
  * - Consultants: See only operational information
  * - Customer Admins/Users: See only customer-facing manuals and basic guides
+ * 
+ * PRODUCTION MODE: Only customer-level content is available (self-contained deployment)
  */
 router.get("/pages", authenticateUser, async (req, res) => {
   try {
     const userRole = req.user?.role;
+    const isProduction = process.env.NODE_ENV === "production";
+    const isCustomerDeployment = process.env.DEPLOYMENT_TYPE === "customer";
 
     // All authenticated users can access wiki (filtered by role)
     if (!userRole) {
@@ -45,7 +49,15 @@ router.get("/pages", authenticateUser, async (req, res) => {
       // Parse metadata from markdown
       const page = parseWikiPage(file, content);
       
-      // Filter based on role
+      // PRODUCTION CUSTOMER DEPLOYMENT: Only show customer-level content
+      if (isProduction && isCustomerDeployment) {
+        if (page.accessLevel === "customer" || page.category === "customer") {
+          pages.push(page);
+        }
+        continue; // Skip role-based filtering for customer deployments
+      }
+      
+      // Filter based on role (for platform/dev deployments)
       if (userRole === "superadmin") {
         // Founders see everything
         pages.push(page);
@@ -74,11 +86,15 @@ router.get("/pages", authenticateUser, async (req, res) => {
 
 /**
  * Get specific wiki page by filename
+ * 
+ * PRODUCTION MODE: Only customer-level content accessible in customer deployments
  */
 router.get("/pages/:filename", authenticateUser, async (req, res) => {
   try {
     const userRole = req.user?.role;
     const { filename } = req.params;
+    const isProduction = process.env.NODE_ENV === "production";
+    const isCustomerDeployment = process.env.DEPLOYMENT_TYPE === "customer";
 
     if (!userRole) {
       return res.status(403).json({ error: "Authentication required" });
@@ -94,7 +110,16 @@ router.get("/pages/:filename", authenticateUser, async (req, res) => {
     const content = readFileSync(filePath, 'utf-8');
     const page = parseWikiPage(filename, content);
 
-    // Check access level
+    // PRODUCTION CUSTOMER DEPLOYMENT: Only allow customer-level content
+    if (isProduction && isCustomerDeployment) {
+      if (page.accessLevel !== "customer" && page.category !== "customer") {
+        return res.status(404).json({ error: "Wiki page not found" });
+      }
+      // Allow access for all authenticated users in customer deployment
+      return res.json({ page });
+    }
+
+    // Check access level (for platform/dev deployments)
     if (userRole === "consultant") {
       if (page.accessLevel === "founder") {
         return res.status(403).json({ error: "This page is restricted to founders only" });

@@ -23,6 +23,8 @@ export default function Wiki() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null);
+  const isProduction = import.meta.env.MODE === "production";
+  const isCustomerDeployment = import.meta.env.VITE_DEPLOYMENT_TYPE === "customer";
 
   // Fetch all wiki pages
   const { data, isLoading, refetch } = useQuery<{ pages: WikiPage[]; userRole: string }>({
@@ -78,7 +80,9 @@ export default function Wiki() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Documentation Wiki</h1>
               <p className="text-sm text-gray-500">
-                {userRole === "superadmin" 
+                {isProduction && isCustomerDeployment
+                  ? "User manuals and guides"
+                  : userRole === "superadmin" 
                   ? "Full documentation access (Founder)"
                   : userRole === "consultant"
                   ? "Operational documentation (Consultant)"
@@ -86,7 +90,7 @@ export default function Wiki() {
               </p>
             </div>
           </div>
-          {user?.role === "superadmin" && (
+          {user?.role === "superadmin" && !isCustomerDeployment && (
             <Button onClick={handleSync} variant="outline" size="sm">
               <RefreshCw className="h-4 w-4 mr-2" />
               Sync from GitHub
@@ -229,7 +233,7 @@ export default function Wiki() {
       </div>
 
       {/* Access Level Info */}
-      {userRole === "consultant" && (
+      {!isCustomerDeployment && userRole === "consultant" && (
         <Alert className="mx-6 mb-6">
           <Lock className="h-4 w-4" />
           <AlertDescription>
@@ -237,7 +241,7 @@ export default function Wiki() {
           </AlertDescription>
         </Alert>
       )}
-      {(userRole === "customer_admin" || userRole === "customer_user") && (
+      {!isCustomerDeployment && (userRole === "customer_admin" || userRole === "customer_user") && (
         <Alert className="mx-6 mb-6">
           <Book className="h-4 w-4" />
           <AlertDescription>
