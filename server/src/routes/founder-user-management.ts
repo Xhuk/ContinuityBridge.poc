@@ -151,37 +151,163 @@ router.post("/users/enroll", requireSuperAdmin, async (req, res) => {
     // Send enrollment email
     if (sendEmail) {
       const enrollmentUrl = `${process.env.APP_URL || "https://networkvoid.xyz"}/enroll?token=${enrollmentToken}`;
+      const loginUrl = `${process.env.APP_URL || "https://networkvoid.xyz"}/sys/auth/bridge`;
+      const qaTrackingUrl = `${process.env.APP_URL || "https://networkvoid.xyz"}/admin/qa-tracking`;
+      const wikiUrl = `${process.env.APP_URL || "https://networkvoid.xyz"}/wiki`;
+      
+      // Special handling for QA Manager (consultant role)
+      const isQAManager = role === "consultant";
 
       try {
         await emailService.sendEmail({
           to: email,
-          subject: `Welcome to ContinuityBridge - Complete Your Enrollment`,
+          subject: isQAManager 
+            ? `Welcome to ContinuityBridge - QA Manager Onboarding`
+            : `Welcome to ContinuityBridge - Complete Your Enrollment`,
           html: `
-            <h2>Welcome to ContinuityBridge!</h2>
-            <p>You've been invited to join as a <strong>${role === "consultant" ? "Consultant" : "Customer Admin"}</strong>.</p>
-            
-            <h3>Your API Key</h3>
-            <p><code style="background: #f4f4f4; padding: 10px; display: block; font-family: monospace;">${apiKey}</code></p>
-            
-            <h3>Complete Your Enrollment</h3>
-            <p>Click the link below to set your password and activate your account:</p>
-            <p><a href="${enrollmentUrl}" style="background: #0066cc; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Complete Enrollment</a></p>
-            
-            <p><small>This link expires in 48 hours.</small></p>
-            
-            <hr>
-            <p><small>If you didn't expect this invitation, please ignore this email.</small></p>
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #0066cc;">Welcome to ContinuityBridge!</h2>
+              <p>You've been invited to join as a <strong>${isQAManager ? "QA Manager" : "Customer Admin"}</strong>.</p>
+              
+              ${isQAManager ? `
+              <div style="background: #f0f7ff; padding: 15px; border-left: 4px solid #0066cc; margin: 20px 0;">
+                <h3 style="margin-top: 0; color: #0066cc;">🧪 Your Role: QA Manager</h3>
+                <p>As a QA Manager, you'll have access to:</p>
+                <ul>
+                  <li><strong>QA Tracking Interface</strong> - Log test results and manage test sessions</li>
+                  <li><strong>Testing Documentation</strong> - Complete QA testing guide with scenarios</li>
+                  <li><strong>Full Platform Access</strong> - Test all features and integrations</li>
+                  <li><strong>Founder Collaboration</strong> - Flag issues for founder review</li>
+                </ul>
+              </div>
+              ` : ''}
+              
+              <h3>🔑 Your API Key</h3>
+              <p><code style="background: #f4f4f4; padding: 10px; display: block; font-family: monospace; border: 1px solid #ddd; border-radius: 4px;">${apiKey}</code></p>
+              <p style="font-size: 14px; color: #666;"><strong>Keep this secure!</strong> This key provides API access to the platform.</p>
+              
+              <h3>✅ Step 1: Complete Your Enrollment</h3>
+              <p>Click the button below to set your password and activate your account:</p>
+              <p><a href="${enrollmentUrl}" style="background: #0066cc; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Complete Enrollment</a></p>
+              <p style="font-size: 12px; color: #999;">Link expires in 48 hours</p>
+              
+              ${isQAManager ? `
+              <h3>📚 Step 2: Review the QA Testing Guide</h3>
+              <p>Once logged in, navigate to the Wiki to access the comprehensive QA Testing Guide:</p>
+              <ul style="list-style: none; padding-left: 0;">
+                <li style="margin: 8px 0;">📖 <strong>Wiki URL:</strong> <a href="${wikiUrl}">${wikiUrl}</a></li>
+                <li style="margin: 8px 0;">📋 <strong>Guide:</strong> QA-Testing-Guide.md</li>
+              </ul>
+              <p>The guide includes:</p>
+              <ul>
+                <li>Test categories and scenarios</li>
+                <li>Validation checklists</li>
+                <li>Expected behaviors</li>
+                <li>Known issues and workarounds</li>
+              </ul>
+              
+              <h3>🧪 Step 3: Access the QA Tracking Interface</h3>
+              <p>Log your test results using the QA Tracking dashboard:</p>
+              <ul style="list-style: none; padding-left: 0;">
+                <li style="margin: 8px 0;">🔗 <strong>QA Tracking URL:</strong> <a href="${qaTrackingUrl}">${qaTrackingUrl}</a></li>
+              </ul>
+              <p><strong>Features:</strong></p>
+              <ul>
+                <li><strong>Log Test Results</strong> - Record pass/fail/blocked/skipped tests</li>
+                <li><strong>Create Test Sessions</strong> - Group tests (smoke, regression, exploratory)</li>
+                <li><strong>Flag for Review</strong> - Mark tests requiring founder attention</li>
+                <li><strong>Detailed Reporting</strong> - Add steps to reproduce, error logs, screenshots</li>
+              </ul>
+              
+              <h3>🚀 Quick Start Checklist</h3>
+              <ol>
+                <li>✅ Complete enrollment (set password)</li>
+                <li>✅ Login at: <a href="${loginUrl}">${loginUrl}</a></li>
+                <li>✅ Read the QA Testing Guide in Wiki</li>
+                <li>✅ Explore the QA Tracking interface</li>
+                <li>✅ Create your first test session</li>
+                <li>✅ Start logging test results</li>
+              </ol>
+              ` : `
+              <h3>🔐 Login Information</h3>
+              <p>After completing enrollment, login at:</p>
+              <p><a href="${loginUrl}" style="color: #0066cc;">${loginUrl}</a></p>
+              `}
+              
+              <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+              
+              <h3>📞 Need Help?</h3>
+              <p>If you have questions or encounter issues:</p>
+              <ul>
+                <li>Contact the founder team</li>
+                <li>Check the Wiki for documentation</li>
+                ${isQAManager ? '<li>Use the QA Tracking interface to flag blockers</li>' : ''}
+              </ul>
+              
+              <p style="font-size: 12px; color: #999; margin-top: 30px;">If you didn't expect this invitation, please ignore this email.</p>
+            </div>
           `,
           text: `
 Welcome to ContinuityBridge!
 
-You've been invited to join as a ${role === "consultant" ? "Consultant" : "Customer Admin"}.
+You've been invited to join as a ${isQAManager ? "QA Manager" : "Customer Admin"}.
 
-Your API Key: ${apiKey}
+${isQAManager ? `
+=== YOUR ROLE: QA MANAGER ===
 
-Complete your enrollment by visiting: ${enrollmentUrl}
+As a QA Manager, you'll have access to:
+- QA Tracking Interface - Log test results and manage test sessions
+- Testing Documentation - Complete QA testing guide with scenarios
+- Full Platform Access - Test all features and integrations
+- Founder Collaboration - Flag issues for founder review
 
-This link expires in 48 hours.
+` : ''}
+=== YOUR API KEY ===
+${apiKey}
+
+Keep this secure! This key provides API access to the platform.
+
+=== STEP 1: COMPLETE ENROLLMENT ===
+Set your password: ${enrollmentUrl}
+(Link expires in 48 hours)
+
+${isQAManager ? `
+=== STEP 2: REVIEW QA TESTING GUIDE ===
+Wiki URL: ${wikiUrl}
+Guide: QA-Testing-Guide.md
+
+The guide includes:
+- Test categories and scenarios
+- Validation checklists
+- Expected behaviors
+- Known issues and workarounds
+
+=== STEP 3: ACCESS QA TRACKING INTERFACE ===
+QA Tracking URL: ${qaTrackingUrl}
+
+Features:
+- Log Test Results (pass/fail/blocked/skipped)
+- Create Test Sessions (smoke, regression, exploratory)
+- Flag for Review (mark tests requiring founder attention)
+- Detailed Reporting (steps to reproduce, error logs, screenshots)
+
+=== QUICK START CHECKLIST ===
+1. Complete enrollment (set password)
+2. Login at: ${loginUrl}
+3. Read the QA Testing Guide in Wiki
+4. Explore the QA Tracking interface
+5. Create your first test session
+6. Start logging test results
+` : `
+=== LOGIN INFORMATION ===
+After completing enrollment, login at: ${loginUrl}
+`}
+
+=== NEED HELP? ===
+If you have questions or encounter issues:
+- Contact the founder team
+- Check the Wiki for documentation
+${isQAManager ? '- Use the QA Tracking interface to flag blockers' : ''}
           `,
         });
 
@@ -252,30 +378,73 @@ router.post("/users/:userId/resend-enrollment", requireSuperAdmin, async (req, r
       .where(eq(users.id, userId));
 
     const enrollmentUrl = `${process.env.APP_URL || "https://networkvoid.xyz"}/enroll?token=${enrollmentToken}`;
+    const loginUrl = `${process.env.APP_URL || "https://networkvoid.xyz"}/sys/auth/bridge`;
+    const qaTrackingUrl = `${process.env.APP_URL || "https://networkvoid.xyz"}/admin/qa-tracking`;
+    const wikiUrl = `${process.env.APP_URL || "https://networkvoid.xyz"}/wiki`;
+    const isQAManager = user.role === "consultant";
 
     await emailService.sendEmail({
       to: user.email,
-      subject: `ContinuityBridge - Enrollment Reminder`,
+      subject: isQAManager
+        ? `ContinuityBridge - QA Manager Enrollment Reminder`
+        : `ContinuityBridge - Enrollment Reminder`,
       html: `
-        <h2>Complete Your ContinuityBridge Enrollment</h2>
-        <p>This is a reminder to complete your enrollment as a <strong>${user.role === "consultant" ? "Consultant" : "Customer Admin"}</strong>.</p>
-        
-        <h3>Your API Key</h3>
-        <p><code style="background: #f4f4f4; padding: 10px; display: block; font-family: monospace;">${user.apiKey}</code></p>
-        
-        <h3>Complete Your Enrollment</h3>
-        <p><a href="${enrollmentUrl}" style="background: #0066cc; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Complete Enrollment</a></p>
-        
-        <p><small>This link expires in 48 hours.</small></p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #0066cc;">Complete Your ContinuityBridge Enrollment</h2>
+          <p>This is a reminder to complete your enrollment as a <strong>${isQAManager ? "QA Manager" : "Customer Admin"}</strong>.</p>
+          
+          <h3>🔑 Your API Key</h3>
+          <p><code style="background: #f4f4f4; padding: 10px; display: block; font-family: monospace; border: 1px solid #ddd; border-radius: 4px;">${user.apiKey}</code></p>
+          
+          <h3>✅ Complete Your Enrollment</h3>
+          <p><a href="${enrollmentUrl}" style="background: #0066cc; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Set Password & Activate Account</a></p>
+          <p style="font-size: 12px; color: #999;">Link expires in 48 hours</p>
+          
+          ${isQAManager ? `
+          <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+          <h3>🧪 QA Manager Resources</h3>
+          
+          <p><strong>1. QA Testing Guide</strong></p>
+          <p>📖 Wiki: <a href="${wikiUrl}">${wikiUrl}</a></p>
+          <p style="font-size: 14px; color: #666;">Complete testing scenarios, validation checklists, and expected behaviors</p>
+          
+          <p><strong>2. QA Tracking Interface</strong></p>
+          <p>🧪 Dashboard: <a href="${qaTrackingUrl}">${qaTrackingUrl}</a></p>
+          <p style="font-size: 14px; color: #666;">Log test results, create sessions, flag issues for founder review</p>
+          
+          <p><strong>3. Login Portal</strong></p>
+          <p>🔐 Login: <a href="${loginUrl}">${loginUrl}</a></p>
+          ` : ''}
+          
+          <p style="font-size: 12px; color: #999; margin-top: 30px;">Need help? Contact the founder team.</p>
+        </div>
       `,
       text: `
 Complete Your ContinuityBridge Enrollment
 
+Role: ${isQAManager ? "QA Manager" : "Customer Admin"}
+
 Your API Key: ${user.apiKey}
 
 Complete your enrollment: ${enrollmentUrl}
+(Link expires in 48 hours)
 
-This link expires in 48 hours.
+${isQAManager ? `
+=== QA MANAGER RESOURCES ===
+
+1. QA Testing Guide
+Wiki: ${wikiUrl}
+Complete testing scenarios, validation checklists, and expected behaviors
+
+2. QA Tracking Interface
+Dashboard: ${qaTrackingUrl}
+Log test results, create sessions, flag issues for founder review
+
+3. Login Portal
+Login: ${loginUrl}
+` : `
+Login at: ${loginUrl}
+`}
       `,
     });
 
