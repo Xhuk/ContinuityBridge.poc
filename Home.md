@@ -7,6 +7,7 @@ Welcome to the ContinuityBridge documentation.
 ### Customer Documentation (Operational)
 
 - [Customer User Configuration Manual](Customer-User-Configuration-Manual.md) - Complete guide for customer admins on user management, settings, and operations
+- [QA Testing Guide](QA-Testing-Guide.md) - Comprehensive testing scenarios, validation procedures, and test cases for QA engineers
 
 ### System Metadata
 
