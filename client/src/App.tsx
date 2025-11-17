@@ -19,10 +19,11 @@ import MappingGenerator from "@/pages/MappingGenerator";
 import Projects from "@/pages/admin/projects";
 import TenantSelector from "@/pages/tenant-selector";
 import NotFound from "@/pages/not-found";
+import Landing from "@/pages/landing";
 import type { QueueConfig } from "@shared/schema";
 
 function Router() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const { data: queueConfig } = useQuery<QueueConfig>({
     queryKey: ["/api/queue/config"],
     refetchInterval: 10000,
@@ -33,8 +34,22 @@ function Router() {
     "--sidebar-width-icon": "3rem",
   };
 
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  // Show secure landing page (fake 404) if not authenticated
+  if (!user) {
+    return <Landing />;
+  }
+
   // Consultant needs to select tenant first
-  const needsTenantSelection = user?.role === "consultant" && !user?.selectedTenant;
+  const needsTenantSelection = user.role === "consultant" && !user.selectedTenant;
 
   if (needsTenantSelection) {
     return <TenantSelector />;
