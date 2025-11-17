@@ -12,7 +12,7 @@ const router = Router();
 /**
  * GET /api/users
  * List users based on role:
- * - Superadmin: Sees all users
+ * - Superadmin: Sees all users grouped by organization, with founders first
  * - Consultant: Sees users from assigned customers
  * - Customer Admin: Sees users from their organization
  */
@@ -25,8 +25,8 @@ router.get("/", authenticateUser, async (req, res) => {
     let query;
 
     if (userRole === "superadmin") {
-      // Superadmin sees all users
-      query = db.select({
+      // Superadmin sees all users grouped by organization
+      const allUsers = await (db.select({
         id: users.id,
         email: users.email,
         role: users.role,
@@ -36,7 +36,37 @@ router.get("/", authenticateUser, async (req, res) => {
         enabled: users.enabled,
         lastLoginAt: users.lastLoginAt,
         createdAt: users.createdAt,
-      }).from(users);
+        metadata: users.metadata,
+      }).from(users) as any);
+
+      // Group users by organization
+      const grouped: Record<string, any[]> = {};
+      const founders: any[] = [];
+
+      allUsers.forEach((user: any) => {
+        // Founders (superadmins) go to a special group shown first
+        if (user.role === "superadmin") {
+          founders.push(user);
+        } else {
+          const orgKey = user.organizationName || user.organizationId || "Unassigned";
+          if (!grouped[orgKey]) {
+            grouped[orgKey] = [];
+          }
+          grouped[orgKey].push(user);
+        }
+      });
+
+      // Return structured data: founders first, then projects
+      return res.json({
+        founders,
+        projects: Object.keys(grouped).sort().map(orgName => ({
+          organizationName: orgName,
+          organizationId: grouped[orgName][0]?.organizationId,
+          users: grouped[orgName],
+          userCount: grouped[orgName].length,
+        })),
+        totalUsers: allUsers.length,
+      });
     } else if (userRole === "consultant") {
       // Consultant sees users from assigned customers only
       query = db.select({
@@ -67,7 +97,7 @@ router.get("/", authenticateUser, async (req, res) => {
       return res.status(403).json({ error: "Insufficient permissions" });
     }
 
-    const allUsers = await query.all();
+    const allUsers = await (query as any);
 
     res.json({ users: allUsers, count: allUsers.length });
   } catch (error: any) {
