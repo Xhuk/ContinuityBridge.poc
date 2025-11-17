@@ -5,7 +5,6 @@ import Database from 'better-sqlite3';
 import ws from "ws";
 import path from "path";
 import { fileURLToPath } from "url";
-import * as schema from "./schema";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,6 +12,14 @@ const __dirname = path.dirname(__filename);
 // Determine database type from environment
 const dbType = process.env.DB_TYPE || "sqlite"; // Default to SQLite for portability
 const isProd = process.env.NODE_ENV === "production";
+
+// Conditionally import the correct schema
+let schema: any;
+if (dbType === "postgres") {
+  schema = await import("./schema.pg.js");
+} else {
+  schema = await import("./schema.js");
+}
 
 // SQLite setup (portable, offline-capable)
 let sqliteDb: ReturnType<typeof drizzleSqlite> | null = null;
