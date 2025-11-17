@@ -1,11 +1,30 @@
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 import pg from 'pg';
 
 const { Pool } = pg;
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+
+// Embed SQL migration directly to avoid file path issues in production builds
+const MIGRATION_SQL = `
+-- Step 1: Add columns if they don't exist
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_confirmed BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS confirmation_token TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS confirmation_token_expires TIMESTAMP;
+
+-- Step 2: Add unique constraint safely
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'users_confirmation_token_unique'
+    ) THEN
+        ALTER TABLE users ADD CONSTRAINT users_confirmation_token_unique UNIQUE (confirmation_token);
+    END IF;
+END $$;
+
+-- Step 3: Mark existing users as confirmed (one-time data migration)
+UPDATE users 
+SET email_confirmed = true 
+WHERE email_confirmed IS NULL OR email_confirmed = false;
+`;
 
 /**
  * Run SQL migrations before Drizzle Kit push
@@ -31,34 +50,10 @@ async function runMigration() {
     
     const pool = new Pool({ connectionString: DATABASE_URL });
     
-    // Try multiple paths for the SQL file (handles both dev and production builds)
-    let migrationSQL;
-    const possiblePaths = [
-      join(__dirname, 'add-confirmation-columns.sql'),           // Dev: scripts/
-      join(__dirname, '..', 'scripts', 'add-confirmation-columns.sql'), // Prod: from dist/
-      join(process.cwd(), 'scripts', 'add-confirmation-columns.sql'),   // Fallback: from project root
-    ];
+    console.log('[Migration] 📄 Executing embedded SQL migration...');
     
-    let sqlPath = null;
-    for (const path of possiblePaths) {
-      try {
-        migrationSQL = readFileSync(path, 'utf-8');
-        sqlPath = path;
-        break;
-      } catch (err) {
-        continue; // Try next path
-      }
-    }
-    
-    if (!migrationSQL) {
-      console.log('[Migration] ⚠️  SQL migration file not found, skipping...');
-      process.exit(0);
-    }
-    
-    console.log(`[Migration] 📄 Using SQL file: ${sqlPath}`);
-    
-    // Execute the migration
-    await pool.query(migrationSQL);
+    // Execute the embedded migration
+    await pool.query(MIGRATION_SQL);
     
     console.log('[Migration] ✅ SQL migrations completed successfully');
     
