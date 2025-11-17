@@ -100,3 +100,36 @@ export const magicLinks = pgTable("magic_links", {
   ipAddress: text("ip_address"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// SMTP Settings Table
+export const smtpSettings = pgTable("smtp_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  
+  // SMTP Configuration
+  host: text("host").notNull(),
+  port: integer("port").notNull().default(587),
+  secure: boolean("secure").notNull().default(false),
+  
+  // Authentication
+  username: text("username").notNull(),
+  password: text("password").notNull(),
+  
+  // Email Settings
+  fromAddress: text("from_address").notNull(),
+  fromName: text("from_name"),
+  
+  // Notification Rules
+  notifyOnFlowError: boolean("notify_on_flow_error").notNull().default(true),
+  notifyOnValidationError: boolean("notify_on_validation_error").notNull().default(false),
+  notifyOnAckFailure: boolean("notify_on_ack_failure").notNull().default(true),
+  
+  // Recipients for alerts
+  alertRecipients: text("alert_recipients").notNull(),
+  
+  // Status
+  enabled: boolean("enabled").notNull().default(true),
+  lastTestedAt: timestamp("last_tested_at"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
