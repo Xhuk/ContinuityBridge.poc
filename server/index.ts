@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { securityHeaders, corsConfig, apiRateLimit, authRateLimit, secretsVaultRateLimit, sanitizeRequest, isHealthCheck } from "./src/middleware/security.js";
+import { wafMiddleware } from "./src/middleware/waf.js";
 import { checkFirstRun, displayReadinessBanner } from "./src/setup/first-run.js";
 import { validateAndLogEnvironment } from "./src/core/env-validator.js";
 
@@ -12,6 +13,24 @@ const app = express();
 app.use((req, res, next) => {
   if (isHealthCheck(req)) return next();
   return securityHeaders(req, res, next);
+});
+
+// WAF Protection (Web Application Firewall)
+app.use((req, res, next) => {
+  if (isHealthCheck(req)) return next();
+  if (process.env.NODE_ENV === 'production') {
+    return wafMiddleware({
+      rateLimit: {
+        windowMs: 60000,       // 1 minute
+        maxRequests: 30,       // 30 requests per minute
+        blockDurationMs: 300000, // Block for 5 minutes
+      },
+      blockBots: true,         // Block known bot user agents
+      blockSuspicious: true,   // Block suspicious URL patterns
+      whitelist: [],           // Add trusted IPs here if needed
+    })(req, res, next);
+  }
+  next();
 });
 
 // Apply CORS
