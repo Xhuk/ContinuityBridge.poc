@@ -79,8 +79,7 @@ export class LogCleanupJob {
 
       // Load all log configurations
       const configs = await (db.select() as any)
-        .from(logConfigurations)
-        .all();
+        .from(logConfigurations);
 
       let totalDeleted = 0;
 

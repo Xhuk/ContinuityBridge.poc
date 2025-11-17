@@ -77,9 +77,8 @@ export class SchedulerDaemon {
   private async scanAndRegisterSchedulers(): Promise<void> {
     try {
       // Get all enabled flows
-      const flows = await db.select()
-        .from(flowDefinitions)
-        .all();
+      const flows = await (db.select() as any)
+        .from(flowDefinitions);
 
       let registeredCount = 0;
 
