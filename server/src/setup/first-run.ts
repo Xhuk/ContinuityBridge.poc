@@ -81,6 +81,9 @@ export async function checkFirstRun(): Promise<SystemReadiness> {
         email: SUPERADMIN_EMAIL,
         apiKey: apiKey.substring(0, 10) + "...",
       });
+      
+      // Mark superadmin as existing after successful creation
+      result.superadminExists = true;
 
       result.warnings.push(
         `Superadmin account created: ${SUPERADMIN_EMAIL}`,
