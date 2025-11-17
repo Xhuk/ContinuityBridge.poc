@@ -386,6 +386,134 @@ ${domain}
   }
 
   /**
+   * Send role promotion notification email
+   */
+  async sendRolePromotionEmail(
+    email: string,
+    organizationName: string,
+    newRole: "customer_admin" | "consultant" | "superadmin"
+  ): Promise<void> {
+    const domain = process.env.APP_DOMAIN || 'networkvoid.xyz';
+    const loginUrl = process.env.APP_URL || `https://${domain}`;
+
+    const roleLabels = {
+      customer_admin: 'Customer Admin',
+      consultant: 'Consultant',
+      superadmin: 'Superadmin',
+    };
+
+    const roleLabel = roleLabels[newRole];
+
+    const permissions = {
+      customer_admin: [
+        'Manage users in your organization',
+        'Resend API keys to your teammates',
+        'Configure organization settings',
+        'View and manage all organization data',
+      ],
+      consultant: [
+        'Manage multiple customer organizations',
+        'Build and configure integration flows',
+        'Access error triage dashboard',
+        'Provide customer support',
+      ],
+      superadmin: [
+        'Full system access',
+        'Manage all users and organizations',
+        'Access all features and data',
+        'System configuration and monitoring',
+      ],
+    };
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+  <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">🎉 Role Promotion!</h1>
+  </div>
+  
+  <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">
+      Hi <strong>${email}</strong>,
+    </p>
+    
+    <p style="font-size: 16px; margin-bottom: 25px;">
+      Congratulations! You've been promoted to <strong>${roleLabel}</strong> for <strong>${organizationName}</strong>.
+    </p>
+    
+    <div style="background: #f3f4f6; padding: 20px; border-radius: 6px; margin: 25px 0; border-left: 4px solid #10b981;">
+      <p style="margin: 0 0 10px 0;"><strong>🎯 Your New Role:</strong></p>
+      <p style="margin: 5px 0; font-size: 18px; color: #059669; font-weight: 600;">${roleLabel}</p>
+    </div>
+    
+    <div style="background: #ecfdf5; border: 1px solid #10b981; padding: 20px; border-radius: 6px; margin: 25px 0;">
+      <p style="margin: 0 0 15px 0; font-weight: 600; color: #065f46;">✨ Your New Permissions:</p>
+      <ul style="margin: 0; padding-left: 20px; color: #065f46;">
+        ${permissions[newRole].map(p => `<li style="margin: 8px 0;">${p}</li>`).join('')}
+      </ul>
+    </div>
+    
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${loginUrl}" 
+         style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 14px 40px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        🚀 Access Your Dashboard
+      </a>
+    </div>
+    
+    <p style="font-size: 14px; color: #6b7280; margin-top: 25px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+      <strong>Next Steps:</strong><br>
+      • Log in to explore your new capabilities<br>
+      • Review your organization settings<br>
+      • Start managing your team members
+    </p>
+  </div>
+  
+  <div style="text-align: center; margin-top: 20px; color: #9ca3af; font-size: 12px;">
+    <p>ContinuityBridge - Integration Platform</p>
+    <p>${domain}</p>
+  </div>
+</body>
+</html>
+    `;
+
+    const text = `
+ContinuityBridge - Role Promotion
+
+Hi ${email},
+
+Congratulations! You've been promoted to ${roleLabel} for ${organizationName}.
+
+🎯 Your New Role: ${roleLabel}
+
+✨ Your New Permissions:
+${permissions[newRole].map(p => `- ${p}`).join('\n')}
+
+Next Steps:
+- Log in to explore your new capabilities
+- Review your organization settings
+- Start managing your team members
+
+Login: ${loginUrl}
+
+---
+ContinuityBridge - Integration Platform
+${domain}
+    `;
+
+    await this.sendEmail({
+      to: email,
+      subject: `🎉 You've Been Promoted to ${roleLabel}!`,
+      html,
+      text,
+    });
+  }
+
+  /**
    * Send license expiry warning
    */
   async sendLicenseExpiryWarning(

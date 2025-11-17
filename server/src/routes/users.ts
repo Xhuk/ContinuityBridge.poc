@@ -283,10 +283,9 @@ router.patch("/:id/enable", authenticateUser, requireSuperAdmin, async (req, res
     const { id } = req.params;
     const { enabled } = req.body;
 
-    await db.update(users)
+    await (db.update(users)
       .set({ enabled, updatedAt: new Date().toISOString() })
-      .where(eq(users.id, id))
-      .run();
+      .where(eq(users.id, id)) as any);
 
     res.json({ success: true, enabled });
   } catch (error: any) {
@@ -295,9 +294,88 @@ router.patch("/:id/enable", authenticateUser, requireSuperAdmin, async (req, res
 });
 
 /**
+ * PATCH /api/users/:id/promote-to-admin
+ * Promote a customer user to customer_admin role (for production customers)
+ * 🔒 SUPERADMIN or CONSULTANT (for their assigned customers)
+ */
+router.patch("/:id/promote-to-admin", authenticateUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await (db.select().from(users)
+      .where(eq(users.id, id)) as any);
+    
+    const userRecord = user[0];
+    
+    if (!userRecord) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Permission check: superadmin or consultant (for assigned customers)
+    const requestorRole = req.user?.role;
+    if (requestorRole === "consultant") {
+      const assignedCustomers = req.user?.assignedCustomers || [];
+      if (!assignedCustomers.includes(userRecord.organizationId)) {
+        return res.status(403).json({ 
+          error: "Consultants can only promote users in their assigned customers" 
+        });
+      }
+    } else if (requestorRole !== "superadmin") {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+
+    // Only allow promotion of customer_user to customer_admin
+    if (userRecord.role !== "customer_user") {
+      return res.status(400).json({ 
+        error: "Can only promote customer_user role. Current role: " + userRecord.role 
+      });
+    }
+
+    // Promote to customer_admin
+    await (db.update(users)
+      .set({ 
+        role: "customer_admin" as any,
+        updatedAt: new Date().toISOString(),
+        metadata: {
+          ...(userRecord.metadata || {}),
+          promotedAt: new Date().toISOString(),
+          promotedBy: req.user?.email,
+        } as any,
+      })
+      .where(eq(users.id, id)) as any);
+
+    // Send notification email
+    const { resendService } = await import("../notifications/resend-service.js");
+    try {
+      await resendService.sendRolePromotionEmail(
+        userRecord.email,
+        userRecord.organizationName || userRecord.organizationId,
+        "customer_admin"
+      );
+      console.log(`📧 Role promotion notification sent to ${userRecord.email}`);
+    } catch (emailError: any) {
+      console.warn(`Failed to send promotion email: ${emailError.message}`);
+    }
+
+    res.json({
+      success: true,
+      message: `User promoted to Customer Admin. They can now manage their organization's users and resend API keys.`,
+      user: {
+        id: userRecord.id,
+        email: userRecord.email,
+        role: "customer_admin",
+        organizationName: userRecord.organizationName,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /api/users/:id/regenerate-api-key
  * Regenerate API key for a user and send via email
- * 🔒 SUPERADMIN or CONSULTANT (for their assigned customers)
+ * 🔒 SUPERADMIN, CONSULTANT (for their assigned customers), or CUSTOMER_ADMIN (for their org users)
  */
 router.post("/:id/regenerate-api-key", authenticateUser, async (req, res) => {
   try {
@@ -313,13 +391,25 @@ router.post("/:id/regenerate-api-key", authenticateUser, async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Permission check: superadmin can regenerate any key, consultant only for assigned customers
+    // Permission check:
+    // - Superadmin: can regenerate any key
+    // - Consultant: can regenerate keys for assigned customers
+    // - Customer Admin: can regenerate keys for their own organization teammates
     const requestorRole = req.user?.role;
+    const requestorOrgId = req.user?.organizationId;
+    
     if (requestorRole === "consultant") {
       const assignedCustomers = req.user?.assignedCustomers || [];
       if (!assignedCustomers.includes(userRecord.organizationId)) {
         return res.status(403).json({ 
           error: "Consultants can only regenerate API keys for their assigned customers" 
+        });
+      }
+    } else if (requestorRole === "customer_admin") {
+      // Customer admin can only regenerate keys for users in their own organization
+      if (userRecord.organizationId !== requestorOrgId) {
+        return res.status(403).json({ 
+          error: "Customer Admins can only regenerate API keys for their own organization" 
         });
       }
     } else if (requestorRole !== "superadmin") {
