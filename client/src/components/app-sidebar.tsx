@@ -1,4 +1,4 @@
-import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut } from "lucide-react";
+import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -84,6 +84,19 @@ const adminMenuItems = [
     title: "Projects",
     url: "/admin/projects",
     icon: FolderKanban,
+    roles: ["superadmin"],
+  },
+  {
+    title: "Customers",
+    url: "/admin/customers",
+    icon: Database,
+    roles: ["superadmin"],
+  },
+  {
+    title: "Users",
+    url: "/admin/users",
+    icon: Users,
+    roles: ["superadmin", "consultant", "customer_admin"],
   },
 ];
 
@@ -92,6 +105,8 @@ export function AppSidebar({ queueBackend }: { queueBackend?: string }) {
   const { user, logout } = useAuth();
   const isSuperAdmin = user?.role === "superadmin";
   const isConsultant = user?.role === "consultant";
+  const isCustomerAdmin = user?.role === "customer_admin";
+  const isAdmin = isSuperAdmin || isConsultant || isCustomerAdmin;
 
   // Fetch license/feature flags
   const { data: licenseData } = useQuery({
@@ -161,27 +176,29 @@ export function AppSidebar({ queueBackend }: { queueBackend?: string }) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        {isSuperAdmin && (
+        {isAdmin && (
           <SidebarGroup>
             <SidebarGroupLabel className="flex items-center gap-2">
               <Shield className="h-4 w-4" />
-              SuperAdmin
+              {isSuperAdmin ? "SuperAdmin" : isConsultant ? "Consultant" : "Admin"}
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminMenuItems.map((item) => {
-                  const isActive = location === item.url;
-                  return (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild isActive={isActive}>
-                        <Link href={item.url}>
-                          <item.icon className="h-5 w-5" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
+                {adminMenuItems
+                  .filter(item => item.roles.includes(user?.role || ""))
+                  .map((item) => {
+                    const isActive = location === item.url;
+                    return (
+                      <SidebarMenuItem key={item.title}>
+                        <SidebarMenuButton asChild isActive={isActive}>
+                          <Link href={item.url}>
+                            <item.icon className="h-5 w-5" />
+                            <span>{item.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

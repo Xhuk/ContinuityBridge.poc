@@ -17,6 +17,8 @@ import TestFiles from "@/pages/test-files";
 import Settings from "@/pages/settings";
 import MappingGenerator from "@/pages/MappingGenerator";
 import Projects from "@/pages/admin/projects";
+import Customers from "@/pages/admin/customers";
+import UsersManagement from "@/pages/admin/users";
 import TenantSelector from "@/pages/tenant-selector";
 import Profile from "@/pages/profile";
 import Login from "@/pages/login";
@@ -84,7 +86,17 @@ function Router() {
               <Route path="/settings" component={Settings} />
               <Route path="/profile" component={Profile} />
               {user?.role === "superadmin" && (
-                <Route path="/admin/projects" component={Projects} />
+                <>
+                  <Route path="/admin/projects" component={Projects} />
+                  <Route path="/admin/customers" component={Customers} />
+                  <Route path="/admin/users" component={UsersManagement} />
+                </>
+              )}
+              {user?.role === "consultant" && (
+                <Route path="/admin/users" component={UsersManagement} />
+              )}
+              {user?.role === "customer_admin" && (
+                <Route path="/admin/users" component={UsersManagement} />
               )}
               <Route component={NotFound} />
             </Switch>
