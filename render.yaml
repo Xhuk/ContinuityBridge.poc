@@ -3,6 +3,7 @@ services:
     name: continuitybridge
     env: node
     plan: free
+    branch: render-poc-deployment
     buildCommand: npm run build
     startCommand: npm start
     postDeployCommand: node scripts/render-postdeploy.js
