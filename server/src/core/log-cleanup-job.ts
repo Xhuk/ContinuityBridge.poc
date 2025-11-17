@@ -163,10 +163,10 @@ export class LogCleanupJob {
 
       // Delete old logs
       const result = await (db.delete(systemLogs) as any)
-        .where(and(...conditions))
-        .run();
+        .where(and(...conditions));
 
-      const deleted = result.changes || 0;
+      // Note: PostgreSQL returns array, SQLite returns { changes }
+      const deleted = Array.isArray(result) ? result.length : (result as any).changes || 0;
 
       if (deleted > 0) {
         log.info(`Cleaned up ${scope} logs`, {
