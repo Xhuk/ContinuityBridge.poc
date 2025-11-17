@@ -126,10 +126,12 @@ class Logger {
   private async loadConfigurations(): Promise<void> {
     try {
       // Load superadmin config
-      const superadminCfg = await (db.select() as any)
+      const superadminResults = await (db.select() as any)
         .from(logConfigurations)
         .where(eq(logConfigurations.scope, 'superadmin'))
-        .get();
+        .limit(1);
+      
+      const superadminCfg = superadminResults[0];
       
       if (superadminCfg) {
         superadminConfig = this.parseConfig(superadminCfg);
@@ -151,8 +153,7 @@ class Logger {
       // Load customer configs
       const customerConfigs = await (db.select() as any)
         .from(logConfigurations)
-        .where(eq(logConfigurations.scope, 'customer'))
-        .all();
+        .where(eq(logConfigurations.scope, 'customer'));
       
       customerConfigs.forEach((cfg: any) => {
         if (cfg.organizationId) {
@@ -283,7 +284,7 @@ class Logger {
       };
 
       // Non-blocking insert
-      (db.insert(systemLogs) as any).values(logEntry).run().catch((err: any) => {
+      (db.insert(systemLogs) as any).values(logEntry).catch((err: any) => {
         console.error('[Logger] Failed to write to database:', err.message);
       });
     } catch (error: any) {
