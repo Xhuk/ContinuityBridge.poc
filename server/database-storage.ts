@@ -37,6 +37,7 @@ import {
 } from "./schema";
 import { eq, desc, and } from "drizzle-orm";
 import { IStorage } from "./storage";
+import type { FlowVersion } from "./src/versioning/flow-version-manager.js";
 
 /**
  * Database-backed storage implementation using SQLite or PostgreSQL
@@ -954,5 +955,44 @@ export class DatabaseStorage implements IStorage {
     await (db.delete(systemInstanceAuth) as any).where(eq(systemInstanceAuth.id, id));
 
     return true;
+  }
+  
+  // ============================================================================
+  // Flow Versioning Management
+  // ============================================================================
+  
+  // In-memory storage for now (TODO: create database table for flow_versions)
+  private flowVersions: Map<string, FlowVersion> = new Map();
+  
+  async storeFlowVersion(version: FlowVersion): Promise<FlowVersion> {
+    this.flowVersions.set(version.id, version);
+    return version;
+  }
+  
+  async getFlowVersion(versionId: string): Promise<FlowVersion | undefined> {
+    return this.flowVersions.get(versionId);
+  }
+  
+  async getFlowVersionHistory(
+    flowId: string,
+    organizationId: string,
+    environment: "dev" | "staging" | "prod"
+  ): Promise<FlowVersion[]> {
+    const allVersions = Array.from(this.flowVersions.values());
+    
+    return allVersions
+      .filter(v => 
+        v.flowId === flowId && 
+        v.organizationId === organizationId && 
+        v.environment === environment
+      )
+      .sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+  }
+  
+  async updateFlowVersion(version: FlowVersion): Promise<FlowVersion> {
+    this.flowVersions.set(version.id, version);
+    return version;
   }
 }

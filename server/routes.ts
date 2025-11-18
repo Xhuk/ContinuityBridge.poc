@@ -18,6 +18,10 @@ import { createAuthGuard } from "./src/middleware/auth-guard.js";
 import { getSchedulerDaemon } from "./src/schedulers/scheduler-daemon.js";
 import { getPollerDaemon } from "./src/schedulers/poller-daemon.js";
 import { getLogCleanupJob } from "./src/core/log-cleanup-job.js";
+import { FlowVersionManager } from "./src/versioning/flow-version-manager.js";
+import { TenantQuotaManager } from "./src/core/tenant-quotas.js";
+import { initFlowDSLAPI } from "./src/routes/flow-dsl-api.js";
+import { initFlowVersioningAPI } from "./src/routes/flow-versioning-api.js";
 
 const log = logger.child("Server");
 
@@ -71,6 +75,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Create flow orchestrator (shared across pipeline and REST routes)
     const orchestrator = new FlowOrchestrator(storage);
+    
+    // Initialize Flow Version Manager for semantic versioning
+    const versionManager = new FlowVersionManager(storage);
+    
+    // Initialize Tenant Quota Manager for multi-tenant resource limits
+    const quotaManager = new TenantQuotaManager(storage);
 
     // Create pipeline instance with flow support
     const pipeline = new Pipeline({ orchestrator });
@@ -121,6 +131,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Register QA tracking routes (QA team + founders)
     const qaTrackingRouter = (await import("./src/routes/qa-tracking.js")).default;
     app.use("/api/qa", qaTrackingRouter);
+    
+    // Register Flow DSL API routes (YAML/JSON import/export)
+    const flowDslRouter = initFlowDSLAPI(storage, quotaManager);
+    app.use("/api/flows", flowDslRouter);
+    
+    // Register Flow Versioning API routes (version management, approval, rollback)
+    const flowVersioningRouter = initFlowVersioningAPI(storage, versionManager, quotaManager);
+    app.use("/api/flows", flowVersioningRouter);
 
     // Register GraphQL server (standalone on port 4000) with shared pipeline
     registerGraphQLServer(pipeline).catch((err) => {
