@@ -4,6 +4,7 @@ services:
     env: node
     plan: free
     branch: render-poc-deployment
+    rootDirectory: .
     buildCommand: npm run build
     startCommand: npm start
     postDeployCommand: node scripts/render-postdeploy.js
@@ -27,6 +28,8 @@ services:
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: JWT_SECRET
         sync: false
     healthCheckPath: /api/health
     autoDeploy: true
