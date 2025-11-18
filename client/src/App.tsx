@@ -19,6 +19,7 @@ import MappingGenerator from "@/pages/MappingGenerator";
 import Projects from "@/pages/admin/projects";
 import Customers from "@/pages/admin/customers";
 import UsersManagement from "@/pages/admin/users";
+import AIMonitoring from "@/pages/admin/ai-monitoring";
 import TenantSelector from "@/pages/tenant-selector";
 import Profile from "@/pages/profile";
 import Login from "@/pages/login";
@@ -107,6 +108,7 @@ function Router() {
                   <Route path="/admin/projects" component={Projects} />
                   <Route path="/admin/customers" component={Customers} />
                   <Route path="/admin/users" component={UsersManagement} />
+                  <Route path="/admin/ai-monitoring" component={AIMonitoring} />
                 </>
               )}
               {user?.role === "consultant" && (

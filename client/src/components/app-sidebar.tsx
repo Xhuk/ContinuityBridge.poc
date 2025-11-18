@@ -1,4 +1,4 @@
-import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2 } from "lucide-react";
+import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2, Activity } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -91,6 +91,12 @@ const adminMenuItems = [
     url: "/admin/qa-tracking",
     icon: TestTube2,
     roles: ["superadmin", "consultant"],
+  },
+  {
+    title: "AI Monitoring",
+    url: "/admin/ai-monitoring",
+    icon: Activity,
+    roles: ["superadmin"],
   },
   {
     title: "Projects",
