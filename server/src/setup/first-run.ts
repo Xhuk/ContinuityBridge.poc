@@ -9,12 +9,12 @@ import { logger } from "../core/logger.js";
  * 
  * On first deployment to Render (or any environment):
  * 1. Check if superadmin exists
- * 2. If not, create jesus.cruzado@gmail.com as superadmin
+ * 2. If not, create superadmin from SUPERADMIN_EMAIL env var
  * 3. Validate required environment variables
  * 4. Initialize system defaults
  */
 
-const SUPERADMIN_EMAIL = "jesus.cruzado@gmail.com";
+const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || "admin@continuitybridge.local";
 
 export interface SystemReadiness {
   ready: boolean;

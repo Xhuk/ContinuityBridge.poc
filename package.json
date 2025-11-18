@@ -10,7 +10,7 @@
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "build:binary": "node scripts/build-binary.js",
     "start": "NODE_ENV=production npm run db:migrate && node dist/index.js",
-    "db:migrate": "node scripts/run-sql-migration.js && drizzle-kit push --force",
+    "db:migrate": "node scripts/run-sql-migration.js",
     "seed:demo": "tsx scripts/seed-demo-flows.ts",
     "seed:adapters": "tsx scripts/seed-interface-adapters.ts",
     "test:demo": "tsx scripts/test-demo-flows.ts",

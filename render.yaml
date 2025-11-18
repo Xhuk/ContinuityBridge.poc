@@ -20,6 +20,8 @@ services:
           property: connectionString
       - key: ENCRYPTION_KEY
         sync: false
+      - key: SUPERADMIN_EMAIL
+        sync: false
       - key: RESEND_API_KEY
         sync: false
       - key: SUPERADMIN_API_KEY
