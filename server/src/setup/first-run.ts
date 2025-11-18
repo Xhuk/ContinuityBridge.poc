@@ -71,8 +71,8 @@ export async function checkFirstRun(): Promise<SystemReadiness> {
           firstRun: true,
           mustChangePassword: true,
         },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
       logger.info("Superadmin created successfully", {
