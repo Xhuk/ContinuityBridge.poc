@@ -3,6 +3,8 @@
  * 
  * Founder UI: Calculate infrastructure requirements based on SOW
  * POST /api/calculator/resources → Get hardware recommendations
+ * 
+ * 🔒 SUPERADMIN ONLY (Founder, not founder team)
  */
 
 import { Router } from "express";
@@ -16,14 +18,14 @@ const log = logger.child("ResourceCalculatorAPI");
 /**
  * POST /api/calculator/resources
  * Calculate resource requirements
- * 🔒 Superadmin or Consultant
+ * 🔒 SUPERADMIN ONLY (Founder access)
  */
 router.post("/resources", authenticateUser, async (req, res) => {
   try {
     const userRole = (req as any).user?.role;
 
-    if (userRole !== "superadmin" && userRole !== "consultant") {
-      return res.status(403).json({ error: "Superadmin or Consultant access required" });
+    if (userRole !== "superadmin") {
+      return res.status(403).json({ error: "Forbidden: Superadmin access required" });
     }
 
     const {
@@ -80,13 +82,14 @@ router.post("/resources", authenticateUser, async (req, res) => {
 /**
  * GET /api/calculator/presets
  * Get common workload presets
+ * 🔒 SUPERADMIN ONLY (Founder access)
  */
 router.get("/presets", authenticateUser, async (req, res) => {
   try {
     const userRole = (req as any).user?.role;
 
-    if (userRole !== "superadmin" && userRole !== "consultant") {
-      return res.status(403).json({ error: "Superadmin or Consultant access required" });
+    if (userRole !== "superadmin") {
+      return res.status(403).json({ error: "Forbidden: Superadmin access required" });
     }
 
     const presets = [
