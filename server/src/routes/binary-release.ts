@@ -8,24 +8,23 @@
 import { Router } from "express";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import { logger } from "../core/logger.js";
-import { exec } from "child_process";
-import { promisify } from "util";
+import { binaryBuildQueue } from "../queues/binary-build-queue.js";
 import fs from "fs/promises";
 import path from "path";
 import archiver from "archiver";
 
 const router = Router();
 const log = logger.child("BinaryReleaseAPI");
-const execAsync = promisify(exec);
 
 /**
  * POST /api/releases/binary
- * Generate customer-specific binary
+ * Queue customer-specific binary build (async)
  * 🔒 Superadmin only
  */
 router.post("/binary", authenticateUser, async (req, res) => {
   try {
     const userRole = (req as any).user?.role;
+    const userEmail = (req as any).user?.email;
 
     if (userRole !== "superadmin") {
       return res.status(403).json({ error: "Superadmin access required" });
@@ -35,7 +34,7 @@ router.post("/binary", authenticateUser, async (req, res) => {
       organizationId,
       organizationName,
       licenseType = "professional",
-      platforms = ["linux", "windows"], // linux, windows, macos
+      platforms = ["linux", "windows"],
       version = "1.0.0",
     } = req.body;
 
@@ -45,49 +44,108 @@ router.post("/binary", authenticateUser, async (req, res) => {
       });
     }
 
-    log.info("Generating binary release", {
+    log.info("Queueing binary build", {
       organizationId,
       organizationName,
       platforms,
     });
 
-    // Map platform names to pkg targets
-    const pkgPlatforms = platforms.map((p: string) => {
-      switch (p.toLowerCase()) {
-        case "windows":
-          return "node20-win-x64";
-        case "linux":
-          return "node20-linux-x64";
-        case "macos":
-          return "node20-macos-x64";
-        default:
-          return "node20-linux-x64";
-      }
+    // Add to queue (async)
+    const job = await binaryBuildQueue.add({
+      organizationId,
+      organizationName,
+      licenseType,
+      platforms,
+      version,
+      requestedBy: userEmail || "unknown",
     });
 
-    // Build binaries
-    const buildCommand = `node scripts/build-binary.js --org ${organizationId} --license ${licenseType} --platforms ${pkgPlatforms.join(",")}`;
-    
-    log.info("Executing build command", { buildCommand });
-    
-    try {
-      const { stdout, stderr } = await execAsync(buildCommand, {
-        cwd: process.cwd(),
-        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
-      });
-      
-      if (stderr) {
-        log.warn("Build stderr", { stderr });
-      }
-      
-      log.info("Build completed", { stdout });
-    } catch (error: any) {
-      log.error("Build failed", error);
-      return res.status(500).json({
-        error: "Binary build failed",
-        details: error.message,
+    log.info("Binary build queued", {
+      jobId: job.id,
+      organizationId,
+    });
+
+    res.json({
+      success: true,
+      jobId: job.id,
+      status: "queued",
+      estimatedTime: "10-15 minutes",
+      statusUrl: `/api/releases/binary/${job.id}/status`,
+      downloadUrl: `/api/releases/binary/${job.id}/download`,
+    });
+  } catch (error: any) {
+    log.error("Failed to queue binary build", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/releases/binary/:jobId/status
+ * Check binary build status
+ */
+router.get("/binary/:jobId/status", authenticateUser, async (req, res) => {
+  try {
+    const userRole = (req as any).user?.role;
+
+    if (userRole !== "superadmin") {
+      return res.status(403).json({ error: "Superadmin access required" });
+    }
+
+    const job = await binaryBuildQueue.getJob(req.params.jobId);
+
+    if (!job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    const state = await job.getState();
+    const progress = job.progress();
+
+    res.json({
+      jobId: job.id,
+      status: state,
+      progress: progress || 0,
+      data: job.data,
+      createdAt: job.timestamp,
+      processedAt: job.processedOn,
+      finishedAt: job.finishedOn,
+      downloadUrl: state === "completed" ? `/api/releases/binary/${job.id}/download` : null,
+    });
+  } catch (error: any) {
+    log.error("Failed to get job status", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/releases/binary/:jobId/download
+ * Download completed binary package
+ */
+router.get("/binary/:jobId/download", authenticateUser, async (req, res) => {
+  try {
+    const userRole = (req as any).user?.role;
+
+    if (userRole !== "superadmin") {
+      return res.status(403).json({ error: "Superadmin access required" });
+    }
+
+    const job = await binaryBuildQueue.getJob(req.params.jobId);
+
+    if (!job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    const state = await job.getState();
+
+    if (state !== "completed") {
+      return res.status(400).json({
+        error: "Build not complete",
+        status: state,
+        progress: job.progress(),
       });
     }
+
+    const result = job.returnvalue;
+    const { organizationId, organizationName, licenseType, version } = job.data;
 
     // Create deployment package
     const binariesDir = path.join(process.cwd(), "dist", "binaries");
@@ -104,12 +162,8 @@ router.post("/binary", authenticateUser, async (req, res) => {
     archive.pipe(res);
 
     // Add binaries
-    const files = await fs.readdir(binariesDir);
-    for (const file of files) {
-      if (file.includes(organizationId)) {
-        const filePath = path.join(binariesDir, file);
-        archive.file(filePath, { name: `bin/${file}` });
-      }
+    for (const binary of result.binaries) {
+      archive.file(binary.path, { name: `bin/${binary.filename}` });
     }
 
     // Add .env template
@@ -130,12 +184,6 @@ LICENSE_TYPE=${licenseType}
 # Optional: Valkey
 VALKEY_ENABLED=false
 # VALKEY_URL=valkey://localhost:6379
-
-# Optional: Email
-# SMTP_HOST=smtp.example.com
-# SMTP_PORT=587
-# SMTP_USER=notifications@example.com
-# SMTP_PASS=your-password
 `;
 
     archive.append(envTemplate, { name: ".env.example" });
@@ -149,55 +197,18 @@ License: ${licenseType}
 
 ## Installation
 
-### Linux/macOS
+### Linux:
+1. Extract: unzip ${filename}
+2. Make executable: chmod +x bin/continuitybridge-*-linux-x64
+3. Configure: cp .env.example .env && nano .env
+4. Run: ./bin/continuitybridge-${organizationId}-linux-x64
 
-1. Extract package:
-   \`\`\`bash
-   unzip continuitybridge-binary-${organizationId}-${version}.zip
-   cd continuitybridge-binary-${organizationId}-${version}
-   \`\`\`
-
-2. Make binary executable:
-   \`\`\`bash
-   chmod +x bin/continuitybridge-${organizationId}-linux-x64
-   \`\`\`
-
-3. Configure environment:
-   \`\`\`bash
-   cp .env.example .env
-   # Edit .env with your database credentials
-   \`\`\`
-
-4. Run:
-   \`\`\`bash
-   ./bin/continuitybridge-${organizationId}-linux-x64
-   \`\`\`
-
-### Windows
-
+### Windows:
 1. Extract package
+2. Copy .env.example to .env and edit
+3. Run: bin\\continuitybridge-${organizationId}-win-x64.exe
 
-2. Configure environment:
-   - Copy \`.env.example\` to \`.env\`
-   - Edit with your database credentials
-
-3. Run:
-   \`\`\`
-   bin\\continuitybridge-${organizationId}-win-x64.exe
-   \`\`\`
-
-## Requirements
-
-- PostgreSQL 14+ database
-- (Optional) Valkey/Redis for caching
-
-## Access
-
-Application will be available at: http://localhost:5000
-
-## Support
-
-Contact: support@continuitybridge.com
+## Support: support@continuitybridge.com
 `;
 
     archive.append(readme, { name: "README.txt" });
@@ -205,12 +216,13 @@ Contact: support@continuitybridge.com
     // Finalize
     await archive.finalize();
 
-    log.info("Binary package generated successfully", {
+    log.info("Binary package downloaded", {
+      jobId: job.id,
       organizationId,
       filename,
     });
   } catch (error: any) {
-    log.error("Failed to generate binary package", error);
+    log.error("Failed to download binary package", error);
     res.status(500).json({ error: error.message });
   }
 });
