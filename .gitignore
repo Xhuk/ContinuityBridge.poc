@@ -158,6 +158,7 @@ coverage/
 
 # Jest
 .jest/
+jest-report.html
 
 # Playwright
 playwright-report/
@@ -371,3 +372,4 @@ docs/drafts/
 # Keep essential project documentation only
 !README.md
 !DEPLOYMENT.md
+!PRODUCTION_CHECKLIST.md
