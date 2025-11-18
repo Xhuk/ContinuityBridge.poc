@@ -196,6 +196,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const packageBuilderRouter = (await import("./src/routes/package-builder.js")).default;
       app.use("/api/package", packageBuilderRouter);
       log.info("Package builder API registered (founder platform)");
+          
+      // Register Plugins API (all environments)
+      const pluginsRouter = (await import("./src/routes/plugins.js")).default;
+      app.use("/api/plugins", pluginsRouter);
+      log.info("Plugins API registered");
       
       // Register Kubernetes Release Generator (Founder platform only)
       const k8sReleaseRouter = (await import("./src/routes/kubernetes-release.js")).default;
