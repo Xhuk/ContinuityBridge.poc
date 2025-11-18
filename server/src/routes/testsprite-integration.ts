@@ -10,9 +10,56 @@ import { db } from "../../db.js";
 import { qaTestResults, qaTestSessions } from "../../schema.js";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
+import { TestSpriteMCPService } from "../services/testsprite-mcp-service.js";
 
 const router = Router();
 const log = logger.child("TestSpriteIntegration");
+
+// ============================================================================
+// GET /api/testsprite/scenarios - Get all available test scenarios
+// ============================================================================
+
+router.get("/scenarios", (req: Request, res: Response) => {
+  try {
+    const baseUrl = process.env.APP_URL || "http://localhost:5000";
+    const scenarios = TestSpriteMCPService.getCriticalFlowScenarios(baseUrl);
+
+    res.json({
+      success: true,
+      count: scenarios.length,
+      scenarios,
+    });
+  } catch (error: any) {
+    log.error("Failed to get test scenarios", error);
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+});
+
+// ============================================================================
+// POST /api/testsprite/submit-all - Submit all critical flow scenarios
+// ============================================================================
+
+router.post("/submit-all", async (req: Request, res: Response) => {
+  try {
+    const baseUrl = process.env.APP_URL || req.body.baseUrl || "http://localhost:5000";
+
+    log.info("Submitting all test scenarios to TestSprite", { baseUrl });
+
+    const result = await TestSpriteMCPService.submitAllScenarios(baseUrl);
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error: any) {
+    log.error("Failed to submit all scenarios", error);
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+});
 
 // ============================================================================
 // Helper: Verify TestSprite webhook signature

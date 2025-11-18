@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, XCircle, AlertCircle, MinusCircle, Clock, TrendingUp, TrendingDown, Activity, TestTube2, Shield } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, MinusCircle, Clock, TrendingUp, TrendingDown, Activity, TestTube2, Shield, Zap, Send } from "lucide-react";
 
 interface TestResult {
   id: string;
@@ -108,6 +108,11 @@ export default function QATracking() {
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [isNewTestDialogOpen, setIsNewTestDialogOpen] = useState(false);
   const [isNewSessionDialogOpen, setIsNewSessionDialogOpen] = useState(false);
+  const [isSubmittingScenarios, setIsSubmittingScenarios] = useState(false);
+
+  // Fetch TestSprite scenarios
+  const { data: scenariosData } = useQuery<{ scenarios: any[]; count: number }>({ queryKey: ["/api/testsprite/scenarios"],
+  });
 
   // Fetch QA dashboard (founders only)
   const { data: dashboard } = useQuery<QADashboard>({
@@ -224,6 +229,41 @@ export default function QATracking() {
       environment: "production",
       requiresFollowUp: formData.get("requiresFollowUp") === "true",
     });
+  };
+
+  const handleSubmitAllScenarios = async () => {
+    setIsSubmittingScenarios(true);
+    try {
+      const response = await fetch("/api/testsprite/submit-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ baseUrl: window.location.origin }),
+      });
+
+      if (!response.ok) throw new Error("Failed to submit scenarios");
+
+      const result = await response.json();
+
+      toast({
+        title: "Scenarios Submitted",
+        description: `${result.submitted} test scenarios submitted to TestSprite successfully`,
+      });
+
+      // Refetch results after a delay to catch incoming webhooks
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/qa/test-results"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/qa/dashboard"] });
+      }, 5000);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingScenarios(false);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -526,6 +566,10 @@ export default function QATracking() {
         <TabsList>
           <TabsTrigger value="results">Test Results</TabsTrigger>
           <TabsTrigger value="sessions">Sessions</TabsTrigger>
+          <TabsTrigger value="testsprite">
+            <Zap className="h-4 w-4 mr-2" />
+            TestSprite Scenarios
+          </TabsTrigger>
           {isFounder && <TabsTrigger value="analytics">Analytics</TabsTrigger>}
         </TabsList>
 
@@ -789,6 +833,130 @@ export default function QATracking() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* TestSprite Scenarios Tab */}
+        <TabsContent value="testsprite" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-purple-600" />
+                    TestSprite Test Scenarios
+                  </CardTitle>
+                  <CardDescription>
+                    Pre-configured test scenarios for automated cross-browser testing
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={handleSubmitAllScenarios}
+                  disabled={isSubmittingScenarios}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  {isSubmittingScenarios ? "Submitting..." : "Submit All to TestSprite"}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {scenariosData?.scenarios.map((scenario, idx) => (
+                  <Card key={idx} className="border-l-4 border-l-purple-500">
+                    <CardContent className="pt-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold">{scenario.testName}</h4>
+                            <Badge variant="outline" className="text-purple-600 border-purple-600">
+                              Automated
+                            </Badge>
+                          </div>
+
+                          <p className="text-sm text-muted-foreground">
+                            {scenario.testDescription}
+                          </p>
+
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <strong>URL:</strong> {scenario.testUrl}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-4 text-xs">
+                            <div className="flex items-center gap-1">
+                              <strong>Browsers:</strong>
+                              {scenario.browsers.map((browser: string) => (
+                                <Badge key={browser} variant="secondary" className="text-xs">
+                                  {browser}
+                                </Badge>
+                              ))}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <strong>Devices:</strong>
+                              {scenario.devices.map((device: string) => (
+                                <Badge key={device} variant="secondary" className="text-xs">
+                                  {device}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="mt-2 p-2 bg-purple-50 rounded">
+                            <p className="text-xs font-medium mb-1">Expected Behavior:</p>
+                            <p className="text-xs text-muted-foreground">{scenario.expectedBehavior}</p>
+                          </div>
+
+                          <details className="mt-2">
+                            <summary className="text-xs font-medium cursor-pointer hover:underline">
+                              View Test Steps ({scenario.stepsToTest.length} steps)
+                            </summary>
+                            <ol className="list-decimal list-inside text-xs text-muted-foreground mt-2 space-y-1 pl-2">
+                              {scenario.stepsToTest.map((step: string, stepIdx: number) => (
+                                <li key={stepIdx}>{step}</li>
+                              ))}
+                            </ol>
+                          </details>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+
+                {!scenariosData && (
+                  <Card>
+                    <CardContent className="py-12 text-center">
+                      <Zap className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground">Loading test scenarios...</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {scenariosData?.scenarios.length === 0 && (
+                  <Card>
+                    <CardContent className="py-12 text-center">
+                      <Zap className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground">No test scenarios available</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  <Activity className="h-4 w-4" />
+                  How It Works
+                </h4>
+                <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                  <li>Click "Submit All to TestSprite" to send all {scenariosData?.count || 0} scenarios</li>
+                  <li>TestSprite executes tests on real browsers and devices</li>
+                  <li>Results automatically webhook back to this dashboard</li>
+                  <li>Review test results in the "Test Results" tab</li>
+                  <li>Failed tests are flagged with severity levels for triage</li>
+                </ol>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Analytics Tab (Founders Only) */}
