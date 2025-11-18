@@ -29,6 +29,9 @@ export class HealthMonitor {
   private cronJob: ScheduledTask | null = null;
   private lastAlertTimestamps: Map<string, number> = new Map();
   private alertCooldownMs = 15 * 60 * 1000; // 15 minutes between same alert type
+  private startTime: number | null = null;
+  private lastCheckTime: string | null = null;
+  private checkCount = 0;
 
   constructor(config: Partial<AlertConfig> = {}) {
     this.config = {
@@ -66,6 +69,8 @@ export class HealthMonitor {
       await this.checkHealth();
     });
 
+    this.startTime = Date.now();
+
     log.info("Health monitor started", {
       intervalMinutes: this.config.checkIntervalMinutes,
       recipients: this.config.emailRecipients.length,
@@ -80,6 +85,7 @@ export class HealthMonitor {
     if (this.cronJob) {
       this.cronJob.stop();
       this.cronJob = null;
+      this.startTime = null;
       log.info("Health monitor stopped");
     }
   }
@@ -89,6 +95,9 @@ export class HealthMonitor {
    */
   private async checkHealth(): Promise<void> {
     try {
+      this.lastCheckTime = new Date().toISOString();
+      this.checkCount++;
+      
       const metrics = metricsCollector.getSnapshot();
       const issues: string[] = [];
 
@@ -239,6 +248,76 @@ ${issues.map(issue => `  <li>${issue}</li>`).join('\n')}
     };
 
     log.info("Health monitor configuration updated", this.config);
+  }
+
+  isRunning(): boolean {
+    return this.cronJob !== null;
+  }
+
+  getUptime(): number {
+    if (!this.startTime) return 0;
+    return Math.floor((Date.now() - this.startTime) / 1000);
+  }
+
+  getLastCheckTime(): string | null {
+    return this.lastCheckTime;
+  }
+
+  getNextCheckTime(): string | null {
+    if (!this.lastCheckTime) return null;
+    const lastCheck = new Date(this.lastCheckTime);
+    lastCheck.setMinutes(lastCheck.getMinutes() + this.config.checkIntervalMinutes);
+    return lastCheck.toISOString();
+  }
+
+  getCheckCount(): number {
+    return this.checkCount;
+  }
+
+  getHealthStatus() {
+    const metrics = metricsCollector.getSnapshot();
+    const errorRate = metrics.errors / (this.config.checkIntervalMinutes || 1);
+    const memUsage = process.memoryUsage();
+    const memUsagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+
+    const issues: string[] = [];
+    let status: "healthy" | "warning" | "critical" = "healthy";
+
+    // Check thresholds
+    if (errorRate > this.config.thresholds.errorRatePerMinute) {
+      issues.push(`High error rate: ${errorRate.toFixed(2)}/min`);
+      status = "critical";
+    }
+
+    if (metrics.p95LatencyMs > this.config.thresholds.p95LatencyMs) {
+      issues.push(`High latency: ${metrics.p95LatencyMs.toFixed(0)}ms`);
+      if (status === "healthy") status = "warning";
+    }
+
+    if (memUsagePercent > this.config.thresholds.memoryUsagePercent) {
+      issues.push(`High memory usage: ${memUsagePercent.toFixed(1)}%`);
+      if (status === "healthy") status = "warning";
+    }
+
+    // Get uptime
+    const uptime = this.getUptime();
+
+    return {
+      status,
+      timestamp: new Date().toISOString(),
+      uptime,
+      metrics: {
+        errorRate: errorRate,
+        p95Latency: metrics.p95LatencyMs,
+        memoryUsage: memUsagePercent,
+        diskUsage: 0, // Could add disk check here
+      },
+      thresholds: this.config.thresholds,
+      issues,
+      lastAlert: this.lastAlertTimestamps.get("system_health")
+        ? new Date(this.lastAlertTimestamps.get("system_health")!).toISOString()
+        : null,
+    };
   }
 }
 

@@ -27,6 +27,11 @@ export class SchedulerDaemon {
   private orchestrator: FlowOrchestrator;
   private scheduledJobs: Map<string, ScheduledJob> = new Map();
   private isRunning = false;
+  private startTime: number | null = null;
+  private lastRunTime: string | null = null;
+  private totalJobs = 0;
+  private completedJobs = 0;
+  private failedJobs = 0;
 
   constructor(orchestrator: FlowOrchestrator) {
     this.orchestrator = orchestrator;
@@ -47,6 +52,7 @@ export class SchedulerDaemon {
     await this.scanAndRegisterSchedulers();
 
     this.isRunning = true;
+    this.startTime = Date.now();
     log.info(`Scheduler daemon started with ${this.scheduledJobs.size} scheduled jobs`);
   }
 
@@ -68,6 +74,7 @@ export class SchedulerDaemon {
 
     this.scheduledJobs.clear();
     this.isRunning = false;
+    this.startTime = null;
     log.info("Scheduler daemon stopped");
   }
 
@@ -187,6 +194,8 @@ export class SchedulerDaemon {
   private async executeScheduledFlow(flowId: string, nodeId: string): Promise<void> {
     try {
       log.info(`Executing scheduled flow`, { flowId, nodeId });
+      this.totalJobs++;
+      this.lastRunTime = new Date().toISOString();
 
       const flowRun = await this.orchestrator.executeFlow(
         flowId,
@@ -195,12 +204,19 @@ export class SchedulerDaemon {
         false // Production mode
       );
 
+      if (flowRun.status === "completed") {
+        this.completedJobs++;
+      } else {
+        this.failedJobs++;
+      }
+
       log.info(`Scheduled flow execution completed`, {
         flowId,
         runId: flowRun.id,
         status: flowRun.status,
       });
     } catch (error: any) {
+      this.failedJobs++;
       log.error(`Scheduled flow execution failed`, {
         flowId,
         nodeId,
@@ -241,6 +257,46 @@ export class SchedulerDaemon {
       running: this.isRunning,
       jobCount: this.scheduledJobs.size,
       jobs,
+    };
+  }
+
+  isRunning(): boolean {
+    return this.isRunning;
+  }
+
+  getUptime(): number {
+    if (!this.startTime) return 0;
+    return Math.floor((Date.now() - this.startTime) / 1000);
+  }
+
+  getLastRunTime(): string | null {
+    return this.lastRunTime;
+  }
+
+  getNextRunTime(): string | null {
+    // Calculate next run time from cron schedules
+    const times: number[] = [];
+    for (const job of this.scheduledJobs.values()) {
+      try {
+        const interval = cronParser.parseExpression(job.schedule, {
+          tz: job.timezone,
+        });
+        const next = interval.next().toDate().getTime();
+        times.push(next);
+      } catch (e) {
+        // Ignore invalid cron expressions
+      }
+    }
+    if (times.length === 0) return null;
+    const nextTime = Math.min(...times);
+    return new Date(nextTime).toISOString();
+  }
+
+  getStats() {
+    return {
+      totalJobs: this.totalJobs,
+      completedJobs: this.completedJobs,
+      failedJobs: this.failedJobs,
     };
   }
 }

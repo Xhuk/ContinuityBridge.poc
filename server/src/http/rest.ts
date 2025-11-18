@@ -62,6 +62,7 @@ import smartMappingRoutes from "../routes/smart-mapping-routes.js";
 import aiPricingRoutes from "../routes/ai-pricing-routes.js";
 import customizationMigrationRoutes from "../routes/customization-migration.js";
 import brandingRoutes from "../routes/branding.js";
+import systemHealthRoutes from "../routes/system-health-routes.js";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import type { DynamicWebhookRouter } from "./dynamic-webhook-router.js";
 
@@ -132,6 +133,9 @@ export function registerRESTRoutes(
   
   // Register Organization Branding routes (Theme colors, logo upload)
   app.use("/api/branding", authenticateUser, brandingRoutes);
+  
+  // Register System Health & Daemon Management routes (Superadmin, Consultant, Customer Admin)
+  app.use("/api/admin/system-health", authenticateUser, systemHealthRoutes);
   
   // ============================================================================
   // NODE CATALOG ENDPOINTS

@@ -21,6 +21,9 @@ export class PollerDaemon {
   private cronJob?: cron.ScheduledTask;
   private orchestrator: FlowOrchestrator;
   private isRunning = false;
+  private startTime: number | null = null;
+  private lastRunTime: string | null = null;
+  private activePolls = 0;
 
   constructor(orchestrator: FlowOrchestrator) {
     this.orchestrator = orchestrator;
@@ -43,6 +46,7 @@ export class PollerDaemon {
     });
 
     this.isRunning = true;
+    this.startTime = Date.now();
     log.info("Poller daemon started successfully");
   }
 
@@ -57,6 +61,7 @@ export class PollerDaemon {
     log.info("Stopping poller daemon");
     this.cronJob?.stop();
     this.isRunning = false;
+    this.startTime = null;
     log.info("Poller daemon stopped");
   }
 
@@ -65,6 +70,8 @@ export class PollerDaemon {
    */
   private async checkPollers(): Promise<void> {
     try {
+      this.lastRunTime = new Date().toISOString();
+      
       // Get all enabled pollers
       const pollers = await (db.select() as any)
         .from(pollerStates)
@@ -74,6 +81,7 @@ export class PollerDaemon {
         return;
       }
 
+      this.activePolls = pollers.length;
       log.debug(`Checking ${pollers.length} enabled pollers`);
 
       for (const poller of pollers) {
@@ -204,6 +212,33 @@ export class PollerDaemon {
     return {
       running: this.isRunning,
       pollerCount: 0, // Could query DB here if needed
+    };
+  }
+
+  isRunning(): boolean {
+    return this.isRunning;
+  }
+
+  getUptime(): number {
+    if (!this.startTime) return 0;
+    return Math.floor((Date.now() - this.startTime) / 1000);
+  }
+
+  getLastRunTime(): string | null {
+    return this.lastRunTime;
+  }
+
+  getNextRunTime(): string | null {
+    // Runs every minute
+    if (!this.lastRunTime) return null;
+    const lastRun = new Date(this.lastRunTime);
+    lastRun.setMinutes(lastRun.getMinutes() + 1);
+    return lastRun.toISOString();
+  }
+
+  getStats() {
+    return {
+      activePolls: this.activePolls,
     };
   }
 }

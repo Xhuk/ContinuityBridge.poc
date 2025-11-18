@@ -22,6 +22,9 @@ export class LogCleanupJob {
   private intervalId: NodeJS.Timeout | null = null;
   private isRunning = false;
   private intervalMinutes: number;
+  private startTime: number | null = null;
+  private lastRunTime: string | null = null;
+  private runCount = 0;
 
   constructor(intervalMinutes: number = 60) {
     this.intervalMinutes = intervalMinutes;
@@ -43,6 +46,8 @@ export class LogCleanupJob {
       log.error('Initial log cleanup failed', error);
     });
 
+    this.startTime = Date.now();
+
     // Schedule periodic cleanup
     this.intervalId = setInterval(() => {
       this.runCleanup().catch((error) => {
@@ -58,6 +63,7 @@ export class LogCleanupJob {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
+      this.startTime = null;
       log.info('Log cleanup job stopped');
     }
   }
@@ -72,6 +78,8 @@ export class LogCleanupJob {
     }
 
     this.isRunning = true;
+    this.lastRunTime = new Date().toISOString();
+    this.runCount++;
     const startTime = Date.now();
 
     try {
@@ -219,6 +227,30 @@ export class LogCleanupJob {
       intervalMinutes: this.intervalMinutes,
       cleanupInProgress: this.isRunning,
     };
+  }
+
+  isRunning(): boolean {
+    return this.intervalId !== null;
+  }
+
+  getUptime(): number {
+    if (!this.startTime) return 0;
+    return Math.floor((Date.now() - this.startTime) / 1000);
+  }
+
+  getLastRunTime(): string | null {
+    return this.lastRunTime;
+  }
+
+  getNextRunTime(): string | null {
+    if (!this.lastRunTime) return null;
+    const lastRun = new Date(this.lastRunTime);
+    lastRun.setMinutes(lastRun.getMinutes() + this.intervalMinutes);
+    return lastRun.toISOString();
+  }
+
+  getRunCount(): number {
+    return this.runCount;
   }
 }
 

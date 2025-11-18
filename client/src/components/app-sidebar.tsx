@@ -87,6 +87,12 @@ const adminMenuItems = [
     roles: ["superadmin", "consultant", "customer_admin", "customer_user"],
   },
   {
+    title: "System Health",
+    url: "/admin/system-health",
+    icon: Activity,
+    roles: ["superadmin", "consultant", "customer_admin"],
+  },
+  {
     title: "QA Tracking",
     url: "/admin/qa-tracking",
     icon: TestTube2,
@@ -95,7 +101,7 @@ const adminMenuItems = [
   {
     title: "AI Monitoring",
     url: "/admin/ai-monitoring",
-    icon: Activity,
+    icon: Zap,
     roles: ["superadmin"],
   },
   {
