@@ -379,6 +379,55 @@ export async function ensureTables() {
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Create flow_versions table (for semantic versioning with approval workflows)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS flow_versions (
+        id TEXT PRIMARY KEY,
+        flow_id TEXT NOT NULL REFERENCES flow_definitions(id) ON DELETE CASCADE,
+        organization_id TEXT NOT NULL,
+        environment TEXT NOT NULL CHECK(environment IN ('dev', 'staging', 'prod')),
+        version TEXT NOT NULL,
+        
+        definition TEXT NOT NULL,
+        change_description TEXT NOT NULL,
+        change_type TEXT NOT NULL CHECK(change_type IN ('major', 'minor', 'patch')),
+        
+        status TEXT NOT NULL CHECK(status IN ('draft', 'pending_approval', 'approved', 'deployed', 'deprecated')),
+        deployed_at TEXT,
+        is_immutable INTEGER NOT NULL DEFAULT 0,
+        
+        created_by TEXT NOT NULL,
+        created_by_email TEXT NOT NULL,
+        approved_by TEXT,
+        approved_by_email TEXT,
+        approved_at TEXT,
+        
+        previous_version_id TEXT REFERENCES flow_versions(id),
+        rollback_available INTEGER NOT NULL DEFAULT 0,
+        
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        
+        UNIQUE(flow_id, organization_id, environment, version)
+      )
+    `);
+    
+    // Create webhook_registrations table (for dynamic webhook tracking)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS webhook_registrations (
+        slug TEXT NOT NULL,
+        flow_id TEXT NOT NULL REFERENCES flow_definitions(id) ON DELETE CASCADE,
+        organization_id TEXT,
+        method TEXT NOT NULL CHECK(method IN ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')),
+        enabled INTEGER NOT NULL DEFAULT 1,
+        registered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        last_triggered_at TEXT,
+        trigger_count INTEGER NOT NULL DEFAULT 0,
+        
+        PRIMARY KEY (slug, organization_id)
+      )
+    `);
 
     // Create indices for common queries
     sqlite.exec(`
@@ -395,6 +444,28 @@ export async function ensureTables() {
 
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS idx_integration_events_timestamp ON integration_events(timestamp)
+    `);
+    
+    // Indices for flow_versions table
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_flow_versions_flow_id ON flow_versions(flow_id)
+    `);
+    
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_flow_versions_org_env ON flow_versions(organization_id, environment)
+    `);
+    
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_flow_versions_status ON flow_versions(status)
+    `);
+    
+    // Indices for webhook_registrations table
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_webhooks_flow_id ON webhook_registrations(flow_id)
+    `);
+    
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_webhooks_org ON webhook_registrations(organization_id)
     `);
 
     sqlite.exec(`
