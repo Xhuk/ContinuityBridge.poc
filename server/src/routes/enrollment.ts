@@ -45,10 +45,22 @@ router.post("/complete", async (req, res) => {
       }
     }
 
-    // Validate password strength
-    if (password.length < 8) {
+    // Validate password strength (enforce strengthened policy)
+    if (password.length < 12) {
       return res.status(400).json({
-        error: "Password must be at least 8 characters long",
+        error: "Password must be at least 12 characters long",
+      });
+    }
+
+    // Check for required character types
+    const hasLowercase = /[a-z]/.test(password);
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    const hasSpecialChar = /[@$!%*?&#^()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+
+    if (!hasLowercase || !hasUppercase || !hasNumber || !hasSpecialChar) {
+      return res.status(400).json({
+        error: "Password must contain uppercase, lowercase, number, and special character",
       });
     }
 

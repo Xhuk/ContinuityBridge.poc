@@ -167,7 +167,10 @@ function decodeSessionToken(token: string): AuthenticatedUser | null {
     }
 
     // Verify and decode JWT
-    const decoded = jwt.verify(token, jwtSecret) as any;
+    const decoded = jwt.verify(token, jwtSecret, {
+      issuer: "continuitybridge",
+      audience: "continuitybridge-app",
+    }) as any;
     
     // Validate required fields
     if (!decoded.id || !decoded.email || !decoded.role) {
@@ -210,6 +213,10 @@ export function generateSessionToken(user: AuthenticatedUser, expiresIn: string 
       selectedTenant: user.selectedTenant,
     },
     jwtSecret,
-    { expiresIn } as jwt.SignOptions
+    {
+      expiresIn,
+      issuer: "continuitybridge",
+      audience: "continuitybridge-app",
+    } as jwt.SignOptions
   );
 }

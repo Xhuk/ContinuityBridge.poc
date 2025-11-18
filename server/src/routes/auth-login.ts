@@ -3,6 +3,7 @@ import { db } from "../../db";
 import { users } from "../../schema";
 import { eq } from "drizzle-orm";
 import * as crypto from "crypto";
+import jwt from "jsonwebtoken";
 import { magicLinkService } from "../auth/magic-link-service";
 import { authRateLimit, magicLinkRateLimit, emailValidation, validateRequest } from "../middleware/security";
 
@@ -210,8 +211,8 @@ router.get("/session", async (req, res) => {
     // Decode session token
     const decoded = decodeSessionToken(sessionToken);
 
-    if (!decoded || decoded.exp < Date.now()) {
-      return res.status(401).json({ authenticated: false, error: "Session expired" });
+    if (!decoded) {
+      return res.status(401).json({ authenticated: false, error: "Invalid or expired session" });
     }
 
     // Get fresh user data
@@ -244,23 +245,45 @@ router.get("/session", async (req, res) => {
 // Helper functions
 
 function generateSessionToken(user: any): string {
+  const jwtSecret = process.env.JWT_SECRET;
+
+  if (!jwtSecret) {
+    throw new Error("JWT_SECRET not configured - cannot generate session tokens");
+  }
+
   const payload = {
     id: user.id,
     email: user.email,
     role: user.role,
     organizationId: user.organizationId,
-    iat: Date.now(),
-    exp: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
   };
 
-  // TODO: Use proper JWT library in production
-  return Buffer.from(JSON.stringify(payload)).toString("base64");
+  // Generate JWT with 7-day expiration
+  return jwt.sign(payload, jwtSecret, {
+    expiresIn: "7d",
+    issuer: "continuitybridge",
+    audience: "continuitybridge-app",
+  });
 }
 
 function decodeSessionToken(token: string): any {
   try {
-    return JSON.parse(Buffer.from(token, "base64").toString());
-  } catch {
+    const jwtSecret = process.env.JWT_SECRET;
+
+    if (!jwtSecret) {
+      console.error("JWT_SECRET not configured - cannot verify tokens");
+      return null;
+    }
+
+    // Verify and decode JWT
+    const decoded = jwt.verify(token, jwtSecret, {
+      issuer: "continuitybridge",
+      audience: "continuitybridge-app",
+    });
+
+    return decoded;
+  } catch (error) {
+    // Invalid or expired token
     return null;
   }
 }
