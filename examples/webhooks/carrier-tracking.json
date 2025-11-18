@@ -1,0 +1,56 @@
+{
+  "tracking_number": "1Z999AA10123456784",
+  "carrier": "UPS",
+  "status": "in_transit",
+  "status_description": "Package is on the way",
+  "current_location": {
+    "city": "Philadelphia",
+    "state": "PA",
+    "country": "US",
+    "timestamp": "2025-01-15T14:22:00Z"
+  },
+  "estimated_delivery": "2025-01-17T17:00:00Z",
+  "reference_number": "5678901234",
+  "events": [
+    {
+      "timestamp": "2025-01-15T14:22:00Z",
+      "status": "in_transit",
+      "location": "Philadelphia, PA",
+      "description": "Package scanned at facility"
+    },
+    {
+      "timestamp": "2025-01-15T08:00:00Z",
+      "status": "picked_up",
+      "location": "Newark, NJ",
+      "description": "Package picked up from warehouse"
+    }
+  ]
+}
+{
+  "tracking_number": "1Z999AA10123456784",
+  "carrier": "UPS",
+  "status": "in_transit",
+  "status_description": "Package is on the way",
+  "current_location": {
+    "city": "Philadelphia",
+    "state": "PA",
+    "country": "US",
+    "timestamp": "2025-01-15T14:22:00Z"
+  },
+  "estimated_delivery": "2025-01-17T17:00:00Z",
+  "reference_number": "5678901234",
+  "events": [
+    {
+      "timestamp": "2025-01-15T14:22:00Z",
+      "status": "in_transit",
+      "location": "Philadelphia, PA",
+      "description": "Package scanned at facility"
+    },
+    {
+      "timestamp": "2025-01-15T08:00:00Z",
+      "status": "picked_up",
+      "location": "Newark, NJ",
+      "description": "Package picked up from warehouse"
+    }
+  ]
+}
