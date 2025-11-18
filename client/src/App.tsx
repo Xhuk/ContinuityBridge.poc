@@ -20,6 +20,7 @@ import Projects from "@/pages/admin/projects";
 import Customers from "@/pages/admin/customers";
 import UsersManagement from "@/pages/admin/users";
 import AIMonitoring from "@/pages/admin/ai-monitoring";
+import SystemHealth from "@/pages/admin/system-health";
 import TenantSelector from "@/pages/tenant-selector";
 import Profile from "@/pages/profile";
 import Login from "@/pages/login";
@@ -100,6 +101,9 @@ function Router() {
               <Route path="/settings" component={Settings} />
               <Route path="/profile" component={Profile} />
               <Route path="/wiki" component={Wiki} />
+              {(user?.role === "superadmin" || user?.role === "consultant" || user?.role === "customer_admin") && (
+                <Route path="/admin/system-health" component={SystemHealth} />
+              )}
               {(user?.role === "superadmin" || user?.role === "consultant") && (
                 <Route path="/admin/qa-tracking" component={QATracking} />
               )}
