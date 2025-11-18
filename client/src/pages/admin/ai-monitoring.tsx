@@ -17,6 +17,7 @@ import {
   FileText,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { AIPricingManager } from "@/components/AIPricingManager";
 
 /**
  * AI Monitoring Dashboard (Founder/Superadmin Only)
@@ -97,6 +98,10 @@ export default function AIMonitoring() {
             <TabsTrigger value="billing">
               <DollarSign className="h-4 w-4 mr-2" />
               Billing & Costs
+            </TabsTrigger>
+            <TabsTrigger value="pricing">
+              <DollarSign className="h-4 w-4 mr-2" />
+              Pricing Tiers
             </TabsTrigger>
             <TabsTrigger value="violations">
               <AlertTriangle className="h-4 w-4 mr-2" />
@@ -228,6 +233,11 @@ export default function AIMonitoring() {
             ) : (
               <div className="text-muted-foreground">No billing data available</div>
             )}
+          </TabsContent>
+
+          {/* PRICING TIERS TAB */}
+          <TabsContent value="pricing" className="space-y-6">
+            <AIPricingManager />
           </TabsContent>
 
           {/* VIOLATIONS TAB */}

@@ -1100,6 +1100,9 @@ export const aiUsageTracking = sqliteTable("ai_usage_tracking", {
   // Project context (organizationId = projectId for per-project tracking)
   organizationId: text("organization_id").notNull(), // projectId - which project made the request
   
+  // Consultant team pricing tier (for per-team billing)
+  pricingTierId: text("pricing_tier_id"), // Links to aiPricingTiers.teamId
+  
   // Feature type
   featureType: text("feature_type").notNull().$type<
     "mapping" | "diagnosis" | "flow_suggestion" | "test_data" | "explanation"
@@ -1130,6 +1133,34 @@ export const aiUsageTracking = sqliteTable("ai_usage_tracking", {
 
 export type AIUsageTracking = typeof aiUsageTracking.$inferSelect;
 export type InsertAIUsageTracking = typeof aiUsageTracking.$inferInsert;
+
+// AI Billing Pricing Tiers (Per-Team/Consultant Pricing)
+// Allows different pricing models for different consultant teams
+export const aiPricingTiers = sqliteTable("ai_pricing_tiers", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  // Team/Organization identifier
+  teamId: text("team_id").notNull().unique(), // e.g., "consultant-team-1", "consultant-team-2"
+  teamName: text("team_name").notNull(), // Display name
+  
+  // Pricing configuration
+  tokensPerBillingUnit: integer("tokens_per_billing_unit").notNull(), // e.g., 2000, 10000
+  pricePerUnit: real("price_per_unit").notNull(), // e.g., 250.00, 400.00
+  currency: text("currency").notNull().default("USD"),
+  
+  // Status
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+  
+  // Metadata
+  description: text("description"),
+  createdBy: text("created_by").notNull(), // User ID who created
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type AIPricingTier = typeof aiPricingTiers.$inferSelect;
+export type InsertAIPricingTier = typeof aiPricingTiers.$inferInsert;
 
 // Decrypted secret payloads (type-safe interfaces, never stored)
 export interface SmtpSecretPayload {

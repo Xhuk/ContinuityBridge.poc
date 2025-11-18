@@ -59,6 +59,7 @@ import projectsRoutes from "../routes/projects.js";
 import consultantRoutes from "../routes/consultant.js";
 import postmanRoutes from "../routes/postman.js";
 import smartMappingRoutes from "../routes/smart-mapping-routes.js";
+import aiPricingRoutes from "../routes/ai-pricing-routes.js";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import type { DynamicWebhookRouter } from "./dynamic-webhook-router.js";
 
@@ -120,6 +121,9 @@ export function registerRESTRoutes(
   
   // Register Smart Mapping routes (AI-assisted field mapping for consultants)
   app.use("/api/smart-mapping", authenticateUser, smartMappingRoutes);
+  
+  // Register AI Pricing Tiers routes (Superadmin only - per-team pricing)
+  app.use("/api/ai/pricing-tiers", authenticateUser, aiPricingRoutes);
   
   // ============================================================================
   // NODE CATALOG ENDPOINTS
