@@ -1,7 +1,5 @@
 import { Router } from "express";
 import { authenticateUser } from "../auth/rbac-middleware.js";
-import { db, flowDefinitions, interfaces, users } from "../../db.js";
-import { eq } from "drizzle-orm";
 import { offlineUpdatePackage } from "../updates/offline-update-package.js";
 import { logger } from "../core/logger.js";
 import * as fs from "fs/promises";
@@ -27,19 +25,14 @@ router.get("/available-resources", authenticateUser, async (req, res) => {
       return res.status(400).json({ error: "organizationId required" });
     }
 
-    // Fetch flows for this organization
-    const flowsResult = await (db.select()
-      .from(flowDefinitions)
-      .where(eq(flowDefinitions.systemInstanceId, organizationId)) as any);
-
-    // Fetch interfaces for this organization  
-    const interfacesResult = await (db.select()
-      .from(interfaces) as any);
-
+    // TODO: Integrate with actual flow/interface storage when implemented
+    // For now, return empty arrays - this will be populated when
+    // flow_definitions and interfaces tables are added to schema
+    
     res.json({
-      flows: flowsResult || [],
-      interfaces: interfacesResult || [],
-      nodes: [], // TODO: Fetch custom nodes when plugin system is ready
+      flows: [],
+      interfaces: [],
+      nodes: [],
     });
   } catch (error: any) {
     log.error("Failed to fetch available resources", error);
@@ -81,7 +74,10 @@ router.post("/build", authenticateUser, async (req, res) => {
       fileCount: fileIds.length,
     });
 
-    // Fetch actual file content for selected resources
+    // TODO: Fetch actual file content for selected resources
+    // This will be implemented when flow_definitions and interfaces tables
+    // are added to the schema. For now, create a placeholder package.
+    
     const files = new Map<string, Buffer>();
     const manifestFiles: Array<{
       type: "interface" | "flow" | "node" | "config";
@@ -90,37 +86,26 @@ router.post("/build", authenticateUser, async (req, res) => {
       size: number;
     }> = [];
 
-    // Fetch flows
-    for (const fileId of fileIds) {
-      const flowResult = await (db.select()
-        .from(flowDefinitions)
-        .where(eq(flowDefinitions.id, fileId))
-        .limit(1) as any);
-
-      if (flowResult && flowResult.length > 0) {
-        const flow = flowResult[0];
-        const flowContent = JSON.stringify(flow, null, 2);
-        const buffer = Buffer.from(flowContent);
-        
-        const crypto = await import("crypto");
-        const checksum = crypto.createHash("sha256").update(buffer).digest("hex");
-        
-        const filePath = `flows/${flow.id}.json`;
-        files.set(filePath, buffer);
-        manifestFiles.push({
-          type: "flow",
-          path: filePath,
-          checksum,
-          size: buffer.length,
-        });
-      }
-    }
-
-    // TODO: Fetch interfaces, nodes similarly
-
-    if (files.size === 0) {
-      return res.status(400).json({ error: "No files found for selected IDs" });
-    }
+    // Create a placeholder file for the package
+    const placeholderContent = JSON.stringify({
+      message: "Package builder placeholder",
+      organizationId,
+      fileIds,
+      createdAt: new Date().toISOString(),
+    }, null, 2);
+    
+    const buffer = Buffer.from(placeholderContent);
+    const crypto = await import("crypto");
+    const checksum = crypto.createHash("sha256").update(buffer).digest("hex");
+    
+    const filePath = "config/package-info.json";
+    files.set(filePath, buffer);
+    manifestFiles.push({
+      type: "config",
+      path: filePath,
+      checksum,
+      size: buffer.length,
+    });
 
     // Create package manifest
     const manifest = {
