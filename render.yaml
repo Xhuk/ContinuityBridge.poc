@@ -15,9 +15,7 @@ services:
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        fromDatabase:
-          name: continuitybridge-db
-          property: connectionString
+        value: postgresql://neondb_owner:npg_s5yb2YvLSWPc@ep-gentle-voice-adrpc875-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require
       - key: ENCRYPTION_KEY
         sync: false
       - key: SUPERADMIN_EMAIL
@@ -34,9 +32,3 @@ services:
     autoDeploy: true
     domains:
       - continuitybridge.onrender.com
-
-databases:
-  - name: continuitybridge-db
-    databaseName: continuitybridge
-    user: continuitybridge
-    plan: free
