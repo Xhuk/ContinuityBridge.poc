@@ -212,10 +212,10 @@ export const emailValidation = body('email')
   .withMessage('Valid email required');
 
 export const passwordValidation = body('password')
-  .isLength({ min: 8 })
-  .withMessage('Password must be at least 8 characters')
-  .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-  .withMessage('Password must contain uppercase, lowercase, and number');
+  .isLength({ min: 12 })
+  .withMessage('Password must be at least 12 characters')
+  .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_+\-=\[\]{};':"\\|,.<>\/?])/)  
+  .withMessage('Password must contain uppercase, lowercase, number, and special character');
 
 export const apiKeyValidation = body('apiKey')
   .isLength({ min: 32 })

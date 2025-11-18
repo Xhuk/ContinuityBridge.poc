@@ -69,10 +69,10 @@ export async function authenticateUser(
 
     if (apiKey) {
       // Validate API key (for superadmin/founder CLI access)
-      // Check against SUPERADMIN_API_KEY or known founder keys
+      // Check against SUPERADMIN_API_KEY from environment ONLY
       const founderKeys = [
         process.env.SUPERADMIN_API_KEY,
-        "cb_7c4b95070693970cd52ab9948ba71098b4b310a35a2c83b06794429bc3d145cb", // Jesus (Founder)
+        process.env.FOUNDER_API_KEY, // Additional founder key from env
       ].filter(Boolean);
 
       if (founderKeys.includes(apiKey)) {
@@ -158,10 +158,11 @@ export const requireConsultant = requireRole("superadmin", "consultant");
  */
 function decodeSessionToken(token: string): AuthenticatedUser | null {
   try {
-    const jwtSecret = process.env.JWT_SECRET || process.env.ENCRYPTION_KEY;
+    // Require dedicated JWT_SECRET (do not fallback to ENCRYPTION_KEY)
+    const jwtSecret = process.env.JWT_SECRET;
     
     if (!jwtSecret) {
-      console.error("JWT_SECRET or ENCRYPTION_KEY not set - cannot verify tokens");
+      console.error("JWT_SECRET not set - cannot verify tokens. Set JWT_SECRET environment variable.");
       return null;
     }
 
@@ -192,10 +193,11 @@ function decodeSessionToken(token: string): AuthenticatedUser | null {
  * Generate JWT session token
  */
 export function generateSessionToken(user: AuthenticatedUser, expiresIn: string = "7d"): string {
-  const jwtSecret = process.env.JWT_SECRET || process.env.ENCRYPTION_KEY;
+  // Require dedicated JWT_SECRET (do not fallback to ENCRYPTION_KEY)
+  const jwtSecret = process.env.JWT_SECRET;
   
   if (!jwtSecret) {
-    throw new Error("JWT_SECRET or ENCRYPTION_KEY not set - cannot generate tokens");
+    throw new Error("JWT_SECRET not set - cannot generate tokens. Set JWT_SECRET environment variable.");
   }
 
   return jwt.sign(

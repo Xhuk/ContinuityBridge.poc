@@ -86,6 +86,13 @@ export const executeDatabaseConnector: NodeExecutor = async (
   try {
     let result: any;
 
+    // SECURITY WARNING: Query uses template replacement which can be vulnerable to SQL injection
+    // TODO: Implement parameterized queries for production use
+    // For now, only allow in controlled flow environment with trusted inputs
+    if (!context.emulationMode) {
+      console.warn('[DatabaseConnector] SECURITY: Using template-based queries. Ensure inputs are from trusted sources only.');
+    }
+
     switch (dbType) {
       case "postgres": {
         const { Client } = await import("pg");
@@ -202,6 +209,10 @@ export const executeDatabaseConnector: NodeExecutor = async (
 /**
  * Replace template variables in query string
  * Example: "{{$.sku}}" -> "ABC123"
+ * 
+ * ⚠️ SECURITY WARNING: This performs string replacement, not parameterized queries.
+ * Only use with trusted inputs from controlled flow environments.
+ * Do NOT expose directly to user input without additional validation.
  */
 function replaceTemplateVariables(template: string, data: unknown): string {
   const variableRegex = /\{\{(\$\.[^}]+)\}\}/g;
@@ -221,9 +232,17 @@ function replaceTemplateVariables(template: string, data: unknown): string {
       }
       
       if (value !== undefined && value !== null) {
-        // Escape single quotes for SQL safety
+        // SECURITY: Escape single quotes and sanitize for SQL
         if (typeof value === "string") {
-          return value.replace(/'/g, "''");
+          // Basic SQL escaping (not a replacement for parameterized queries)
+          return value
+            .replace(/'/g, "''")
+            .replace(/\\/g, "\\\\")
+            .replace(/"/g, '\\"');
+        }
+        // Validate numeric types
+        if (typeof value === "number") {
+          return String(value);
         }
         return String(value);
       }
