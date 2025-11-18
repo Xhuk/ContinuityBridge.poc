@@ -58,6 +58,7 @@ import errorTriageRoutes from "../routes/error-triage.js";
 import projectsRoutes from "../routes/projects.js";
 import consultantRoutes from "../routes/consultant.js";
 import postmanRoutes from "../routes/postman.js";
+import smartMappingRoutes from "../routes/smart-mapping-routes.js";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import type { DynamicWebhookRouter } from "./dynamic-webhook-router.js";
 
@@ -116,6 +117,9 @@ export function registerRESTRoutes(
   
   // Register Postman Collection Generator
   app.use("/api/postman", postmanRoutes);
+  
+  // Register Smart Mapping routes (AI-assisted field mapping for consultants)
+  app.use("/api/smart-mapping", authenticateUser, smartMappingRoutes);
   
   // ============================================================================
   // NODE CATALOG ENDPOINTS

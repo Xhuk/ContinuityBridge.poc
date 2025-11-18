@@ -13,8 +13,10 @@ import {
 } from "@/components/ui/select";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Sparkles } from "lucide-react";
 import type { NodeDefinition } from "@shared/schema";
 import type { Node } from "@xyflow/react";
+import { AIMapingingAssistant } from "./AIMappting/AIMapptingAssistant";
 
 interface DynamicNodeConfigProps {
   node: Node | null;
@@ -36,6 +38,7 @@ export function DynamicNodeConfig({
   const [config, setConfig] = useState<Record<string, any>>(
     node?.data?.config || {}
   );
+  const [aiMappingOpen, setAiMappingOpen] = useState(false);
 
   // Debug logging for node initialization
   useEffect(() => {
@@ -456,11 +459,30 @@ export function DynamicNodeConfig({
 
           case "code":
           case "json":
+            // Special handling for jqExpression field - add AI button
+            const isJqField = field.name === "jqExpression" && config.useAIMapping;
+            const isCodeField = field.name === "mappings" && config.useAIMapping;
+            const showAIButton = isJqField || isCodeField;
+
             return (
               <div key={field.name}>
-                <Label htmlFor={field.name}>
-                  {field.label}
-                  {field.required && <span className="text-destructive ml-1">*</span>}
+                <Label htmlFor={field.name} className="flex items-center justify-between">
+                  <span>
+                    {field.label}
+                    {field.required && <span className="text-destructive ml-1">*</span>}
+                  </span>
+                  {showAIButton && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAiMappingOpen(true)}
+                      className="ml-2"
+                    >
+                      <Sparkles className="h-4 w-4 mr-1" />
+                      AI Generate
+                    </Button>
+                  )}
                 </Label>
                 <Textarea
                   id={field.name}
@@ -495,6 +517,22 @@ export function DynamicNodeConfig({
           Save Configuration
         </Button>
       </DialogFooter>
+
+      {/* AI Mapping Assistant Dialog */}
+      <AIMapingingAssistant
+        open={aiMappingOpen}
+        onOpenChange={setAiMappingOpen}
+        sourceInterfaceId={config.sourceSystemId}
+        targetInterfaceId={config.targetSystemId}
+        onMappingGenerated={(mapping, jqExpression) => {
+          setConfig({
+            ...config,
+            jqExpression: jqExpression,
+            mappings: mapping.rules,
+            aiGeneratedMapping: mapping,
+          });
+        }}
+      />
     </form>
   );
 }

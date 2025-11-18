@@ -7,12 +7,40 @@ inputs: 0
 outputs: 1
 
 configFields:
+  - name: systemType
+    label: System Type
+    type: select
+    required: true
+    options:
+      - predefined
+      - custom
+    default: predefined
+    helpText: "Choose 'predefined' for configured interfaces or 'custom' for manual setup"
+
   - name: interfaceId
     label: Interface
     type: interface
-    required: true
+    required: false
     filterDirection: inbound
-    helpText: "Select the interface to receive data from"
+    helpText: "Select from existing interface adapters (Oracle, SAP, Manhattan, etc.)"
+
+  - name: customSystemName
+    label: Custom System Name
+    type: text
+    required: false
+    placeholder: "e.g., Legacy Order System"
+    helpText: "Name of the custom system (required if systemType = custom)"
+
+  - name: customSamplePayload
+    label: Sample Payload
+    type: code
+    required: false
+    placeholder: |      {
+        "OrderId": "12345",
+        "CustomerCode": "CUST001",
+        "OrderLines": []
+      }
+    helpText: "Sample JSON payload showing expected data structure (required for custom systems)"
 
   - name: autoStart
     label: Auto-Start on Deploy

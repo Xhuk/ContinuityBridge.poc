@@ -1,0 +1,152 @@
+{
+  "systemName": "Odoo ERP",
+  "systemType": "erp",
+  "direction": "outbound",
+  "dataType": "order",
+  "format": "json",
+  "comments": "Odoo sale.order XML-RPC export. Priority: 0=Normal, 1=Urgent. State: draft, sent, sale, done, cancel",
+  "samplePayload": {
+    "id": 42,
+    "name": "SO001",
+    "date_order": "2025-01-15 10:30:00",
+    "partner_id": [10, "ACME Corporation"],
+    "partner_email": "orders@acme.com",
+    "warehouse_id": [1, "Main Warehouse"],
+    "priority": "0",
+    "state": "sale",
+    "amount_total": 1250.00,
+    "currency_id": [1, "USD"],
+    "order_line": [
+      {
+        "id": 100,
+        "product_id": [20, "SKU001"],
+        "name": "Product A",
+        "product_uom_qty": 10,
+        "product_uom": [1, "Unit"],
+        "price_unit": 50.00,
+        "price_subtotal": 500.00
+      },
+      {
+        "id": 101,
+        "product_id": [21, "SKU002"],
+        "name": "Product B",
+        "product_uom_qty": 25,
+        "product_uom": [1, "Unit"],
+        "price_unit": 30.00,
+        "price_subtotal": 750.00
+      }
+    ],
+    "partner_shipping_id": [11, "ACME Warehouse"],
+    "partner_street": "123 Main Street",
+    "partner_street2": "Building 5",
+    "partner_city": "New York",
+    "partner_state_id": [34, "New York"],
+    "partner_zip": "10001",
+    "partner_country_id": [233, "United States"],
+    "partner_phone": "+1-555-0123"
+  },
+  "metadata": {
+    "version": "17.0",
+    "endpoint": "/xmlrpc/2/object",
+    "documentation": "https://www.odoo.com/documentation/",
+    "fields": {
+      "name": {
+        "description": "Order reference/number",
+        "required": true,
+        "format": "auto-generated or custom"
+      },
+      "priority": {
+        "description": "Order priority",
+        "required": false,
+        "enum": ["0", "1"],
+        "defaultValue": "0"
+      },
+      "state": {
+        "description": "Order workflow state",
+        "required": true,
+        "enum": ["draft", "sent", "sale", "done", "cancel"]
+      },
+      "partner_id": {
+        "description": "Customer ID [id, name]",
+        "required": true,
+        "format": "[integer, string]"
+      }
+    }
+  }
+}
+{
+  "systemName": "Odoo ERP",
+  "systemType": "erp",
+  "direction": "outbound",
+  "dataType": "order",
+  "format": "json",
+  "comments": "Odoo sale.order XML-RPC export. Priority: 0=Normal, 1=Urgent. State: draft, sent, sale, done, cancel",
+  "samplePayload": {
+    "id": 42,
+    "name": "SO001",
+    "date_order": "2025-01-15 10:30:00",
+    "partner_id": [10, "ACME Corporation"],
+    "partner_email": "orders@acme.com",
+    "warehouse_id": [1, "Main Warehouse"],
+    "priority": "0",
+    "state": "sale",
+    "amount_total": 1250.00,
+    "currency_id": [1, "USD"],
+    "order_line": [
+      {
+        "id": 100,
+        "product_id": [20, "SKU001"],
+        "name": "Product A",
+        "product_uom_qty": 10,
+        "product_uom": [1, "Unit"],
+        "price_unit": 50.00,
+        "price_subtotal": 500.00
+      },
+      {
+        "id": 101,
+        "product_id": [21, "SKU002"],
+        "name": "Product B",
+        "product_uom_qty": 25,
+        "product_uom": [1, "Unit"],
+        "price_unit": 30.00,
+        "price_subtotal": 750.00
+      }
+    ],
+    "partner_shipping_id": [11, "ACME Warehouse"],
+    "partner_street": "123 Main Street",
+    "partner_street2": "Building 5",
+    "partner_city": "New York",
+    "partner_state_id": [34, "New York"],
+    "partner_zip": "10001",
+    "partner_country_id": [233, "United States"],
+    "partner_phone": "+1-555-0123"
+  },
+  "metadata": {
+    "version": "17.0",
+    "endpoint": "/xmlrpc/2/object",
+    "documentation": "https://www.odoo.com/documentation/",
+    "fields": {
+      "name": {
+        "description": "Order reference/number",
+        "required": true,
+        "format": "auto-generated or custom"
+      },
+      "priority": {
+        "description": "Order priority",
+        "required": false,
+        "enum": ["0", "1"],
+        "defaultValue": "0"
+      },
+      "state": {
+        "description": "Order workflow state",
+        "required": true,
+        "enum": ["draft", "sent", "sale", "done", "cancel"]
+      },
+      "partner_id": {
+        "description": "Customer ID [id, name]",
+        "required": true,
+        "format": "[integer, string]"
+      }
+    }
+  }
+}

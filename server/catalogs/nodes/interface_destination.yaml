@@ -7,12 +7,40 @@ inputs: 1
 outputs: 1
 
 configFields:
+  - name: systemType
+    label: System Type
+    type: select
+    required: true
+    options:
+      - predefined
+      - custom
+    default: predefined
+    helpText: "Choose 'predefined' for configured interfaces or 'custom' for manual setup"
+
   - name: interfaceId
     label: Target Interface
     type: interface
-    required: true
+    required: false
     filterDirection: outbound
-    helpText: "Select the outbound interface to send data to"
+    helpText: "Select from existing interface adapters (Oracle, SAP, Manhattan, etc.)"
+
+  - name: customSystemName
+    label: Custom System Name
+    type: text
+    required: false
+    placeholder: "e.g., Legacy WMS, Proprietary ERP"
+    helpText: "Name of the custom system (required if systemType = custom)"
+
+  - name: customSamplePayload
+    label: Sample Payload
+    type: code
+    required: false
+    placeholder: |      {
+        "orderId": "SO-12345",
+        "customer": "ACME Corp",
+        "items": [{"sku": "PROD-001", "qty": 10}]
+      }
+    helpText: "Sample JSON payload showing expected data structure (required for custom systems)"
 
   - name: operation
     label: Operation

@@ -1,0 +1,158 @@
+{
+  "systemName": "Oracle ERP",
+  "systemType": "erp",
+  "direction": "outbound",
+  "dataType": "order",
+  "format": "json",
+  "comments": "Oracle EBS R12 Sales Order export. Priority: 1=Urgent, 2=High, 3=Normal, 4=Low. Status: BOOKED, SHIPPED, CANCELLED",
+  "samplePayload": {
+    "OrderNumber": "SO-12345",
+    "OrderDate": "2025-01-15T10:30:00Z",
+    "CustomerNumber": "CUST-001",
+    "CustomerName": "ACME Corporation",
+    "Priority": "2",
+    "Status": "BOOKED",
+    "Currency": "USD",
+    "TotalAmount": 1250.00,
+    "Lines": [
+      {
+        "LineNumber": 1,
+        "ItemNumber": "PROD-001",
+        "ItemDescription": "Widget Type A",
+        "Quantity": 10,
+        "UOM": "EA",
+        "UnitPrice": 50.00,
+        "LineTotal": 500.00,
+        "RequestedDate": "2025-01-20",
+        "Warehouse": "WH-EAST"
+      },
+      {
+        "LineNumber": 2,
+        "ItemNumber": "PROD-002",
+        "ItemDescription": "Gadget Type B",
+        "Quantity": 25,
+        "UOM": "EA",
+        "UnitPrice": 30.00,
+        "LineTotal": 750.00,
+        "RequestedDate": "2025-01-20",
+        "Warehouse": "WH-EAST"
+      }
+    ],
+    "ShipTo": {
+      "Name": "ACME Warehouse",
+      "Address1": "123 Main Street",
+      "Address2": "Building 5",
+      "City": "New York",
+      "State": "NY",
+      "PostalCode": "10001",
+      "Country": "USA",
+      "Phone": "+1-555-0123"
+    }
+  },
+  "metadata": {
+    "version": "R12",
+    "endpoint": "/fscmRestApi/resources/11.13.18.05/orders",
+    "documentation": "https://docs.oracle.com/en/cloud/saas/supply-chain-management/",
+    "fields": {
+      "OrderNumber": {
+        "description": "Unique order identifier",
+        "required": true,
+        "format": "SO-XXXXX"
+      },
+      "Priority": {
+        "description": "Order priority level",
+        "required": true,
+        "enum": ["1", "2", "3", "4"]
+      },
+      "Status": {
+        "description": "Order status",
+        "required": true,
+        "enum": ["BOOKED", "SHIPPED", "CANCELLED", "PENDING"]
+      },
+      "UOM": {
+        "description": "Unit of measure",
+        "required": true,
+        "enum": ["EA", "BOX", "CASE", "PALLET"]
+      }
+    }
+  }
+}
+{
+  "systemName": "Oracle ERP",
+  "systemType": "erp",
+  "direction": "outbound",
+  "dataType": "order",
+  "format": "json",
+  "comments": "Oracle EBS R12 Sales Order export. Priority: 1=Urgent, 2=High, 3=Normal, 4=Low. Status: BOOKED, SHIPPED, CANCELLED",
+  "samplePayload": {
+    "OrderNumber": "SO-12345",
+    "OrderDate": "2025-01-15T10:30:00Z",
+    "CustomerNumber": "CUST-001",
+    "CustomerName": "ACME Corporation",
+    "Priority": "2",
+    "Status": "BOOKED",
+    "Currency": "USD",
+    "TotalAmount": 1250.00,
+    "Lines": [
+      {
+        "LineNumber": 1,
+        "ItemNumber": "PROD-001",
+        "ItemDescription": "Widget Type A",
+        "Quantity": 10,
+        "UOM": "EA",
+        "UnitPrice": 50.00,
+        "LineTotal": 500.00,
+        "RequestedDate": "2025-01-20",
+        "Warehouse": "WH-EAST"
+      },
+      {
+        "LineNumber": 2,
+        "ItemNumber": "PROD-002",
+        "ItemDescription": "Gadget Type B",
+        "Quantity": 25,
+        "UOM": "EA",
+        "UnitPrice": 30.00,
+        "LineTotal": 750.00,
+        "RequestedDate": "2025-01-20",
+        "Warehouse": "WH-EAST"
+      }
+    ],
+    "ShipTo": {
+      "Name": "ACME Warehouse",
+      "Address1": "123 Main Street",
+      "Address2": "Building 5",
+      "City": "New York",
+      "State": "NY",
+      "PostalCode": "10001",
+      "Country": "USA",
+      "Phone": "+1-555-0123"
+    }
+  },
+  "metadata": {
+    "version": "R12",
+    "endpoint": "/fscmRestApi/resources/11.13.18.05/orders",
+    "documentation": "https://docs.oracle.com/en/cloud/saas/supply-chain-management/",
+    "fields": {
+      "OrderNumber": {
+        "description": "Unique order identifier",
+        "required": true,
+        "format": "SO-XXXXX"
+      },
+      "Priority": {
+        "description": "Order priority level",
+        "required": true,
+        "enum": ["1", "2", "3", "4"]
+      },
+      "Status": {
+        "description": "Order status",
+        "required": true,
+        "enum": ["BOOKED", "SHIPPED", "CANCELLED", "PENDING"]
+      },
+      "UOM": {
+        "description": "Unit of measure",
+        "required": true,
+        "enum": ["EA", "BOX", "CASE", "PALLET"]
+      }
+    }
+  }
+}

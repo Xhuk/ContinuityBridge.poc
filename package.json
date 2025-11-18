@@ -13,6 +13,7 @@
     "db:migrate": "node scripts/run-sql-migration.js",
     "seed:demo": "tsx scripts/seed-demo-flows.ts",
     "seed:adapters": "tsx scripts/seed-interface-adapters.ts",
+    "seed:transforms": "tsx scripts/seed-transformation-templates.ts",
     "test:demo": "tsx scripts/test-demo-flows.ts",
     "deploy:check": "node scripts/pre-deploy-check.js",
     "wiki:export": "node scripts/export-wiki-to-github.js",

@@ -7,6 +7,26 @@ inputs: 1
 outputs: 1
 
 configFields:
+  - name: useAIMapping
+    label: Use AI Mapping Assistant
+    type: boolean
+    default: false
+    helpText: "Enable AI to auto-generate field mappings between systems"
+
+  - name: sourceSystemId
+    label: Source System
+    type: interface
+    required: false
+    filterDirection: inbound
+    helpText: "Select source system for AI mapping (optional)"
+
+  - name: targetSystemId
+    label: Target System
+    type: interface
+    required: false
+    filterDirection: outbound
+    helpText: "Select target system for AI mapping (optional)"
+
   - name: mappings
     label: Field Mappings (JSON)
     type: json

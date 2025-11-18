@@ -1,0 +1,134 @@
+{
+  "systemName": "Manhattan WMS",
+  "systemType": "wms",
+  "direction": "inbound",
+  "dataType": "order",
+  "format": "json",
+  "comments": "Manhattan SCALE WMS order import format. Priority: 1=Rush, 5=Standard, 9=Low. Service: GROUND, EXPRESS, OVERNIGHT",
+  "samplePayload": {
+    "order": {
+      "orderNumber": "ORDER123",
+      "externalOrderId": "EXT-12345",
+      "customerCode": "CUST001",
+      "priority": "5",
+      "orderDate": "2025-01-15",
+      "requestedShipDate": "2025-01-20",
+      "orderLines": [
+        {
+          "lineNumber": 1,
+          "sku": "SKU001",
+          "description": "Product Name",
+          "quantity": 10,
+          "uom": "EA",
+          "lotControl": false
+        }
+      ],
+      "shipTo": {
+        "name": "Ship To Name",
+        "address1": "123 Street",
+        "address2": "Suite 100",
+        "city": "City",
+        "state": "ST",
+        "postalCode": "12345",
+        "country": "US",
+        "phone": "555-0123"
+      },
+      "carrier": "FEDEX",
+      "serviceLevel": "GROUND"
+    }
+  },
+  "metadata": {
+    "version": "2024.1",
+    "endpoint": "/wm/order/import",
+    "documentation": "https://www.manh.com/resources",
+    "fields": {
+      "orderNumber": {
+        "description": "WMS order identifier (max 20 chars)",
+        "required": true,
+        "format": "alphanumeric"
+      },
+      "priority": {
+        "description": "Order priority for wave planning",
+        "required": true,
+        "enum": ["1", "5", "9"]
+      },
+      "serviceLevel": {
+        "description": "Carrier service level",
+        "required": true,
+        "enum": ["GROUND", "EXPRESS", "OVERNIGHT", "2DAY"]
+      },
+      "uom": {
+        "description": "Unit of measure",
+        "required": true,
+        "enum": ["EA", "CS", "PL"]
+      }
+    }
+  }
+}
+{
+  "systemName": "Manhattan WMS",
+  "systemType": "wms",
+  "direction": "inbound",
+  "dataType": "order",
+  "format": "json",
+  "comments": "Manhattan SCALE WMS order import format. Priority: 1=Rush, 5=Standard, 9=Low. Service: GROUND, EXPRESS, OVERNIGHT",
+  "samplePayload": {
+    "order": {
+      "orderNumber": "ORDER123",
+      "externalOrderId": "EXT-12345",
+      "customerCode": "CUST001",
+      "priority": "5",
+      "orderDate": "2025-01-15",
+      "requestedShipDate": "2025-01-20",
+      "orderLines": [
+        {
+          "lineNumber": 1,
+          "sku": "SKU001",
+          "description": "Product Name",
+          "quantity": 10,
+          "uom": "EA",
+          "lotControl": false
+        }
+      ],
+      "shipTo": {
+        "name": "Ship To Name",
+        "address1": "123 Street",
+        "address2": "Suite 100",
+        "city": "City",
+        "state": "ST",
+        "postalCode": "12345",
+        "country": "US",
+        "phone": "555-0123"
+      },
+      "carrier": "FEDEX",
+      "serviceLevel": "GROUND"
+    }
+  },
+  "metadata": {
+    "version": "2024.1",
+    "endpoint": "/wm/order/import",
+    "documentation": "https://www.manh.com/resources",
+    "fields": {
+      "orderNumber": {
+        "description": "WMS order identifier (max 20 chars)",
+        "required": true,
+        "format": "alphanumeric"
+      },
+      "priority": {
+        "description": "Order priority for wave planning",
+        "required": true,
+        "enum": ["1", "5", "9"]
+      },
+      "serviceLevel": {
+        "description": "Carrier service level",
+        "required": true,
+        "enum": ["GROUND", "EXPRESS", "OVERNIGHT", "2DAY"]
+      },
+      "uom": {
+        "description": "Unit of measure",
+        "required": true,
+        "enum": ["EA", "CS", "PL"]
+      }
+    }
+  }
+}

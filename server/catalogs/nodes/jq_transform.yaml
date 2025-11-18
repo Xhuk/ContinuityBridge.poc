@@ -1,0 +1,51 @@
+id: jq_transform
+category: transform
+label: jq Transform
+description: Transform JSON data using jq expressions (supports AI-generated mappings)
+icon: code
+inputs: 1
+outputs: 1
+
+configFields:
+  - name: useAIMapping
+    label: Use AI Mapping Assistant
+    type: boolean
+    default: false
+    helpText: "Let AI generate the jq expression by analyzing source and target systems"
+
+  - name: sourceSystemId
+    label: Source System
+    type: interface
+    required: false
+    filterDirection: inbound
+    helpText: "Select source system for AI mapping generation"
+
+  - name: targetSystemId
+    label: Target System
+    type: interface
+    required: false
+    filterDirection: outbound
+    helpText: "Select target system for AI mapping generation"
+
+  - name: jqExpression
+    label: jq Expression
+    type: code
+    required: true
+    placeholder: |
+      {
+        orderId: .OrderNumber,
+        customer: .CustomerName,
+        items: .LineItems | map({
+          sku: .SKU,
+          quantity: .Quantity
+        })
+      }
+    helpText: "jq expression to transform input data. Click 'AI Generate' to auto-create from system analysis"
+
+  - name: enableValidation
+    label: Enable Output Validation
+    type: boolean
+    default: false
+    helpText: "Validate transformed output against target schema"
+
+executor: jq_transform
