@@ -1,269 +1,151 @@
-/**
- * Remote Updates API
- * 
- * Founder platform (Render) provides updates to customer environments
- * Endpoints for publishing and retrieving adapters, flows, patches
- */
-
 import { Router } from "express";
+import multer from "multer";
 import { authenticateUser } from "../auth/rbac-middleware.js";
+import { offlineUpdatePackage } from "../updates/offline-update-package.js";
 import { logger } from "../core/logger.js";
-import * as crypto from "crypto";
 
-const router = Router();
 const log = logger.child("UpdatesAPI");
+const router = Router();
 
-/**
- * GET /api/updates/available
- * Customer environments check for available updates
- * 
- * Headers:
- *   X-Organization-Id: customer org
- *   X-Environment: dev|test|prod
- *   X-Update-Channel: stable|beta|nightly
- *   X-Current-Version: 1.0.0
- */
-router.get("/available", async (req, res) => {
-  try {
-    const organizationId = req.headers["x-organization-id"] as string;
-    const environment = req.headers["x-environment"] as string;
-    const channel = req.headers["x-update-channel"] as string || "stable";
-    const currentVersion = req.headers["x-current-version"] as string || "1.0.0";
-
-    if (!organizationId) {
-      return res.status(400).json({ error: "X-Organization-Id header required" });
+// Configure multer for file uploads (in-memory)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB max
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.originalname.endsWith(".cbupdate")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only .cbupdate files are allowed"));
     }
-
-    log.info("Update check received", {
-      organizationId,
-      environment,
-      channel,
-      currentVersion,
-    });
-
-    // Query available updates for this customer
-    // In production, filter by:
-    // - Customer license (only show updates they're entitled to)
-    // - Environment (dev gets all, prod gets stable only)
-    // - Version compatibility
-
-    const availableUpdates = await getAvailableUpdates({
-      organizationId,
-      environment,
-      channel,
-      currentVersion,
-    });
-
-    res.json(availableUpdates);
-  } catch (error: any) {
-    log.error("Error checking updates", error);
-    res.status(500).json({ error: error.message });
-  }
+  },
 });
 
 /**
- * POST /api/updates/publish
- * Founders publish new updates (adapters, flows, patches)
- * 🔒 Superadmin only
+ * POST /api/updates/upload
+ * Upload signed .cbupdate package (air-gapped deployments)
  */
-router.post("/publish", authenticateUser, async (req, res) => {
-  try {
-    const userRole = (req as any).user?.role;
+router.post(
+  "/upload",
+  authenticateUser,
+  upload.single("package"),
+  async (req, res) => {
+    try {
+      // Only superadmin and consultants can upload updates
+      if (req.user?.role !== "superadmin" && req.user?.role !== "consultant") {
+        return res.status(403).json({
+          error: "Forbidden: Only superadmin and consultants can upload updates",
+        });
+      }
 
-    if (userRole !== "superadmin") {
-      return res.status(403).json({ error: "Superadmin access required" });
-    }
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
 
-    const {
-      version,
-      updateType,
-      updates,
-      minVersion,
-      maxVersion,
-      targetChannel,
-      releaseNotes,
-    } = req.body;
+      log.info("Update package upload started", {
+        filename: req.file.originalname,
+        size: req.file.size,
+        uploadedBy: req.user?.email,
+      });
 
-    if (!version || !updateType || !updates) {
-      return res.status(400).json({ 
-        error: "Missing required fields: version, updateType, updates" 
+      // Validate and save package
+      const result = await offlineUpdatePackage.uploadPackage(
+        req.file.buffer,
+        req.user?.email || "unknown"
+      );
+
+      if (!result.success) {
+        return res.status(400).json({
+          error: result.error,
+        });
+      }
+
+      log.info("Update package uploaded successfully", {
+        packageId: result.packageId,
+        version: result.version,
+      });
+
+      res.json({
+        success: true,
+        packageId: result.packageId,
+        version: result.version,
+        message: "Update package uploaded and verified successfully",
+      });
+    } catch (error: any) {
+      log.error("Upload failed", error);
+      res.status(500).json({
+        error: error.message || "Failed to upload package",
       });
     }
-
-    // Create update manifest
-    const manifest = {
-      version,
-      releaseDate: new Date().toISOString(),
-      updateType,
-      updates,
-      minVersion,
-      maxVersion,
-      releaseNotes,
-    };
-
-    // Generate signature
-    const signature = generateUpdateSignature(manifest);
-
-    const signedManifest = {
-      ...manifest,
-      signature,
-    };
-
-    // Store in database
-    await storeUpdate(signedManifest, targetChannel || "stable");
-
-    log.info(`Update published: ${version}`, {
-      updateType,
-      channel: targetChannel,
-      items: updates.length,
-    });
-
-    res.status(201).json({
-      success: true,
-      manifest: signedManifest,
-      message: `Update ${version} published to ${targetChannel} channel`,
-    });
-  } catch (error: any) {
-    log.error("Error publishing update", error);
-    res.status(500).json({ error: error.message });
   }
-});
+);
 
 /**
- * GET /api/updates/:id/download
- * Download update item (adapter, flow, etc.)
+ * GET /api/updates/packages
+ * List uploaded packages
  */
-router.get("/:id/download", async (req, res) => {
+router.get("/packages", authenticateUser, async (req, res) => {
   try {
-    const updateId = req.params.id;
-
-    // Fetch update item from database/storage
-    const item = await getUpdateItem(updateId);
-
-    if (!item) {
-      return res.status(404).json({ error: "Update item not found" });
+    if (req.user?.role !== "superadmin" && req.user?.role !== "consultant") {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
-    res.setHeader("Content-Type", "application/json");
-    res.setHeader("Content-Disposition", `attachment; filename="${item.name}.json"`);
-    res.send(item.content);
+    const packages = await offlineUpdatePackage.listPackages();
+
+    res.json({
+      packages,
+      count: packages.length,
+    });
   } catch (error: any) {
-    log.error("Error downloading update", error);
+    log.error("Failed to list packages", error);
     res.status(500).json({ error: error.message });
   }
 });
 
 /**
- * GET /api/updates/history
- * Get update history for organization
+ * POST /api/updates/install/:packageId/:version
+ * Install uploaded package
  */
-router.get("/history", authenticateUser, async (req, res) => {
-  try {
-    const organizationId = (req as any).user?.organizationId;
-    const { limit = 50 } = req.query;
+router.post(
+  "/install/:packageId/:version",
+  authenticateUser,
+  async (req, res) => {
+    try {
+      if (req.user?.role !== "superadmin" && req.user?.role !== "consultant") {
+        return res.status(403).json({ error: "Forbidden" });
+      }
 
-    if (!organizationId) {
-      return res.status(400).json({ error: "Organization ID required" });
+      const { packageId, version } = req.params;
+
+      log.info("Installing update package", {
+        packageId,
+        version,
+        installedBy: req.user?.email,
+      });
+
+      const result = await offlineUpdatePackage.installPackage(packageId, version);
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      log.info("Update package installed", {
+        packageId,
+        version,
+        filesInstalled: result.installed?.length,
+      });
+
+      res.json({
+        success: true,
+        installed: result.installed,
+        message: `Successfully installed ${result.installed?.length} files`,
+      });
+    } catch (error: any) {
+      log.error("Installation failed", error);
+      res.status(500).json({ error: error.message });
     }
-
-    // Fetch update history
-    const history = await getUpdateHistory(organizationId, parseInt(limit as string));
-
-    res.json(history);
-  } catch (error: any) {
-    log.error("Error fetching update history", error);
-    res.status(500).json({ error: error.message });
   }
-});
-
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-/**
- * Get available updates for customer
- */
-async function getAvailableUpdates(params: {
-  organizationId: string;
-  environment: string;
-  channel: string;
-  currentVersion: string;
-}) {
-  // Mock implementation - replace with database query
-  const mockUpdates = [
-    {
-      version: "1.1.0",
-      releaseDate: new Date().toISOString(),
-      updateType: "adapter",
-      updates: [
-        {
-          type: "interface",
-          id: "shopify-v2",
-          name: "Shopify API v2024",
-          version: "2.0.0",
-          downloadUrl: `${process.env.APP_URL}/api/updates/shopify-v2/download`,
-          checksum: "abc123...",
-          metadata: {
-            description: "Updated Shopify adapter with GraphQL support",
-          },
-        },
-      ],
-      minVersion: "1.0.0",
-      signature: "xyz789...",
-    },
-  ];
-
-  // Filter based on channel and version compatibility
-  return params.channel === "stable" ? mockUpdates : [];
-}
-
-/**
- * Generate cryptographic signature for update
- */
-function generateUpdateSignature(manifest: any): string {
-  const payload = JSON.stringify({
-    version: manifest.version,
-    updates: manifest.updates,
-  });
-
-  // In production, use RSA private key to sign
-  // For now, use SHA-256 hash
-  return crypto.createHash("sha256").update(payload).digest("hex");
-}
-
-/**
- * Store update in database
- */
-async function storeUpdate(manifest: any, channel: string): Promise<void> {
-  // TODO: Implement database storage
-  // For now, log to console
-  log.info("Update stored", { version: manifest.version, channel });
-}
-
-/**
- * Get update item content
- */
-async function getUpdateItem(id: string): Promise<any | null> {
-  // TODO: Implement database lookup
-  // Mock response
-  return {
-    name: "shopify-v2",
-    content: JSON.stringify({
-      id: "shopify-v2",
-      name: "Shopify",
-      type: "ecommerce",
-      protocol: "rest_api",
-      // ... interface config
-    }),
-  };
-}
-
-/**
- * Get update history for organization
- */
-async function getUpdateHistory(organizationId: string, limit: number): Promise<any[]> {
-  // TODO: Implement database query
-  return [];
-}
+);
 
 export default router;
