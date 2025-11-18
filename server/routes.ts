@@ -18,6 +18,7 @@ import { createAuthGuard } from "./src/middleware/auth-guard.js";
 import { getSchedulerDaemon } from "./src/schedulers/scheduler-daemon.js";
 import { getPollerDaemon } from "./src/schedulers/poller-daemon.js";
 import { getLogCleanupJob } from "./src/core/log-cleanup-job.js";
+import { getHealthMonitor } from "./src/core/health-monitor.js";
 import { FlowVersionManager } from "./src/versioning/flow-version-manager.js";
 import { TenantQuotaManager } from "./src/core/tenant-quotas.js";
 import { initFlowDSLAPI } from "./src/routes/flow-dsl-api.js";
@@ -252,6 +253,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const logCleanupJob = getLogCleanupJob(60); // 60 minutes interval
     logCleanupJob.start();
     log.info("Log cleanup job started (runs every 60 minutes)");
+
+    // Initialize and start health monitor (checks every 5 minutes)
+    const healthMonitor = getHealthMonitor({
+      enabled: process.env.HEALTH_MONITORING_ENABLED !== "false",
+      emailRecipients: process.env.HEALTH_ALERT_EMAILS?.split(",") || [],
+      checkIntervalMinutes: parseInt(process.env.HEALTH_CHECK_INTERVAL_MINUTES || "5"),
+      thresholds: {
+        errorRatePerMinute: parseInt(process.env.HEALTH_ERROR_THRESHOLD || "10"),
+        p95LatencyMs: parseInt(process.env.HEALTH_LATENCY_THRESHOLD || "5000"),
+        memoryUsagePercent: parseInt(process.env.HEALTH_MEMORY_THRESHOLD || "85"),
+        diskUsagePercent: parseInt(process.env.HEALTH_DISK_THRESHOLD || "90"),
+      },
+    });
+    healthMonitor.start();
+    log.info("Health monitor started (checks every 5 minutes)");
 
     log.info("All routes and services registered successfully");
 

@@ -75,26 +75,34 @@ chmod +x deploy-production.sh
 ## Database Backups
 
 ### Automated Backup Script
+A production-ready backup script is included at `scripts/backup-db.sh`
+
 ```bash
-#!/bin/bash
-# backup-db.sh
+# Make executable
+chmod +x scripts/backup-db.sh
 
-BACKUP_DIR="./backups"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="$BACKUP_DIR/continuitybridge_$TIMESTAMP.sql"
+# Run manually
+./scripts/backup-db.sh
 
-mkdir -p $BACKUP_DIR
-
-docker-compose -f docker-compose.prod.yml exec -T postgres \
-  pg_dump -U cbuser continuitybridge > $BACKUP_FILE
-
-gzip $BACKUP_FILE
-
-echo "Backup created: ${BACKUP_FILE}.gz"
-
-# Keep only last 30 days
-find $BACKUP_DIR -name "*.sql.gz" -mtime +30 -delete
+# Schedule via cron (daily at 2 AM)
+crontab -e
+# Add this line:
+0 2 * * * /path/to/ContinuityBridge/scripts/backup-db.sh
 ```
+
+**Configuration (environment variables)**:
+```bash
+export BACKUP_DIR="./backups"           # Backup directory
+export RETENTION_DAYS="30"              # Keep backups for 30 days
+export DB_TYPE="postgres"               # postgres or sqlite
+```
+
+**Features**:
+- ✅ Automatic compression (gzip)
+- ✅ Integrity verification
+- ✅ Retention policy (auto-delete old backups)
+- ✅ Works with Docker Compose or direct connections
+- ✅ Supports both PostgreSQL and SQLite
 
 ### Restore from Backup
 ```bash

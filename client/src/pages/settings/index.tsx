@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Mail, Lock, Server, Shield, Key, FileJson, FileText } from "lucide-react";
+import { Mail, Lock, Server, Shield, Key, FileJson, FileText, Palette } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import EmailSettings from "./email";
 import SecretsVault from "./secrets-vault";
@@ -8,6 +8,7 @@ import SecuritySettings from "./security";
 import AuthenticationSettings from "./auth";
 import PostmanExport from "./postman-export";
 import LogSettings from "./log-settings";
+import BrandingSettings from "./branding";
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("email");
@@ -23,7 +24,7 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-grid" data-testid="settings-tabs">
+          <TabsList className="grid w-full grid-cols-8 lg:w-auto lg:inline-grid" data-testid="settings-tabs">
             <TabsTrigger value="email" className="flex items-center gap-2" data-testid="tab-email">
               <Mail className="h-4 w-4" />
               <span className="hidden sm:inline">Email</span>
@@ -51,6 +52,10 @@ export default function Settings() {
             <TabsTrigger value="logs" className="flex items-center gap-2" data-testid="tab-logs">
               <FileText className="h-4 w-4" />
               <span className="hidden sm:inline">Logs</span>
+            </TabsTrigger>
+            <TabsTrigger value="branding" className="flex items-center gap-2" data-testid="tab-branding">
+              <Palette className="h-4 w-4" />
+              <span className="hidden sm:inline">Branding</span>
             </TabsTrigger>
           </TabsList>
 
@@ -80,6 +85,10 @@ export default function Settings() {
 
           <TabsContent value="logs" className="space-y-4">
             <LogSettings />
+          </TabsContent>
+
+          <TabsContent value="branding" className="space-y-4">
+            <BrandingSettings />
           </TabsContent>
         </Tabs>
       </div>
