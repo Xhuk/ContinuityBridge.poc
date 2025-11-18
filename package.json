@@ -11,6 +11,7 @@
     "build:binary": "node scripts/build-binary.js",
     "start": "NODE_ENV=production npm run db:migrate && node dist/index.js",
     "db:migrate": "node scripts/run-sql-migration.js && drizzle-kit push --force",
+    "seed:demo": "tsx scripts/seed-demo-flows.ts",
     "deploy:check": "node scripts/pre-deploy-check.js",
     "wiki:export": "node scripts/export-wiki-to-github.js",
     "wiki:publish": "powershell -ExecutionPolicy Bypass -File scripts/publish-wiki.ps1"
