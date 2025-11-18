@@ -220,3 +220,4 @@ export function generateSessionToken(user: AuthenticatedUser, expiresIn: string 
     } as jwt.SignOptions
   );
 }
+

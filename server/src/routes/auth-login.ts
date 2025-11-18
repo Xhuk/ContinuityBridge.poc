@@ -310,3 +310,4 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
 
 export default router;
 export { hashPassword, verifyPassword };
+
