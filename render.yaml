@@ -10,10 +10,14 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: DB_TYPE
+        value: postgres
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        value: file:./data/continuity.db
+        fromDatabase:
+          name: continuitybridge-db
+          property: connectionString
       - key: ENCRYPTION_KEY
         sync: false
       - key: RESEND_API_KEY
@@ -28,3 +32,9 @@ services:
     autoDeploy: true
     domains:
       - continuitybridge.onrender.com
+
+databases:
+  - name: continuitybridge-db
+    databaseName: continuitybridge
+    user: continuitybridge
+    plan: free
