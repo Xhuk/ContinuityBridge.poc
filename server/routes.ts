@@ -191,6 +191,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatesRouter = (await import("./src/routes/updates.js")).default;
       app.use("/api/updates", updatesRouter);
       log.info("Remote updates API registered (founder platform)");
+      
+      // Register Kubernetes Release Generator (Founder platform only)
+      const k8sReleaseRouter = (await import("./src/routes/kubernetes-release.js")).default;
+      app.use("/api/releases", k8sReleaseRouter);
+      log.info("Kubernetes release API registered (founder platform)");
     }
 
     // Register GraphQL server (standalone on port 4000) with shared pipeline
