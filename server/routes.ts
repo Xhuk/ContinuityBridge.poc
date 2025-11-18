@@ -196,6 +196,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const k8sReleaseRouter = (await import("./src/routes/kubernetes-release.js")).default;
       app.use("/api/releases", k8sReleaseRouter);
       log.info("Kubernetes release API registered (founder platform)");
+      
+      // Register Resource Calculator (Founder platform only)
+      const calculatorRouter = (await import("./src/routes/resource-calculator-api.js")).default;
+      app.use("/api/calculator", calculatorRouter);
+      log.info("Resource calculator API registered (founder platform)");
     }
 
     // Register GraphQL server (standalone on port 4000) with shared pipeline
