@@ -1162,6 +1162,46 @@ export const aiPricingTiers = sqliteTable("ai_pricing_tiers", {
 export type AIPricingTier = typeof aiPricingTiers.$inferSelect;
 export type InsertAIPricingTier = typeof aiPricingTiers.$inferInsert;
 
+// Organization Branding/Theme Configuration
+// Allows customers to customize colors, logo, and UI theme
+export const organizationBranding = sqliteTable("organization_branding", {
+  id: text("id").primaryKey().$default(() => randomUUID()),
+  
+  // Organization
+  organizationId: text("organization_id").notNull().unique(),
+  organizationName: text("organization_name").notNull(),
+  
+  // Logo
+  logoUrl: text("logo_url"), // Path to uploaded logo
+  logoPosition: text("logo_position").$type<"left" | "center" | "right">().default("left"),
+  showLogo: integer("show_logo", { mode: "boolean" }).notNull().default(true),
+  
+  // Colors (HSL format: "217 91% 35%")
+  primaryColor: text("primary_color").default("217 91% 35%"), // Default blue
+  secondaryColor: text("secondary_color").default("217 8% 90%"),
+  accentColor: text("accent_color").default("217 12% 91%"),
+  destructiveColor: text("destructive_color").default("0 84% 35%"),
+  
+  // Sidebar colors
+  sidebarColor: text("sidebar_color").default("0 0% 96%"),
+  sidebarPrimaryColor: text("sidebar_primary_color").default("217 91% 35%"),
+  
+  // Preset theme (if selected)
+  presetTheme: text("preset_theme").$type<"default" | "corporate-blue" | "forest-green" | "sunset-orange" | "royal-purple" | "ocean-teal" | "custom">().default("default"),
+  
+  // Additional customizations
+  applicationName: text("application_name").default("ContinuityBridge"),
+  favicon: text("favicon"), // Path to favicon
+  
+  // Metadata
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type OrganizationBranding = typeof organizationBranding.$inferSelect;
+export type InsertOrganizationBranding = typeof organizationBranding.$inferInsert;
+
 // Decrypted secret payloads (type-safe interfaces, never stored)
 export interface SmtpSecretPayload {
   password: string;

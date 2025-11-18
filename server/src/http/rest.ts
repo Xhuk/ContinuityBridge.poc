@@ -61,6 +61,7 @@ import postmanRoutes from "../routes/postman.js";
 import smartMappingRoutes from "../routes/smart-mapping-routes.js";
 import aiPricingRoutes from "../routes/ai-pricing-routes.js";
 import customizationMigrationRoutes from "../routes/customization-migration.js";
+import brandingRoutes from "../routes/branding.js";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import type { DynamicWebhookRouter } from "./dynamic-webhook-router.js";
 
@@ -128,6 +129,9 @@ export function registerRESTRoutes(
   
   // Register Customization Migration routes (Export/Import customizations between environments)
   app.use("/api/customization", authenticateUser, customizationMigrationRoutes);
+  
+  // Register Organization Branding routes (Theme colors, logo upload)
+  app.use("/api/branding", authenticateUser, brandingRoutes);
   
   // ============================================================================
   // NODE CATALOG ENDPOINTS
