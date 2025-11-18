@@ -180,6 +180,12 @@ export const customerLicense = pgTable("customer_license", {
     customNodes: boolean;       // Custom node creation
     apiAccess: boolean;         // Direct API access
     webhooks: boolean;          // Webhook endpoints
+    
+    // Self-service permissions (Forger model)
+    canEditFlows?: boolean;      // Can edit flows in production
+    canAddInterfaces?: boolean;  // Can add new interfaces
+    canAddSystems?: boolean;     // Can add new systems
+    canDeleteResources?: boolean;// Can delete resources
   }>().default({
     flowEditor: false,
     dataSources: false,
@@ -189,21 +195,42 @@ export const customerLicense = pgTable("customer_license", {
     customNodes: false,
     apiAccess: true,
     webhooks: true,
+    canEditFlows: false,
+    canAddInterfaces: false,
+    canAddSystems: false,
+    canDeleteResources: false,
   }),
   
   // Resource limits
   limits: jsonb("limits").$type<{
     maxFlows: number;           // Maximum number of flows
     maxDataSources: number;     // Maximum data sources
-    maxInterfaces: number;      // Maximum interfaces
+    maxInterfaces: number;      // Maximum interfaces (count-based pricing)
+    maxSystems: number;         // Maximum systems (count-based pricing)
     maxUsers: number;           // Maximum users in organization
     maxExecutionsPerMonth: number; // Monthly execution limit
   }>().default({
     maxFlows: 5,
     maxDataSources: 2,
     maxInterfaces: 2,
+    maxSystems: 1,
     maxUsers: 5,
     maxExecutionsPerMonth: 10000,
+  }),
+  
+  // Custom pricing (Forger model: Base + per-interface + per-system)
+  pricing: jsonb("pricing").$type<{
+    basePlatform: number;       // Base platform fee/month
+    perInterface: number;       // Cost per interface/month
+    perSystem: number;          // Cost per system/month
+    currency?: string;          // USD, EUR, etc
+    billingCycle?: string;      // monthly, yearly, etc
+  }>().default({
+    basePlatform: 500,
+    perInterface: 100,
+    perSystem: 200,
+    currency: "USD",
+    billingCycle: "monthly",
   }),
   
   // License validity

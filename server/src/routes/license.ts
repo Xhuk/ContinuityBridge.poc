@@ -20,6 +20,8 @@ router.get("/", authenticateUser, async (req, res) => {
       return res.json({
         license: {
           licenseType: "enterprise",
+          
+          // Feature flags (what they can do)
           features: {
             flowEditor: true,
             dataSources: true,
@@ -29,14 +31,31 @@ router.get("/", authenticateUser, async (req, res) => {
             customNodes: true,
             apiAccess: true,
             webhooks: true,
+            
+            // Self-service permissions
+            canEditFlows: true,
+            canAddInterfaces: true,
+            canAddSystems: true,
+            canDeleteResources: true,
           },
+          
+          // Resource limits (count-based pricing)
           limits: {
             maxFlows: 999999,
             maxDataSources: 999999,
-            maxInterfaces: 999999,
+            maxInterfaces: 999999,  // Unlimited for admin
+            maxSystems: 999999,      // Unlimited for admin
             maxUsers: 999999,
             maxExecutionsPerMonth: 999999999,
           },
+          
+          // Current usage (for billing)
+          usage: {
+            interfacesCount: 0,  // Populated by query
+            systemsCount: 0,     // Populated by query
+            flowsCount: 0,
+          },
+          
           active: true,
           isAdmin: true,
         },
@@ -58,23 +77,49 @@ router.get("/", authenticateUser, async (req, res) => {
       return res.json({
         license: {
           licenseType: "trial",
+          
+          // Feature flags (trial = limited)
           features: {
-            flowEditor: false,
+            flowEditor: false,        // No flow editing in trial
             dataSources: false,
             interfaces: false,
             mappingGenerator: false,
             advancedSettings: false,
             customNodes: false,
-            apiAccess: true,
-            webhooks: true,
+            apiAccess: true,          // API access allowed
+            webhooks: true,           // Webhooks allowed
+            
+            // Self-service permissions (trial = read-only)
+            canEditFlows: false,      // ❌ Cannot edit flows
+            canAddInterfaces: false,  // ❌ Cannot add interfaces
+            canAddSystems: false,     // ❌ Cannot add systems
+            canDeleteResources: false,// ❌ Cannot delete
           },
+          
+          // Resource limits (trial = very limited)
           limits: {
             maxFlows: 5,
             maxDataSources: 2,
-            maxInterfaces: 2,
+            maxInterfaces: 2,         // Max 2 interfaces in trial
+            maxSystems: 1,            // Max 1 system in trial
             maxUsers: 5,
             maxExecutionsPerMonth: 10000,
           },
+          
+          // Current usage
+          usage: {
+            interfacesCount: 0,
+            systemsCount: 0,
+            flowsCount: 0,
+          },
+          
+          // Pricing info (for upsell)
+          pricing: {
+            basePlatform: 0,          // Trial = free
+            perInterface: 0,          // Show pricing on upgrade
+            perSystem: 0,
+          },
+          
           active: true,
           isAdmin: false,
         },
@@ -298,31 +343,35 @@ function getLimitsForLicenseType(licenseType: string) {
       return {
         maxFlows: 5,
         maxDataSources: 2,
-        maxInterfaces: 2,
+        maxInterfaces: 2,      // 2 interfaces max
+        maxSystems: 1,         // 1 system max
         maxUsers: 5,
         maxExecutionsPerMonth: 10000,
       };
-    case "basic":
+    case "basic":              // Read-only production
       return {
         maxFlows: 20,
         maxDataSources: 5,
-        maxInterfaces: 5,
+        maxInterfaces: 5,      // 5 interfaces
+        maxSystems: 2,         // 2 systems
         maxUsers: 10,
         maxExecutionsPerMonth: 100000,
       };
-    case "professional":
+    case "professional":       // Can edit flows
       return {
         maxFlows: 100,
         maxDataSources: 20,
-        maxInterfaces: 20,
+        maxInterfaces: 20,     // 20 interfaces
+        maxSystems: 10,        // 10 systems
         maxUsers: 50,
         maxExecutionsPerMonth: 1000000,
       };
-    case "enterprise":
+    case "enterprise":         // Unlimited + full control
       return {
         maxFlows: 999999,
         maxDataSources: 999999,
-        maxInterfaces: 999999,
+        maxInterfaces: 999999, // Unlimited interfaces
+        maxSystems: 999999,    // Unlimited systems
         maxUsers: 999999,
         maxExecutionsPerMonth: 999999999,
       };
@@ -331,10 +380,71 @@ function getLimitsForLicenseType(licenseType: string) {
         maxFlows: 5,
         maxDataSources: 2,
         maxInterfaces: 2,
+        maxSystems: 1,
         maxUsers: 5,
         maxExecutionsPerMonth: 10000,
       };
   }
+}
+
+/**
+ * Helper: Calculate monthly cost based on usage
+ * Forger pricing model: Base + per-interface + per-system
+ */
+function calculateMonthlyCost(params: {
+  licenseType: string;
+  interfacesCount: number;
+  systemsCount: number;
+  basePricing?: { platform: number; perInterface: number; perSystem: number };
+}) {
+  const { licenseType, interfacesCount, systemsCount, basePricing } = params;
+  
+  // Default pricing (can be overridden per customer)
+  const pricing = basePricing || {
+    platform: licenseType === "trial" ? 0 : 500,     // Base platform fee
+    perInterface: licenseType === "trial" ? 0 : 100, // $100 per interface/month
+    perSystem: licenseType === "trial" ? 0 : 200,    // $200 per system/month
+  };
+  
+  const cost = {
+    basePlatform: pricing.platform,
+    interfaces: interfacesCount * pricing.perInterface,
+    systems: systemsCount * pricing.perSystem,
+    total: pricing.platform + (interfacesCount * pricing.perInterface) + (systemsCount * pricing.perSystem),
+    breakdown: {
+      description: `Base ($${pricing.platform}) + ${interfacesCount} interfaces ($${pricing.perInterface} each) + ${systemsCount} systems ($${pricing.perSystem} each)`,
+      formula: `$${pricing.platform} + (${interfacesCount} × $${pricing.perInterface}) + (${systemsCount} × $${pricing.perSystem}) = $${pricing.platform + (interfacesCount * pricing.perInterface) + (systemsCount * pricing.perSystem)}`,
+    },
+  };
+  
+  return cost;
+}
+
+/**
+ * Helper: Get feature permissions based on license type
+ */
+function getFeaturesForLicenseType(licenseType: string) {
+  const isEnterprise = licenseType === "enterprise";
+  const isProfessional = licenseType === "professional" || isEnterprise;
+  const isBasic = licenseType === "basic" || isProfessional;
+  const isTrial = licenseType === "trial";
+  
+  return {
+    flowEditor: isBasic,
+    dataSources: isBasic,
+    interfaces: isBasic,
+    mappingGenerator: isProfessional,
+    advancedSettings: isEnterprise,
+    customNodes: isEnterprise,
+    apiAccess: true,
+    webhooks: true,
+    
+    // Self-service permissions (key for forger model)
+    canEditFlows: isProfessional,        // Only Professional+ can edit
+    canAddInterfaces: isProfessional,    // Only Professional+ can add
+    canAddSystems: isProfessional,       // Only Professional+ can add
+    canDeleteResources: isEnterprise,    // Only Enterprise can delete
+  };
 }
 
 export default router;
