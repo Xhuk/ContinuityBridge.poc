@@ -13,6 +13,8 @@ import { authenticateUser } from "../auth/rbac-middleware.js";
 import { smartMappingGenerator } from "../ai/smart-mapping-generator.js";
 import type { SystemPayloadSample } from "../ai/smart-mapping-generator.js";
 import { logger } from "../core/logger.js";
+import { db } from "../../db.js";
+import { aiUsageTracking } from "../../schema.js";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -81,6 +83,8 @@ router.get("/samples", authenticateUser, async (req, res) => {
 router.post("/generate", authenticateUser, async (req, res) => {
   try {
     const userRole = (req as any).user?.role;
+    const userId = (req as any).user?.id;
+    const organizationId = (req as any).user?.organizationId || "global";
 
     if (userRole !== "superadmin" && userRole !== "consultant") {
       return res.status(403).json({ error: "Consultant access required" });
@@ -97,7 +101,10 @@ router.post("/generate", authenticateUser, async (req, res) => {
     log.info("Generating smart mapping", {
       source: sourceSample.systemName,
       target: targetSample.systemName,
+      userId,
     });
+
+    const startTime = Date.now();
 
     const mapping = await smartMappingGenerator.generateMapping(
       sourceSample,
@@ -105,8 +112,32 @@ router.post("/generate", authenticateUser, async (req, res) => {
       context
     );
 
+    const durationMs = Date.now() - startTime;
+
     // Convert to jq expression
     const jqExpression = smartMappingGenerator.convertToJQ(mapping);
+
+    // Track AI usage for billing ($250/month per 2000 tokens)
+    try {
+      await db.insert(aiUsageTracking).values({
+        organizationId,
+        featureType: "mapping",
+        requestDate: new Date().toISOString().split('T')[0],
+        timestamp: new Date().toISOString(),
+        metadata: {
+          organizationName: (req as any).user?.organizationName,
+          projectId: organizationId,
+          flowName: `${sourceSample.systemName} → ${targetSample.systemName}`,
+          nodeType: "smart_mapping",
+          tokensUsed: mapping.tokensUsed || 0,
+          durationMs,
+          success: true,
+        },
+      });
+    } catch (trackingError: any) {
+      log.error("Failed to track AI usage", trackingError);
+      // Don't fail the request if tracking fails
+    }
 
     res.json({
       success: true,
@@ -119,9 +150,31 @@ router.post("/generate", authenticateUser, async (req, res) => {
         transformationsCount: mapping.transformations.length,
         validationsCount: mapping.validations.length,
       },
+      billing: {
+        tokensUsed: mapping.tokensUsed || 0,
+        estimatedCost: ((mapping.tokensUsed || 0) / 2000) * 250, // $250 per 2000 tokens
+      },
     });
   } catch (error: any) {
     log.error("Failed to generate mapping", error);
+    
+    // Track failed attempt
+    try {
+      const organizationId = (req as any).user?.organizationId || "global";
+      await db.insert(aiUsageTracking).values({
+        organizationId,
+        featureType: "mapping",
+        requestDate: new Date().toISOString().split('T')[0],
+        timestamp: new Date().toISOString(),
+        metadata: {
+          success: false,
+          errorType: error.message.includes("restricted") ? "environment_guard" : "generation_error",
+        },
+      });
+    } catch (trackingError) {
+      // Ignore tracking errors
+    }
+
     res.status(500).json({ error: error.message });
   }
 });

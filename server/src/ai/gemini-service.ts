@@ -14,6 +14,17 @@ export interface GeminiGenerateOptions {
   systemPrompt?: string;
 }
 
+export interface GeminiUsageMetadata {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+export interface GeminiResponse {
+  text: string;
+  usage?: GeminiUsageMetadata;
+}
+
 /**
  * Gemini AI Service - Google's Generative AI
  * Free tier: 15 requests/min, 1500 requests/day
@@ -51,7 +62,7 @@ export class GeminiService {
   async generate(
     messages: GeminiMessage[],
     options: GeminiGenerateOptions = {}
-  ): Promise<string> {
+  ): Promise<GeminiResponse> {
     if (!this.apiKey) {
       throw new Error("Gemini API key not configured");
     }
@@ -134,13 +145,22 @@ export class GeminiService {
         throw new Error("Empty response from Gemini");
       }
 
+      // Extract usage metadata (token counts)
+      const usageMetadata = data.usageMetadata;
+      const usage: GeminiUsageMetadata | undefined = usageMetadata ? {
+        promptTokens: usageMetadata.promptTokenCount || 0,
+        completionTokens: usageMetadata.candidatesTokenCount || 0,
+        totalTokens: usageMetadata.totalTokenCount || 0,
+      } : undefined;
+
       log.info("Gemini generation successful", {
         model,
         inputLength: messages.reduce((acc, m) => acc + m.content.length, 0),
         outputLength: text.length,
+        tokensUsed: usage?.totalTokens || 0,
       });
 
-      return text;
+      return { text, usage };
     } catch (error: any) {
       log.error("Gemini generation failed", { error: error.message });
       throw error;

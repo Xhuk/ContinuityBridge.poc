@@ -81,6 +81,7 @@ export interface GeneratedMapping {
   suggestedImprovements: string[];
   generatedAt: string;
   generatedBy: "ai" | "consultant";
+  tokensUsed?: number; // For billing tracking
 }
 
 export class SmartMappingGenerator {
@@ -96,17 +97,22 @@ export class SmartMappingGenerator {
       consultantNotes?: string;
     }
   ): Promise<GeneratedMapping> {
+    // Environment guard: Only allow in DEV
+    this.checkEnvironmentGuard();
+
     log.info("Generating smart mapping", {
       source: sourceSample.systemName,
       target: targetSample.systemName,
       dataType: sourceSample.dataType,
     });
 
+    const startTime = Date.now();
+
     try {
       // Build comprehensive prompt for AI
       const prompt = this.buildMappingPrompt(sourceSample, targetSample, context);
       
-      // Call AI
+      // Call AI with token tracking
       const response = await geminiService.generate(
         [{ role: "user", content: prompt }],
         {
@@ -116,14 +122,21 @@ export class SmartMappingGenerator {
         }
       );
 
+      const durationMs = Date.now() - startTime;
+
       // Parse AI response
-      const mapping = this.parseAIResponse(response, sourceSample, targetSample);
+      const mapping = this.parseAIResponse(response.text, sourceSample, targetSample);
+      
+      // Add token usage for billing tracking
+      mapping.tokensUsed = response.usage?.totalTokens || 0;
       
       log.info("Mapping generated successfully", {
         source: sourceSample.systemName,
         target: targetSample.systemName,
         rulesCount: mapping.rules.length,
         confidence: mapping.confidence,
+        tokensUsed: mapping.tokensUsed,
+        durationMs,
       });
 
       return mapping;
@@ -381,6 +394,24 @@ IMPORTANT: Return ONLY the JSON object, no markdown, no explanation.`;
           needsReview: false,
         };
       }
+      return rule;
+    }).filter(rule => 
+      !consultantFeedback.rejectedRules?.includes(rule.targetField)
+    );
+
+    return {
+      ...mapping,
+      rules: refinedRules,
+      confidence: refinedRules.length > 0
+        ? refinedRules.reduce((sum, r) => sum + r.confidence, 0) / refinedRules.length
+        : 0,
+      needsReview: false,
+      generatedBy: "consultant",
+    };
+  }
+}
+
+export const smartMappingGenerator = new SmartMappingGenerator();
       return rule;
     }).filter(rule => 
       !consultantFeedback.rejectedRules?.includes(rule.targetField)
