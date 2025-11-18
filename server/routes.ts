@@ -25,6 +25,7 @@ import { initFlowVersioningAPI } from "./src/routes/flow-versioning-api.js";
 import { DynamicWebhookRouter } from "./src/http/dynamic-webhook-router.js";
 import { initializeRedis } from "./src/middleware/rate-limiter.js";
 import { codeProtection } from "./src/security/code-protection.js";
+import { initializeUpdateAgent } from "./src/updates/remote-update-agent.js";
 
 const log = logger.child("Server");
 
@@ -38,6 +39,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await codeProtection.initializeIntegrityChecks();
       codeProtection.startPeriodicChecks(60); // Check every hour
       log.info("Code protection enabled (integrity checks + tamper detection)");
+    }
+    
+    // Initialize remote update agent (customer environments only)
+    const isCustomerDeployment = process.env.VITE_DEPLOYMENT_TYPE === "customer";
+    const remoteUpdatesEnabled = process.env.REMOTE_UPDATES_ENABLED === "true";
+    
+    if (isCustomerDeployment && remoteUpdatesEnabled) {
+      const updateAgent = initializeUpdateAgent({
+        enabled: true,
+        founderPlatformUrl: process.env.FOUNDER_PLATFORM_URL || "https://continuitybridge.onrender.com",
+        organizationId: process.env.ORGANIZATION_ID || "default",
+        apiKey: process.env.SUPERADMIN_API_KEY || "",
+        environment: (process.env.ENVIRONMENT || "dev") as any,
+        autoUpdate: process.env.AUTO_UPDATE === "true",
+        updateChannel: (process.env.UPDATE_CHANNEL || "stable") as any,
+        checkIntervalHours: parseInt(process.env.UPDATE_CHECK_INTERVAL_HOURS || "24"),
+      });
+      
+      log.info("Remote update agent initialized", {
+        platform: process.env.FOUNDER_PLATFORM_URL,
+        environment: process.env.ENVIRONMENT,
+        autoUpdate: process.env.AUTO_UPDATE === "true",
+      });
     }
     
     // Initialize database tables
@@ -161,6 +185,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Register Dynamic Webhook Router (hot-reload endpoints)
     app.use("/api/webhook", webhookRouter.createRouter());
     log.info("Dynamic webhook endpoints registered");
+    
+    // Register Remote Updates API (Founder platform only)
+    if (process.env.VITE_DEPLOYMENT_TYPE === "platform") {
+      const updatesRouter = (await import("./src/routes/updates.js")).default;
+      app.use("/api/updates", updatesRouter);
+      log.info("Remote updates API registered (founder platform)");
+    }
 
     // Register GraphQL server (standalone on port 4000) with shared pipeline
     registerGraphQLServer(pipeline).catch((err) => {
