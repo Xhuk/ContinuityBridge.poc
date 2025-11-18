@@ -8,6 +8,7 @@
     "dev:server": "set NODE_ENV=development&& tsx server/index.ts",
     "dev:client": "vite",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build:binary": "node scripts/build-binary.js",
     "start": "NODE_ENV=production npm run db:migrate && node dist/index.js",
     "db:migrate": "node scripts/run-sql-migration.js && drizzle-kit push --force",
     "deploy:check": "node scripts/pre-deploy-check.js",
@@ -153,6 +154,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
+    "@types/archiver": "^7.0.0",
     "@types/bcrypt": "^6.0.0",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/cookie-parser": "^1.4.10",
@@ -165,7 +167,9 @@
     "@types/passport-google-oauth20": "^2.0.17",
     "@types/passport-local": "^1.0.38",
     "@types/semver": "^7.7.1",
+    "archiver": "^7.0.1",
     "concurrently": "^8.2.2",
+    "pkg": "^5.8.1",
     "supabase": "^2.58.5",
     "tsx": "^4.20.5"
   },

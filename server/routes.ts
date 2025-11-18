@@ -197,6 +197,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       app.use("/api/releases", k8sReleaseRouter);
       log.info("Kubernetes release API registered (founder platform)");
       
+      // Register Binary Release Generator (Founder platform only)
+      const binaryReleaseRouter = (await import("./src/routes/binary-release.js")).default;
+      app.use("/api/releases", binaryReleaseRouter);
+      log.info("Binary release API registered (founder platform)");
+      
       // Register Resource Calculator (Founder platform only)
       const calculatorRouter = (await import("./src/routes/resource-calculator-api.js")).default;
       app.use("/api/calculator", calculatorRouter);
