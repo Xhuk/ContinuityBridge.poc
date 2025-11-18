@@ -1,0 +1,334 @@
+# Customer-Specific Flow Versioning Strategy
+# This example demonstrates how to manage flow versions per customer/organization
+
+# ===============================================
+# ACME Corp - Production Environment
+# ===============================================
+organizationId: org-acme-corp
+organizationName: ACME Corporation
+environment: prod
+
+flows:
+  # SFTP to ERP Integration Flow
+  - flowId: flow-sftp-erp-sync
+    name: SFTP to ERP Sync
+    currentVersion: v1.3.2
+    
+    versions:
+      - version: v1.3.2
+        status: deployed
+        deployedAt: "2025-01-15T10:00:00Z"
+        changeType: patch
+        changeDescription: "Fixed CSV parsing for special characters"
+        isImmutable: true
+        approvedBy: founder@continuitybridge.com
+        
+      - version: v1.3.1
+        status: deprecated
+        deployedAt: "2025-01-10T14:30:00Z"
+        changeType: patch
+        changeDescription: "Added retry logic for SFTP connection"
+        
+      - version: v1.3.0
+        status: deprecated
+        deployedAt: "2025-01-05T09:00:00Z"
+        changeType: minor
+        changeDescription: "Added email notifications on failure"
+    
+    rollbackPlan:
+      targetVersion: v1.3.1
+      triggerCondition: "Critical failure in v1.3.2"
+      approvalRequired: true
+
+  # API Webhook Flow
+  - flowId: flow-api-webhook
+    name: Customer API Webhook Handler
+    currentVersion: v2.1.0
+    
+    versions:
+      - version: v2.1.0
+        status: deployed
+        deployedAt: "2025-01-20T16:00:00Z"
+        changeType: minor
+        changeDescription: "Added OAuth2 authentication support"
+        isImmutable: true
+
+# ===============================================
+# TechStart Inc - Staging Environment
+# ===============================================
+---
+organizationId: org-techstart
+organizationName: TechStart Inc
+environment: staging
+
+flows:
+  - flowId: flow-edi-processing
+    name: EDI 850 Processing
+    currentVersion: v1.0.0-rc.1
+    
+    versions:
+      - version: v1.0.0-rc.1
+        status: pending_approval
+        createdAt: "2025-01-22T10:00:00Z"
+        changeType: minor
+        changeDescription: "Initial staging release for UAT"
+        requiresApproval: true
+        uatParticipants:
+          - qa-team@techstart.com
+          - operations@techstart.com
+
+# ===============================================
+# DevShop - Development Environment
+# ===============================================
+---
+organizationId: org-devshop
+organizationName: DevShop Solutions
+environment: dev
+
+flows:
+  - flowId: flow-experimental-ai
+    name: AI-Powered Data Classification
+    currentVersion: v0.5.0
+    
+    versions:
+      - version: v0.5.0
+        status: deployed
+        deployedAt: "2025-01-23T12:00:00Z"
+        changeType: minor
+        changeDescription: "Testing Gemini AI integration"
+        isImmutable: false  # DEV is mutable
+        note: "Experimental feature - iterate freely"
+
+# ===============================================
+# Version Promotion Workflow
+# ===============================================
+promotionRules:
+  - from: dev
+    to: staging
+    requiresApproval: true
+    approvers:
+      - role: consultant
+      - role: superadmin
+    
+  - from: staging
+    to: prod
+    requiresApproval: true
+    approvers:
+      - role: superadmin
+    additionalChecks:
+      - uatCompleted: true
+      - documentationUpdated: true
+      - rollbackPlanDefined: true
+
+# ===============================================
+# Semantic Versioning Rules
+# ===============================================
+versioningRules:
+  major:
+    triggers:
+      - "Breaking changes in data schema"
+      - "Incompatible API changes"
+      - "Complete flow redesign"
+    example: "1.0.0 → 2.0.0"
+  
+  minor:
+    triggers:
+      - "New features added"
+      - "New node types"
+      - "Enhanced functionality"
+    example: "1.2.0 → 1.3.0"
+  
+  patch:
+    triggers:
+      - "Bug fixes"
+      - "Performance improvements"
+      - "Documentation updates"
+    example: "1.2.3 → 1.2.4"
+
+# ===============================================
+# Customer Isolation Strategy
+# ===============================================
+isolation:
+  storage:
+    format: "{organizationId}/{environment}/{flowId}/v{version}"
+    examples:
+      - "org-acme-corp/prod/flow-sftp-erp-sync/v1.3.2"
+      - "org-techstart/staging/flow-edi-processing/v1.0.0-rc.1"
+  
+  runtime:
+    enforceOrgScope: true
+    crossOrgExecutionBlocked: true
+    sharedResourcesAllowed: false
+  
+  quotas:
+    maxFlowsPerOrg: 50
+    maxVersionsPerFlow: 100
+    maxConcurrentExecutions: 10
+    dataRetentionDays: 90
+# Customer-Specific Flow Versioning Strategy
+# This example demonstrates how to manage flow versions per customer/organization
+
+# ===============================================
+# ACME Corp - Production Environment
+# ===============================================
+organizationId: org-acme-corp
+organizationName: ACME Corporation
+environment: prod
+
+flows:
+  # SFTP to ERP Integration Flow
+  - flowId: flow-sftp-erp-sync
+    name: SFTP to ERP Sync
+    currentVersion: v1.3.2
+    
+    versions:
+      - version: v1.3.2
+        status: deployed
+        deployedAt: "2025-01-15T10:00:00Z"
+        changeType: patch
+        changeDescription: "Fixed CSV parsing for special characters"
+        isImmutable: true
+        approvedBy: founder@continuitybridge.com
+        
+      - version: v1.3.1
+        status: deprecated
+        deployedAt: "2025-01-10T14:30:00Z"
+        changeType: patch
+        changeDescription: "Added retry logic for SFTP connection"
+        
+      - version: v1.3.0
+        status: deprecated
+        deployedAt: "2025-01-05T09:00:00Z"
+        changeType: minor
+        changeDescription: "Added email notifications on failure"
+    
+    rollbackPlan:
+      targetVersion: v1.3.1
+      triggerCondition: "Critical failure in v1.3.2"
+      approvalRequired: true
+
+  # API Webhook Flow
+  - flowId: flow-api-webhook
+    name: Customer API Webhook Handler
+    currentVersion: v2.1.0
+    
+    versions:
+      - version: v2.1.0
+        status: deployed
+        deployedAt: "2025-01-20T16:00:00Z"
+        changeType: minor
+        changeDescription: "Added OAuth2 authentication support"
+        isImmutable: true
+
+# ===============================================
+# TechStart Inc - Staging Environment
+# ===============================================
+---
+organizationId: org-techstart
+organizationName: TechStart Inc
+environment: staging
+
+flows:
+  - flowId: flow-edi-processing
+    name: EDI 850 Processing
+    currentVersion: v1.0.0-rc.1
+    
+    versions:
+      - version: v1.0.0-rc.1
+        status: pending_approval
+        createdAt: "2025-01-22T10:00:00Z"
+        changeType: minor
+        changeDescription: "Initial staging release for UAT"
+        requiresApproval: true
+        uatParticipants:
+          - qa-team@techstart.com
+          - operations@techstart.com
+
+# ===============================================
+# DevShop - Development Environment
+# ===============================================
+---
+organizationId: org-devshop
+organizationName: DevShop Solutions
+environment: dev
+
+flows:
+  - flowId: flow-experimental-ai
+    name: AI-Powered Data Classification
+    currentVersion: v0.5.0
+    
+    versions:
+      - version: v0.5.0
+        status: deployed
+        deployedAt: "2025-01-23T12:00:00Z"
+        changeType: minor
+        changeDescription: "Testing Gemini AI integration"
+        isImmutable: false  # DEV is mutable
+        note: "Experimental feature - iterate freely"
+
+# ===============================================
+# Version Promotion Workflow
+# ===============================================
+promotionRules:
+  - from: dev
+    to: staging
+    requiresApproval: true
+    approvers:
+      - role: consultant
+      - role: superadmin
+    
+  - from: staging
+    to: prod
+    requiresApproval: true
+    approvers:
+      - role: superadmin
+    additionalChecks:
+      - uatCompleted: true
+      - documentationUpdated: true
+      - rollbackPlanDefined: true
+
+# ===============================================
+# Semantic Versioning Rules
+# ===============================================
+versioningRules:
+  major:
+    triggers:
+      - "Breaking changes in data schema"
+      - "Incompatible API changes"
+      - "Complete flow redesign"
+    example: "1.0.0 → 2.0.0"
+  
+  minor:
+    triggers:
+      - "New features added"
+      - "New node types"
+      - "Enhanced functionality"
+    example: "1.2.0 → 1.3.0"
+  
+  patch:
+    triggers:
+      - "Bug fixes"
+      - "Performance improvements"
+      - "Documentation updates"
+    example: "1.2.3 → 1.2.4"
+
+# ===============================================
+# Customer Isolation Strategy
+# ===============================================
+isolation:
+  storage:
+    format: "{organizationId}/{environment}/{flowId}/v{version}"
+    examples:
+      - "org-acme-corp/prod/flow-sftp-erp-sync/v1.3.2"
+      - "org-techstart/staging/flow-edi-processing/v1.0.0-rc.1"
+  
+  runtime:
+    enforceOrgScope: true
+    crossOrgExecutionBlocked: true
+    sharedResourcesAllowed: false
+  
+  quotas:
+    maxFlowsPerOrg: 50
+    maxVersionsPerFlow: 100
+    maxConcurrentExecutions: 10
+    dataRetentionDays: 90
