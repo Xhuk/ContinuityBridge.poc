@@ -25,6 +25,7 @@ const upload = multer({
 /**
  * POST /api/updates/upload
  * Upload signed .cbupdate package (air-gapped deployments)
+ * MULTI-TENANT: Packages are scoped to user's organization
  */
 router.post(
   "/upload",
@@ -42,17 +43,22 @@ router.post(
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
+      
+      // Get organization ID (for multi-tenant isolation)
+      const organizationId = req.user?.organizationId || "global";
 
       log.info("Update package upload started", {
         filename: req.file.originalname,
         size: req.file.size,
         uploadedBy: req.user?.email,
+        organizationId,
       });
 
-      // Validate and save package
+      // Validate and save package (organization-scoped)
       const result = await offlineUpdatePackage.uploadPackage(
         req.file.buffer,
-        req.user?.email || "unknown"
+        req.user?.email || "unknown",
+        organizationId
       );
 
       if (!result.success) {
@@ -64,6 +70,7 @@ router.post(
       log.info("Update package uploaded successfully", {
         packageId: result.packageId,
         version: result.version,
+        organizationId,
       });
 
       res.json({

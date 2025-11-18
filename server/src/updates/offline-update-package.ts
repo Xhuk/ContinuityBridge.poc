@@ -58,6 +58,13 @@ export class OfflineUpdatePackageManager {
   }
   
   /**
+   * Get organization-specific package directory
+   */
+  private getOrgPackageDir(organizationId: string): string {
+    return path.join(this.packagesDir, organizationId);
+  }
+  
+  /**
    * CREATE: Generate signed .cbupdate package (Founder side)
    */
   async createPackage(
@@ -117,9 +124,13 @@ export class OfflineUpdatePackageManager {
   }
   
   /**
-   * UPLOAD: Accept and validate uploaded package
+   * UPLOAD: Accept and validate uploaded package (MULTI-TENANT)
    */
-  async uploadPackage(packageBuffer: Buffer, uploadedBy: string): Promise<{
+  async uploadPackage(
+    packageBuffer: Buffer,
+    uploadedBy: string,
+    organizationId: string = "global"
+  ): Promise<{
     success: boolean;
     packageId?: string;
     version?: string;
@@ -176,9 +187,10 @@ export class OfflineUpdatePackageManager {
         };
       }
       
-      // Save package
-      await fs.mkdir(this.packagesDir, { recursive: true });
-      const packagePath = path.join(this.packagesDir, `${manifest.packageId}-${manifest.version}.cbupdate`);
+      // Save package (organization-scoped)
+      const orgDir = this.getOrgPackageDir(organizationId);
+      await fs.mkdir(orgDir, { recursive: true });
+      const packagePath = path.join(orgDir, `${manifest.packageId}-${manifest.version}.cbupdate`);
       await fs.writeFile(packagePath, packageBuffer);
       
       log.info("Update package uploaded successfully", {
