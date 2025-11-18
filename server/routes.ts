@@ -24,6 +24,7 @@ import { initFlowDSLAPI } from "./src/routes/flow-dsl-api.js";
 import { initFlowVersioningAPI } from "./src/routes/flow-versioning-api.js";
 import { DynamicWebhookRouter } from "./src/http/dynamic-webhook-router.js";
 import { initializeRedis } from "./src/middleware/rate-limiter.js";
+import { codeProtection } from "./src/security/code-protection.js";
 
 const log = logger.child("Server");
 
@@ -31,6 +32,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   try {
     // Initialize Valkey/Redis connection (optional - gracefully falls back to in-memory)
     initializeRedis();
+    
+    // Initialize code protection (production only)
+    if (process.env.NODE_ENV === "production") {
+      await codeProtection.initializeIntegrityChecks();
+      codeProtection.startPeriodicChecks(60); // Check every hour
+      log.info("Code protection enabled (integrity checks + tamper detection)");
+    }
     
     // Initialize database tables
     await ensureTables();

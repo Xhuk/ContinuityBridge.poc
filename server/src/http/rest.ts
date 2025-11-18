@@ -549,9 +549,11 @@ export function registerRESTRoutes(
   // ============================================================================
 
   // GET /api/interfaces - List all interfaces
-  app.get("/api/interfaces", (req, res) => {
+  app.get("/api/interfaces", async (req, res) => {
     try {
       const { type, direction } = req.query;
+      const userRole = (req as any).user?.role;
+      const userOrgId = (req as any).user?.organizationId;
       
       let interfaces;
       if (type) {
@@ -560,6 +562,45 @@ export function registerRESTRoutes(
         interfaces = interfaceManager.getInterfacesByDirection(direction as string);
       } else {
         interfaces = interfaceManager.getAllInterfaces();
+      }
+      
+      // TRIAL FILTERING: For trial users, only show demo/mock interfaces
+      // Admins/consultants see everything
+      if (userRole !== "superadmin" && userRole !== "consultant" && storage) {
+        try {
+          const { db } = await import("../../db.js");
+          const { customerLicense } = await import("../../schema.pg.js");
+          const { eq } = await import("drizzle-orm");
+          
+          if (userOrgId) {
+            const licenses = await (db.select().from(customerLicense)
+              .where(eq(customerLicense.organizationId, userOrgId)) as any);
+            
+            const license = licenses[0];
+            
+            // If trial license, filter to demo interfaces only
+            if (!license || license.licenseType === "trial") {
+              // Demo interfaces: only show representative examples
+              const DEMO_INTERFACES = [
+                "amazon-sp-api-demo",      // Amazon demo
+                "mercadolibre-demo",       // MercadoLibre demo
+              ];
+              
+              interfaces = interfaces.filter((iface: any) => {
+                // Show if it's a demo interface OR marked as demo
+                return DEMO_INTERFACES.includes(iface.id) || 
+                       iface.name?.toLowerCase().includes("demo") ||
+                       iface.name?.toLowerCase().includes("mock") ||
+                       iface.metadata?.isDemo === true;
+              });
+              
+              log.info(`[Trial Filter] User ${userOrgId} is on trial - filtered to ${interfaces.length} demo interfaces`);
+            }
+          }
+        } catch (error: any) {
+          log.warn("Error checking license for interface filtering", error);
+          // If error checking license, don't filter (fail open)
+        }
       }
       
       res.json(interfaces);
