@@ -63,6 +63,7 @@ import aiPricingRoutes from "../routes/ai-pricing-routes.js";
 import customizationMigrationRoutes from "../routes/customization-migration.js";
 import brandingRoutes from "../routes/branding.js";
 import systemHealthRoutes from "../routes/system-health-routes.js";
+import testSpriteRoutes from "../routes/testsprite-integration.js";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import type { DynamicWebhookRouter } from "./dynamic-webhook-router.js";
 
@@ -136,6 +137,9 @@ export function registerRESTRoutes(
   
   // Register System Health & Daemon Management routes (Superadmin, Consultant, Customer Admin)
   app.use("/api/admin/system-health", authenticateUser, systemHealthRoutes);
+  
+  // Register TestSprite Integration routes (External testing platform)
+  app.use("/api/testsprite", testSpriteRoutes);
   
   // ============================================================================
   // NODE CATALOG ENDPOINTS

@@ -373,3 +373,7 @@ docs/drafts/
 !README.md
 !DEPLOYMENT.md
 !PRODUCTION_CHECKLIST.md
+
+# MCP (Model Context Protocol) configuration
+.mcp/
+!.mcp/config.json
