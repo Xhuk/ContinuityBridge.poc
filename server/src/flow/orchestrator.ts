@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { FlowDefinition, FlowNode, FlowRun } from "@shared/schema";
 import type { IStorage } from "../../storage";
 import { NodeExecutor, ExecutionContext, NodeExecutionResult } from "./executors/types";
+import { nodeRegistry } from "./node-registry.js";
 import { executeInterfaceSource } from "./executors/interface-source";
 import { executeObjectMapper } from "./executors/object-mapper";
 import { executeInterfaceDestination } from "./executors/interface-destination";
@@ -45,7 +46,16 @@ export class FlowOrchestrator {
   constructor(storageInstance: IStorage) {
     this.storage = storageInstance;
     
-    // Register node executors
+    // Register built-in node executors in global registry
+    this.registerBuiltInNodes();
+  }
+
+  /**
+   * Register all built-in node executors
+   * These are available globally to all organizations
+   */
+  private registerBuiltInNodes(): void {
+    // Register in local map (backwards compatibility)
     this.registerExecutor("executeInterfaceSource", executeInterfaceSource);
     this.registerExecutor("executeObjectMapper", executeObjectMapper);
     this.registerExecutor("executeInterfaceDestination", executeInterfaceDestination);
@@ -56,20 +66,26 @@ export class FlowOrchestrator {
     this.registerExecutor("executeManualTrigger", executeManualTrigger);
     this.registerExecutor("executeCsvParser", executeCsvParser);
     this.registerExecutor("executeValidation", executeValidation);
-    this.registerExecutor("executeBYDMParser", executeBYDMParser);
-    this.registerExecutor("executeBYDMMapper", executeBYDMMapper);
+    this.registerExecutor("executeBYDMParser", executeBYDMParser as NodeExecutor);
+    this.registerExecutor("executeBYDMMapper", executeBYDMMapper as NodeExecutor);
     this.registerExecutor("executeJoin", executeJoin);
     this.registerExecutor("executeLogger", executeLogger);
     this.registerExecutor("executeDatabaseConnector", executeDatabaseConnector);
     this.registerExecutor("executeSftpConnector", executeSftpConnector);
     this.registerExecutor("executeAzureBlobConnector", executeAzureBlobConnector);
-    this.registerExecutor("executeSftpPoller", executeSftpPoller);
-    this.registerExecutor("executeAzureBlobPoller", executeAzureBlobPoller);
-    this.registerExecutor("executeDatabasePoller", executeDatabasePoller);
+    this.registerExecutor("executeSftpPoller", executeSftpPoller as NodeExecutor);
+    this.registerExecutor("executeAzureBlobPoller", executeAzureBlobPoller as NodeExecutor);
+    this.registerExecutor("executeDatabasePoller", executeDatabasePoller as NodeExecutor);
     this.registerExecutor("executeScheduler", executeScheduler);
     this.registerExecutor("executeHttpRequest", executeHttpRequest);
     this.registerExecutor("executeEmailNotification", executeEmailNotification);
     this.registerExecutor("executeErrorHandler", executeErrorHandler);
+    
+    // Also register in global node registry for plugin support
+    // Note: Global registry allows dynamic executor lookup with multi-tenant support
+    this.executors.forEach((executor, name) => {
+      nodeRegistry.registerExecutor(name, executor);
+    });
   }
 
   /**
