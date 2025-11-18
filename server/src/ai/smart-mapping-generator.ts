@@ -86,6 +86,130 @@ export interface GeneratedMapping {
 
 export class SmartMappingGenerator {
   /**
+   * Check if mapping generation is allowed in current environment
+   * Per memory: AI should only run in DEV, not production
+   */
+  private checkEnvironmentGuard(): void {
+    const environment = process.env.NODE_ENV || "development";
+    
+    // Allow in development and test environments only
+    if (environment === "production" || environment === "staging") {
+      throw new Error(
+        "AI mapping generation is restricted to development environment. " +
+        "Production systems should use pre-validated YAML transformation files."
+      );
+    }
+    
+    log.info("Environment guard check passed", { environment });
+  }
+
+  /**
+   * Validate that the request is actually for system mapping (activity guard)
+   * Blocks misuse like asking for weather, general questions, etc.
+   */
+  private validateMappingIntent(
+    sourceSample: SystemPayloadSample,
+    targetSample: SystemPayloadSample,
+    context?: { businessRules?: string }
+  ): void {
+    const errors: string[] = [];
+
+    // Validate source system
+    if (!sourceSample.systemName || sourceSample.systemName.trim().length < 2) {
+      errors.push("Source system name is required and must be meaningful");
+    }
+
+    // Validate target system
+    if (!targetSample.systemName || targetSample.systemName.trim().length < 2) {
+      errors.push("Target system name is required and must be meaningful");
+    }
+
+    // Validate system types are legitimate integration types
+    const validSystemTypes = ["erp", "wms", "marketplace", "tms", "3pl", "lastmile", "custom"];
+    if (!validSystemTypes.includes(sourceSample.systemType)) {
+      errors.push(`Invalid source system type: ${sourceSample.systemType}`);
+    }
+    if (!validSystemTypes.includes(targetSample.systemType)) {
+      errors.push(`Invalid target system type: ${targetSample.systemType}`);
+    }
+
+    // Validate data types are legitimate business entities
+    const validDataTypes = ["order", "inventory", "shipment", "product", "customer", "invoice"];
+    if (!validDataTypes.includes(sourceSample.dataType)) {
+      errors.push(`Invalid source data type: ${sourceSample.dataType}`);
+    }
+    if (!validDataTypes.includes(targetSample.dataType)) {
+      errors.push(`Invalid target data type: ${targetSample.dataType}`);
+    }
+
+    // Validate payload exists and is an object
+    if (!sourceSample.samplePayload || typeof sourceSample.samplePayload !== 'object') {
+      errors.push("Source sample payload must be a valid object");
+    }
+    if (!targetSample.samplePayload || typeof targetSample.samplePayload !== 'object') {
+      errors.push("Target sample payload must be a valid object");
+    }
+
+    // Check for suspicious keywords in business rules that indicate misuse
+    if (context?.businessRules) {
+      const suspiciousKeywords = [
+        'weather', 'temperature', 'forecast',
+        'joke', 'story', 'poem',
+        'news', 'sports', 'politics',
+        'game', 'entertainment',
+        'recipe', 'cooking',
+        'write me', 'tell me about', 'what is',
+        'explain quantum', 'how to build',
+      ];
+
+      const lowerRules = context.businessRules.toLowerCase();
+      const foundSuspicious = suspiciousKeywords.find(keyword => lowerRules.includes(keyword));
+      
+      if (foundSuspicious) {
+        errors.push(
+          `Business rules contain inappropriate content ('${foundSuspicious}'). ` +
+          "This AI is strictly for system-to-system data mapping, not general questions."
+        );
+      }
+
+      // Check if business rules are excessively long (possible misuse)
+      if (context.businessRules.length > 2000) {
+        errors.push("Business rules are too long. Keep mapping rules concise and focused.");
+      }
+    }
+
+    // Validate system names don't contain suspicious patterns
+    const invalidSystemPatterns = [
+      /weather/i, /forecast/i, /news/i, /joke/i,
+      /gpt/i, /chatbot/i, /assistant/i,
+      /please.*tell/i, /what.*is/i, /how.*to/i,
+    ];
+
+    for (const pattern of invalidSystemPatterns) {
+      if (pattern.test(sourceSample.systemName) || pattern.test(targetSample.systemName)) {
+        errors.push(
+          "System names contain inappropriate content. " +
+          "This feature is strictly for enterprise system integration mapping (ERP, WMS, Marketplace, etc.)."
+        );
+        break;
+      }
+    }
+
+    if (errors.length > 0) {
+      log.warn("Activity guard validation failed", { errors });
+      throw new Error(
+        "Invalid mapping request: " + errors.join("; ") + ". " +
+        "This AI feature is exclusively for generating data transformation mappings between enterprise systems."
+      );
+    }
+
+    log.info("Activity guard check passed", {
+      source: sourceSample.systemName,
+      target: targetSample.systemName,
+    });
+  }
+
+  /**
    * Generate intelligent mapping between two systems
    */
   async generateMapping(
@@ -99,6 +223,9 @@ export class SmartMappingGenerator {
   ): Promise<GeneratedMapping> {
     // Environment guard: Only allow in DEV
     this.checkEnvironmentGuard();
+
+    // Activity guard: Validate this is legitimate mapping request
+    this.validateMappingIntent(sourceSample, targetSample, context);
 
     log.info("Generating smart mapping", {
       source: sourceSample.systemName,
@@ -394,24 +521,6 @@ IMPORTANT: Return ONLY the JSON object, no markdown, no explanation.`;
           needsReview: false,
         };
       }
-      return rule;
-    }).filter(rule => 
-      !consultantFeedback.rejectedRules?.includes(rule.targetField)
-    );
-
-    return {
-      ...mapping,
-      rules: refinedRules,
-      confidence: refinedRules.length > 0
-        ? refinedRules.reduce((sum, r) => sum + r.confidence, 0) / refinedRules.length
-        : 0,
-      needsReview: false,
-      generatedBy: "consultant",
-    };
-  }
-}
-
-export const smartMappingGenerator = new SmartMappingGenerator();
       return rule;
     }).filter(rule => 
       !consultantFeedback.rejectedRules?.includes(rule.targetField)
