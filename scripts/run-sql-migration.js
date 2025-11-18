@@ -231,6 +231,53 @@ CREATE TABLE IF NOT EXISTS poller_states (
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+-- Logging tables (for web portal access)
+CREATE TABLE IF NOT EXISTS system_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
+  level TEXT NOT NULL CHECK(level IN ('debug', 'info', 'warn', 'error')),
+  scope TEXT NOT NULL CHECK(scope IN ('superadmin', 'customer')) DEFAULT 'superadmin',
+  service TEXT NOT NULL,
+  component TEXT,
+  message TEXT NOT NULL,
+  metadata JSONB,
+  flow_id TEXT,
+  flow_name TEXT,
+  run_id TEXT,
+  trace_id TEXT,
+  user_id TEXT,
+  organization_id TEXT,
+  error_stack TEXT,
+  error_code TEXT,
+  request_id TEXT,
+  http_method TEXT,
+  http_path TEXT,
+  http_status INTEGER,
+  duration_ms INTEGER,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS log_configurations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  scope TEXT NOT NULL CHECK(scope IN ('superadmin', 'customer')) DEFAULT 'customer',
+  organization_id TEXT,
+  min_level TEXT NOT NULL CHECK(min_level IN ('debug', 'info', 'warn', 'error')) DEFAULT 'info',
+  retention_days INTEGER NOT NULL DEFAULT 30,
+  max_log_size_mb INTEGER NOT NULL DEFAULT 100,
+  file_logging_enabled BOOLEAN NOT NULL DEFAULT true,
+  file_rotation_days INTEGER NOT NULL DEFAULT 7,
+  db_logging_enabled BOOLEAN NOT NULL DEFAULT true,
+  log_flow_executions BOOLEAN NOT NULL DEFAULT true,
+  log_api_requests BOOLEAN NOT NULL DEFAULT true,
+  log_auth_events BOOLEAN NOT NULL DEFAULT true,
+  log_errors BOOLEAN NOT NULL DEFAULT true,
+  alert_on_error BOOLEAN NOT NULL DEFAULT false,
+  alert_email TEXT,
+  enabled BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- Indices
 CREATE INDEX IF NOT EXISTS idx_flow_definitions_system_instance_id ON flow_definitions(system_instance_id);
 CREATE INDEX IF NOT EXISTS idx_flow_runs_flow_id ON flow_runs(flow_id);
@@ -242,6 +289,14 @@ CREATE INDEX IF NOT EXISTS idx_flow_versions_organization_id ON flow_versions(or
 CREATE INDEX IF NOT EXISTS idx_flow_versions_environment ON flow_versions(environment);
 CREATE INDEX IF NOT EXISTS idx_webhook_registrations_flow_id ON webhook_registrations(flow_id);
 CREATE INDEX IF NOT EXISTS idx_webhook_registrations_organization_id ON webhook_registrations(organization_id);
+
+-- Logging table indices
+CREATE INDEX IF NOT EXISTS idx_system_logs_timestamp ON system_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_system_logs_level ON system_logs(level);
+CREATE INDEX IF NOT EXISTS idx_system_logs_scope ON system_logs(scope);
+CREATE INDEX IF NOT EXISTS idx_system_logs_service ON system_logs(service);
+CREATE INDEX IF NOT EXISTS idx_system_logs_organization_id ON system_logs(organization_id);
+CREATE INDEX IF NOT EXISTS idx_system_logs_trace_id ON system_logs(trace_id);
 
 -- Email confirmation columns (if they don't exist)
 DO $$ 
