@@ -12,6 +12,7 @@
     "start": "NODE_ENV=production npm run db:migrate && node dist/index.js",
     "db:migrate": "node scripts/run-sql-migration.js && drizzle-kit push --force",
     "seed:demo": "tsx scripts/seed-demo-flows.ts",
+    "seed:adapters": "tsx scripts/seed-interface-adapters.ts",
     "test:demo": "tsx scripts/test-demo-flows.ts",
     "deploy:check": "node scripts/pre-deploy-check.js",
     "wiki:export": "node scripts/export-wiki-to-github.js",
