@@ -1119,7 +1119,7 @@ export const aiUsageTracking = sqliteTable("ai_usage_tracking", {
     nodeType?: string;           // Node type being configured
     inputSize?: number;          // Request size in bytes
     outputSize?: number;         // Response size in bytes
-    tokensUsed?: number;         // Tokens consumed (for billing: $250/month per 2000 tokens)
+    tokensUsed?: number;         // Tokens consumed (billing: see server/src/config/ai-billing.ts)
     durationMs?: number;         // Processing time
     success?: boolean;           // Did request succeed?
     errorType?: string;          // Error classification if failed

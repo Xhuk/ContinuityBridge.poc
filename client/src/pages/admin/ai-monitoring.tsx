@@ -22,7 +22,7 @@ import { useAuth } from "@/lib/auth";
  * AI Monitoring Dashboard (Founder/Superadmin Only)
  * 
  * Features:
- * - Token billing & cost tracking ($250/month per 2000 tokens)
+ * - Token billing & cost tracking (configurable - see server/src/config/ai-billing.ts)
  * - Activity guard violations (weather, jokes, etc.)
  * - Environment guard violations (production access attempts)
  * - Per-organization usage breakdown
