@@ -24,6 +24,7 @@ import type {
   SystemInstanceAuth,
   InsertSystemInstanceAuth,
 } from "./schema";
+import type { FlowVersion } from "./src/versioning/flow-version-manager.js";
 import { randomUUID } from "crypto";
 
 // Storage interface for ContinuityBridge
@@ -131,6 +132,16 @@ export interface IStorage {
   createSystemAuth?(auth: InsertSystemInstanceAuth): Promise<SystemInstanceAuth>;
   updateSystemAuth?(id: string, auth: Partial<InsertSystemInstanceAuth>): Promise<SystemInstanceAuth | undefined>;
   deleteSystemAuth?(id: string): Promise<boolean>;
+  
+  // Flow Versioning Management
+  storeFlowVersion(version: FlowVersion): Promise<FlowVersion>;
+  getFlowVersion(versionId: string): Promise<FlowVersion | undefined>;
+  getFlowVersionHistory(
+    flowId: string,
+    organizationId: string,
+    environment: "dev" | "staging" | "prod"
+  ): Promise<FlowVersion[]>;
+  updateFlowVersion(version: FlowVersion): Promise<FlowVersion>;
 }
 
 export class MemStorage implements IStorage {
@@ -141,6 +152,7 @@ export class MemStorage implements IStorage {
   private authAdapters: Map<string, AuthAdapter>;
   private auditLogs: any[];
   private inboundAuthPolicies: Map<string, InboundAuthPolicy>;
+  private flowVersions: Map<string, FlowVersion>; // versionId -> FlowVersion
 
   constructor() {
     this.flows = new Map();
@@ -150,6 +162,7 @@ export class MemStorage implements IStorage {
     this.authAdapters = new Map();
     this.auditLogs = [];
     this.inboundAuthPolicies = new Map();
+    this.flowVersions = new Map();
   }
 
   // ============================================================================
@@ -490,6 +503,42 @@ export class MemStorage implements IStorage {
 
   async deleteInboundAuthPolicy(id: string): Promise<void> {
     this.inboundAuthPolicies.delete(id);
+  }
+  
+  // ============================================================================
+  // Flow Versioning Management
+  // ============================================================================
+  
+  async storeFlowVersion(version: FlowVersion): Promise<FlowVersion> {
+    this.flowVersions.set(version.id, version);
+    return version;
+  }
+  
+  async getFlowVersion(versionId: string): Promise<FlowVersion | undefined> {
+    return this.flowVersions.get(versionId);
+  }
+  
+  async getFlowVersionHistory(
+    flowId: string,
+    organizationId: string,
+    environment: "dev" | "staging" | "prod"
+  ): Promise<FlowVersion[]> {
+    const allVersions = Array.from(this.flowVersions.values());
+    
+    return allVersions
+      .filter(v => 
+        v.flowId === flowId && 
+        v.organizationId === organizationId && 
+        v.environment === environment
+      )
+      .sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+  }
+  
+  async updateFlowVersion(version: FlowVersion): Promise<FlowVersion> {
+    this.flowVersions.set(version.id, version);
+    return version;
   }
 }
 
