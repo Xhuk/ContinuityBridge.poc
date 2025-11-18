@@ -59,8 +59,15 @@ import projectsRoutes from "../routes/projects.js";
 import consultantRoutes from "../routes/consultant.js";
 import postmanRoutes from "../routes/postman.js";
 import { authenticateUser } from "../auth/rbac-middleware.js";
+import type { DynamicWebhookRouter } from "./dynamic-webhook-router.js";
 
-export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrator?: FlowOrchestrator, storage?: IStorage): void {
+export function registerRESTRoutes(
+  app: Express, 
+  pipeline: Pipeline, 
+  orchestrator?: FlowOrchestrator, 
+  storage?: IStorage,
+  webhookRouter?: DynamicWebhookRouter
+): void {
   // Register AI Mapping Generator routes (dev-only)
   registerAIMappingRoutes(app);
   
@@ -899,6 +906,33 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       const flowData = req.body;
       const flow = await storage.createFlow(flowData);
       log.info(`Flow created: ${flow.id} - ${flow.name}`);
+      
+      // Auto-register webhook if enabled
+      if (webhookRouter && flow.enabled) {
+        const hasWebhookTrigger = flow.nodes.some((n) => n.type === "webhook_trigger");
+        const webhookSlug = flow.webhookSlug || flow.id;
+        
+        if (hasWebhookTrigger || flow.webhookEnabled) {
+          const webhookNode = flow.nodes.find((n) => n.type === "webhook_trigger");
+          const method = (webhookNode?.data.webhookMethod as any) || "POST";
+          const organizationId = (flow as any).metadata?.organizationId;
+          
+          const result = await webhookRouter.registerWebhook(webhookSlug, flow.id, method, organizationId);
+          
+          if (result.success) {
+            log.info(`Webhook auto-registered: ${method} /api/webhook/${webhookSlug}`, {
+              flowId: flow.id,
+              organizationId,
+            });
+          } else {
+            log.warn(`Failed to auto-register webhook: ${result.reason}`, {
+              flowId: flow.id,
+              webhookSlug,
+            });
+          }
+        }
+      }
+      
       res.status(201).json(flow);
     } catch (error: any) {
       log.error("Error creating flow", error);
@@ -912,11 +946,53 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       if (!storage) {
         return res.status(501).json({ error: "Flow storage is not initialized" });
       }
+      
+      const existingFlow = await storage.getFlow(req.params.id);
       const flow = await storage.updateFlow(req.params.id, req.body);
       if (!flow) {
         return res.status(404).json({ error: "Flow not found" });
       }
       log.info(`Flow updated: ${flow.id} - ${flow.name}`);
+      
+      // Handle webhook re-registration on update
+      if (webhookRouter && existingFlow) {
+        const oldSlug = existingFlow.webhookSlug || existingFlow.id;
+        const newSlug = flow.webhookSlug || flow.id;
+        const wasWebhookEnabled = existingFlow.nodes.some((n) => n.type === "webhook_trigger") || existingFlow.webhookEnabled;
+        const isWebhookEnabled = flow.nodes.some((n) => n.type === "webhook_trigger") || flow.webhookEnabled;
+        const organizationId = (flow as any).metadata?.organizationId;
+        
+        // Scenario 1: Webhook disabled -> unregister
+        if (wasWebhookEnabled && !isWebhookEnabled) {
+          await webhookRouter.unregisterWebhook(oldSlug, organizationId);
+          log.info(`Webhook unregistered: ${oldSlug}`);
+        }
+        
+        // Scenario 2: Webhook slug changed -> update registration
+        else if (isWebhookEnabled && oldSlug !== newSlug) {
+          const webhookNode = flow.nodes.find((n) => n.type === "webhook_trigger");
+          const method = (webhookNode?.data.webhookMethod as any) || "POST";
+          
+          await webhookRouter.updateWebhook(oldSlug, newSlug, flow.id, method, organizationId);
+          log.info(`Webhook updated: ${oldSlug} -> ${newSlug}`);
+        }
+        
+        // Scenario 3: Webhook newly enabled -> register
+        else if (!wasWebhookEnabled && isWebhookEnabled && flow.enabled) {
+          const webhookNode = flow.nodes.find((n) => n.type === "webhook_trigger");
+          const method = (webhookNode?.data.webhookMethod as any) || "POST";
+          
+          await webhookRouter.registerWebhook(newSlug, flow.id, method, organizationId);
+          log.info(`Webhook registered: ${newSlug}`);
+        }
+        
+        // Scenario 4: Flow disabled -> unregister webhook
+        else if (isWebhookEnabled && !flow.enabled) {
+          await webhookRouter.unregisterWebhook(newSlug, organizationId);
+          log.info(`Webhook unregistered (flow disabled): ${newSlug}`);
+        }
+      }
+      
       res.json(flow);
     } catch (error: any) {
       log.error("Error updating flow", error);
@@ -930,10 +1006,24 @@ export function registerRESTRoutes(app: Express, pipeline: Pipeline, orchestrato
       if (!storage) {
         return res.status(501).json({ error: "Flow storage is not initialized" });
       }
+      
+      // Get flow before deletion to unregister webhook
+      const flow = await storage.getFlow(req.params.id);
+      
       const deleted = await storage.deleteFlow(req.params.id);
       if (!deleted) {
         return res.status(404).json({ error: "Flow not found" });
       }
+      
+      // Unregister webhook endpoint
+      if (webhookRouter && flow) {
+        const webhookSlug = flow.webhookSlug || flow.id;
+        const organizationId = (flow as any).metadata?.organizationId;
+        
+        await webhookRouter.unregisterWebhook(webhookSlug, organizationId);
+        log.info(`Webhook unregistered on flow deletion: ${webhookSlug}`);
+      }
+      
       log.info(`Flow deleted: ${req.params.id}`);
       res.status(204).send();
     } catch (error: any) {

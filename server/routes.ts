@@ -22,6 +22,7 @@ import { FlowVersionManager } from "./src/versioning/flow-version-manager.js";
 import { TenantQuotaManager } from "./src/core/tenant-quotas.js";
 import { initFlowDSLAPI } from "./src/routes/flow-dsl-api.js";
 import { initFlowVersioningAPI } from "./src/routes/flow-versioning-api.js";
+import { DynamicWebhookRouter } from "./src/http/dynamic-webhook-router.js";
 
 const log = logger.child("Server");
 
@@ -81,12 +82,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     // Initialize Tenant Quota Manager for multi-tenant resource limits
     const quotaManager = new TenantQuotaManager(storage);
+    
+    // Initialize Dynamic Webhook Router for hot-reload webhook endpoints
+    const webhookRouter = new DynamicWebhookRouter(storage, orchestrator);
+    await webhookRouter.syncFromDatabase();
+    log.info("Dynamic webhook router initialized");
 
     // Create pipeline instance with flow support
     const pipeline = new Pipeline({ orchestrator });
 
-    // Register REST API routes with storage
-    registerRESTRoutes(app, pipeline, orchestrator, storage);
+    // Register REST API routes with storage and webhook router
+    registerRESTRoutes(app, pipeline, orchestrator, storage, webhookRouter);
 
     // Create auth guard for protecting management endpoints
     // For MVP: Auth guard disabled in development mode to allow Settings UI access
@@ -139,6 +145,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Register Flow Versioning API routes (version management, approval, rollback)
     const flowVersioningRouter = initFlowVersioningAPI(storage, versionManager, quotaManager);
     app.use("/api/flows", flowVersioningRouter);
+    
+    // Register Dynamic Webhook Router (hot-reload endpoints)
+    app.use("/api/webhook", webhookRouter.createRouter());
+    log.info("Dynamic webhook endpoints registered");
 
     // Register GraphQL server (standalone on port 4000) with shared pipeline
     registerGraphQLServer(pipeline).catch((err) => {
