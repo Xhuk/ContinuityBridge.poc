@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { aiQuotaManager } from "../ai/ai-quota-manager.js";
 import { logger } from "../core/logger.js";
+import { calculateTokenCost, getPricePerToken, getBillingRateDescription } from "../config/ai-billing.js";
 
 const log = logger.child("ai-admin-routes");
 const router = Router();
@@ -305,7 +306,7 @@ router.get("/usage/summary", async (req: Request, res: Response) => {
 /**
  * GET /api/ai/admin/usage/billing
  * Get token usage and billing information across all organizations
- * Billing: $250/month per 2000 tokens
+ * Billing: Uses centralized config (see server/src/config/ai-billing.ts)
  */
 router.get("/usage/billing", async (req: Request, res: Response) => {
   try {
@@ -335,14 +336,14 @@ router.get("/usage/billing", async (req: Request, res: Response) => {
     .where(sql`request_date >= ${currentMonth + '-01'}`)
     .groupBy(aiUsageTracking.organizationId);
     
-    // Calculate costs: $250 per 2000 tokens
+    // Calculate costs using centralized billing config
     const billingData = orgUsage.map(org => ({
       organizationId: org.organizationId,
       totalRequests: Number(org.totalRequests),
       totalTokens: Number(org.totalTokens),
       successfulRequests: Number(org.successfulRequests),
       failedRequests: Number(org.failedRequests),
-      estimatedCost: (Number(org.totalTokens) / 2000) * 250,
+      estimatedCost: calculateTokenCost(Number(org.totalTokens)),
       billingPeriod: currentMonth,
     }));
     
@@ -362,8 +363,8 @@ router.get("/usage/billing", async (req: Request, res: Response) => {
         totalTokens: globalTotals.totalTokens,
         estimatedCost: globalTotals.totalCost,
         totalRequests: globalTotals.totalRequests,
-        pricePerToken: 250 / 2000, // $0.125 per token
-        baseRate: "$250 per 2000 tokens",
+        pricePerToken: getPricePerToken(),
+        baseRate: getBillingRateDescription(),
       },
       organizations: billingData,
     });
@@ -498,7 +499,7 @@ router.get("/usage/detailed/:organizationId", async (req: Request, res: Response
       }
     );
     
-    stats.estimatedCost = (stats.totalTokens / 2000) * 250;
+    stats.estimatedCost = calculateTokenCost(stats.totalTokens);
     stats.avgDuration = stats.totalRequests > 0 ? stats.totalDuration / stats.totalRequests : 0;
     
     res.json({

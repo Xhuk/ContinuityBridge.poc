@@ -15,6 +15,7 @@ import type { SystemPayloadSample } from "../ai/smart-mapping-generator.js";
 import { logger } from "../core/logger.js";
 import { db } from "../../db.js";
 import { aiUsageTracking } from "../../schema.js";
+import { calculateTokenCost } from "../config/ai-billing.js";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -117,7 +118,7 @@ router.post("/generate", authenticateUser, async (req, res) => {
     // Convert to jq expression
     const jqExpression = smartMappingGenerator.convertToJQ(mapping);
 
-    // Track AI usage for billing ($250/month per 2000 tokens)
+    // Track AI usage for billing (uses centralized config)
     try {
       await db.insert(aiUsageTracking).values({
         organizationId,
@@ -152,7 +153,7 @@ router.post("/generate", authenticateUser, async (req, res) => {
       },
       billing: {
         tokensUsed: mapping.tokensUsed || 0,
-        estimatedCost: ((mapping.tokensUsed || 0) / 2000) * 250, // $250 per 2000 tokens
+        estimatedCost: calculateTokenCost(mapping.tokensUsed || 0),
       },
     });
   } catch (error: any) {
