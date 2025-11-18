@@ -16,6 +16,9 @@
 .env.render
 .env*.local
 
+# Render config with secrets (use render.yaml.example instead)
+render.yaml
+
 # License and encryption keys
 *.enc
 *.key
@@ -352,6 +355,7 @@ docs/drafts/
 !.env.example
 !.env.render.example
 !.env.production.example
+!render.yaml.example
 
 # Keep Docker files
 !Dockerfile
