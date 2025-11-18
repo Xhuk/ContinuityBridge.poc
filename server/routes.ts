@@ -23,11 +23,15 @@ import { TenantQuotaManager } from "./src/core/tenant-quotas.js";
 import { initFlowDSLAPI } from "./src/routes/flow-dsl-api.js";
 import { initFlowVersioningAPI } from "./src/routes/flow-versioning-api.js";
 import { DynamicWebhookRouter } from "./src/http/dynamic-webhook-router.js";
+import { initializeRedis } from "./src/middleware/rate-limiter.js";
 
 const log = logger.child("Server");
 
 export async function registerRoutes(app: Express): Promise<Server> {
   try {
+    // Initialize Valkey/Redis connection (optional - gracefully falls back to in-memory)
+    initializeRedis();
+    
     // Initialize database tables
     await ensureTables();
     

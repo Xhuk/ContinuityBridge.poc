@@ -12,7 +12,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_production_password}
     volumes:
       # Persist all databases on host machine
-      - ./postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
       # Optional: Custom PostgreSQL config
       # - ./postgresql.conf:/etc/postgresql/postgresql.conf
     ports:
@@ -23,6 +23,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - continuitybridge-network
+  
+  # Valkey (Redis-compatible cache for rate limiting)
+  valkey:
+    image: valkey/valkey:latest
+    container_name: continuitybridge-valkey
+    restart: unless-stopped
+    command: valkey-server --appendonly yes --requirepass ${VALKEY_PASSWORD:-changeme_valkey_password}
+    volumes:
+      - valkey-data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "--pass", "${VALKEY_PASSWORD:-changeme_valkey_password}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     networks:
       - continuitybridge-network
 
@@ -36,15 +54,27 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      valkey:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       DB_TYPE: postgres
       DATABASE_URL: postgresql://cbadmin:${POSTGRES_PASSWORD:-changeme_production_password}@postgres:5432/continuitybridge_main
+      
+      # Valkey configuration (rate limiting)
+      VALKEY_ENABLED: "true"
+      VALKEY_URL: valkey://:${VALKEY_PASSWORD:-changeme_valkey_password}@valkey:6379
+      
       PORT: 5000
       APP_DOMAIN: ${APP_DOMAIN:-yourdomain.com}
       APP_URL: ${APP_URL:-https://yourdomain.com}
       RESEND_API_KEY: ${RESEND_API_KEY}
       SUPERADMIN_API_KEY: ${SUPERADMIN_API_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      
+      # Customer deployment type
+      VITE_DEPLOYMENT_TYPE: customer
+      AUTH_GUARD_ENABLED: ${AUTH_GUARD_ENABLED:-true}
     ports:
       - "5000:5000"
     volumes:
@@ -59,3 +89,4 @@ networks:
 
 volumes:
   postgres-data:
+  valkey-data:
