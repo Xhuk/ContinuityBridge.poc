@@ -1,4 +1,4 @@
-import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2, Activity, Gauge, Zap, ServerCog, DollarSign, BarChart3, HardDrive } from "lucide-react";
+import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2, Activity, Gauge, Zap, ServerCog, DollarSign, BarChart3, HardDrive, PackageOpen } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -164,6 +164,12 @@ const adminMenuItems = [
     url: "/admin/storage",
     icon: HardDrive,
     roles: ["superadmin"],
+  },
+  {
+    title: "Deployment Manager",
+    url: "/consultant/deployment-manager",
+    icon: PackageOpen,
+    roles: ["superadmin", "consultant"],
   },
   {
     title: "My SOW Requests",

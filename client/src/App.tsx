@@ -36,6 +36,7 @@ import MySOWRequests from "@/pages/customer/my-sow-requests";
 import AdvancedThrottling from "@/pages/settings/advanced-throttling";
 import ClusterConfig from "@/pages/settings/cluster-config";
 import StorageManagement from "@/pages/admin/storage-management";
+import DeploymentManager from "@/pages/consultant/deployment-manager";
 import type { QueueConfig } from "@shared/schema";
 
 function Router() {
@@ -129,6 +130,7 @@ function Router() {
                   <Route path="/admin/pricing-catalog" component={PricingCatalog} />
                   <Route path="/admin/finance-analytics" component={FinanceAnalytics} />
                   <Route path="/admin/storage" component={StorageManagement} />
+                  <Route path="/consultant/deployment-manager" component={DeploymentManager} />
                 </>
               )}
               {user?.role === "sales" && (
@@ -137,7 +139,10 @@ function Router() {
                 </>
               )}
               {user?.role === "consultant" && (
-                <Route path="/admin/users" component={UsersManagement} />
+                <>
+                  <Route path="/admin/users" component={UsersManagement} />
+                  <Route path="/consultant/deployment-manager" component={DeploymentManager} />
+                </>
               )}
               {user?.role === "customer_admin" && (
                 <>
