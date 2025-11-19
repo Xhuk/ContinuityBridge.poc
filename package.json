@@ -20,6 +20,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:demo": "tsx scripts/test-demo-flows.ts",
+    "compile:flows": "tsx server/tools/compile-flows.ts",
     "deploy:check": "node scripts/pre-deploy-check.js",
     "wiki:export": "node scripts/export-wiki-to-github.js",
     "wiki:publish": "powershell -ExecutionPolicy Bypass -File scripts/publish-wiki.ps1"
