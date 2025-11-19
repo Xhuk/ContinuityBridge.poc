@@ -172,6 +172,12 @@ const adminMenuItems = [
     roles: ["superadmin", "consultant"],
   },
   {
+    title: "BridgeScript Editor",
+    url: "/consultant/bridgescript-editor",
+    icon: Code2,
+    roles: ["superadmin", "consultant"],
+  },
+  {
     title: "My SOW Requests",
     url: "/customer/my-sow-requests",
     icon: FileText,

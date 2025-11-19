@@ -37,6 +37,7 @@ import AdvancedThrottling from "@/pages/settings/advanced-throttling";
 import ClusterConfig from "@/pages/settings/cluster-config";
 import StorageManagement from "@/pages/admin/storage-management";
 import DeploymentManager from "@/pages/consultant/deployment-manager";
+import BridgeScriptEditor from "@/pages/consultant/bridgescript-editor";
 import type { QueueConfig } from "@shared/schema";
 
 function Router() {
@@ -142,6 +143,7 @@ function Router() {
                 <>
                   <Route path="/admin/users" component={UsersManagement} />
                   <Route path="/consultant/deployment-manager" component={DeploymentManager} />
+                  <Route path="/consultant/bridgescript-editor" component={BridgeScriptEditor} />
                 </>
               )}
               {user?.role === "customer_admin" && (

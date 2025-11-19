@@ -199,6 +199,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Register Dynamic Webhook Router (hot-reload endpoints)
     app.use("/api/webhook", webhookRouter.createRouter());
     
+    // Register BridgeScript API routes (code editor + validation)
+    const bridgescriptRouter = (await import("./src/routes/bridgescript.js")).default;
+    app.use("/api/bridgescript", bridgescriptRouter);
+    
     // Register Deployment Download routes (local storage access)
     const deploymentDownloadRouter = (await import("./src/routes/deployment-download.js")).default;
     app.use("/api/deployments", deploymentDownloadRouter);
