@@ -1,254 +1,256 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BookOpen, Users, Shield, User, FileText, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Book, Search, RefreshCw, Lock, FileText, Tag } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
-interface WikiPage {
-  title: string;
-  filename: string;
-  content: string;
-  tags: string[];
-  category: "operational" | "strategic" | "technical" | "business" | "customer";
-  accessLevel: "founder" | "consultant" | "customer" | "all";
-}
-
-export default function Wiki() {
+export default function WikiPage() {
   const { user } = useAuth();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null);
-  const isProduction = import.meta.env.MODE === "production";
-  const isCustomerDeployment = import.meta.env.VITE_DEPLOYMENT_TYPE === "customer";
 
-  // Fetch all wiki pages
-  const { data, isLoading, refetch } = useQuery<{ pages: WikiPage[]; userRole: string }>({
-    queryKey: ["/api/wiki/pages"],
-  });
+  // Define which guides are available for each role
+  const roleGuides = {
+    superadmin: [
+      { name: "Founder Guide", file: "founder-guide.md", icon: Shield, description: "Complete system management, licensing, and deployment" },
+      { name: "Consultant Guide", file: "consultant-guide.md", icon: Users, description: "Multi-customer support and configuration" },
+      { name: "Customer Admin Guide", file: "customer-admin-guide.md", icon: User, description: "Organization and flow management" },
+      { name: "Customer User Guide", file: "customer-user-guide.md", icon: User, description: "Monitoring and error triage" },
+    ],
+    consultant: [
+      { name: "Consultant Guide", file: "consultant-guide.md", icon: Users, description: "Multi-customer support and configuration" },
+      { name: "Customer Admin Guide", file: "customer-admin-guide.md", icon: User, description: "Help customers manage their organization" },
+      { name: "Customer User Guide", file: "customer-user-guide.md", icon: User, description: "Monitoring and error triage" },
+    ],
+    customer_admin: [
+      { name: "Customer Admin Guide", file: "customer-admin-guide.md", icon: User, description: "Organization and flow management" },
+      { name: "Customer User Guide", file: "customer-user-guide.md", icon: User, description: "Monitoring and error triage" },
+    ],
+    customer_user: [
+      { name: "Customer User Guide", file: "customer-user-guide.md", icon: User, description: "Monitoring and error triage" },
+    ],
+  };
 
-  const pages = data?.pages || [];
-  const userRole = data?.userRole;
+  const userRole = user?.role || "customer_user";
+  const availableGuides = roleGuides[userRole as keyof typeof roleGuides] || roleGuides.customer_user;
 
-  // Filter pages by search term
-  const filteredPages = pages.filter(page =>
-    page.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    page.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
-  // Sync wiki from GitHub (founders only)
-  const handleSync = async () => {
+  const handleDownloadGuide = async (fileName: string) => {
+    // Fetch and download the guide
     try {
-      await apiRequest("/api/wiki/sync", { method: "POST" });
-      refetch();
-    } catch (error: any) {
-      console.error("Failed to sync wiki:", error);
+      const response = await fetch(`/api/wiki/download/${fileName}`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName.replace('.md', '.pdf');
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download guide:', error);
     }
   };
 
-  // Category badge color
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case "customer": return "bg-teal-500";
-      case "operational": return "bg-blue-500";
-      case "strategic": return "bg-purple-500";
-      case "technical": return "bg-green-500";
-      case "business": return "bg-orange-500";
-      default: return "bg-gray-500";
-    }
+  const handleViewGuide = (fileName: string) => {
+    // Navigate to the guide viewer
+    window.open(`/wiki/view/${fileName}`, "_blank");
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="border-b bg-white px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Book className="h-8 w-8 text-blue-600" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Documentation Wiki</h1>
-              <p className="text-sm text-gray-500">
-                {isProduction && isCustomerDeployment
-                  ? "User manuals and guides"
-                  : userRole === "superadmin" 
-                  ? "Full documentation access (Founder)"
-                  : userRole === "consultant"
-                  ? "Operational documentation (Consultant)"
-                  : "User manuals and guides (Customer)"}
-              </p>
-            </div>
-          </div>
-          {user?.role === "superadmin" && !isCustomerDeployment && (
-            <Button onClick={handleSync} variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Sync from GitHub
-            </Button>
-          )}
-        </div>
-
-        {/* Search */}
-        <div className="mt-4 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search documentation..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <BookOpen className="h-8 w-8" />
+            Documentation & User Guides
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Role-based documentation for ContinuityBridge platform
+          </p>
         </div>
       </div>
 
-      <div className="flex-1 grid grid-cols-12 gap-6 p-6 overflow-hidden">
-        {/* Sidebar - Page List */}
-        <div className="col-span-4 overflow-y-auto">
+      <Tabs defaultValue="guides" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="guides">
+            <FileText className="h-4 w-4 mr-2" />
+            User Guides
+          </TabsTrigger>
+          <TabsTrigger value="quick-start">
+            <BookOpen className="h-4 w-4 mr-2" />
+            Quick Start
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="guides" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {availableGuides.map((guide) => {
+              const Icon = guide.icon;
+              return (
+                <Card key={guide.file} className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Icon className="h-5 w-5" />
+                      {guide.name}
+                    </CardTitle>
+                    <CardDescription>{guide.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <Button 
+                      variant="default" 
+                      className="w-full"
+                      onClick={() => handleViewGuide(guide.file)}
+                    >
+                      <BookOpen className="h-4 w-4 mr-2" />
+                      Read Guide
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => handleDownloadGuide(guide.file)}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download PDF
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="quick-start" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">
-                {filteredPages.length} Page{filteredPages.length !== 1 ? 's' : ''}
-              </CardTitle>
+              <CardTitle>Quick Start Guide</CardTitle>
+              <CardDescription>Get started with ContinuityBridge in 5 minutes</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {filteredPages.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No documentation found</p>
+            <CardContent className="space-y-4">
+              {userRole === "superadmin" && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg">For Founders & Superadmins:</h3>
+                  <ol className="list-decimal list-inside space-y-2 text-sm">
+                    <li>Configure Google Cloud Storage for deployment packages</li>
+                    <li>Create customer licenses and organizations</li>
+                    <li>Assign consultants to customer accounts</li>
+                    <li>Generate and distribute deployment packages</li>
+                    <li>Monitor system health and usage metrics</li>
+                  </ol>
                 </div>
-              ) : (
-                filteredPages.map((page) => (
-                  <div
-                    key={page.filename}
-                    onClick={() => setSelectedPage(page)}
-                    className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                      selectedPage?.filename === page.filename
-                        ? 'bg-blue-50 border-2 border-blue-500'
-                        : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-sm truncate">{page.title}</h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge className={`${getCategoryColor(page.category)} text-xs`}>
-                            {page.category}
-                          </Badge>
-                          {page.accessLevel === "founder" && (
-                            <Lock className="h-3 w-3 text-purple-600" />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    {page.tags.length > 0 && (
-                      <div className="flex items-center gap-1 mt-2 flex-wrap">
-                        <Tag className="h-3 w-3 text-gray-400" />
-                        {page.tags.slice(0, 3).map(tag => (
-                          <span key={tag} className="text-xs text-gray-500">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))
+              )}
+
+              {userRole === "consultant" && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg">For Consultants:</h3>
+                  <ol className="list-decimal list-inside space-y-2 text-sm">
+                    <li>Access your assigned customer workspaces</li>
+                    <li>Configure integration flows between systems</li>
+                    <li>Map fields and add transformations</li>
+                    <li>Test integrations with sample data</li>
+                    <li>Deploy flows to production and monitor</li>
+                  </ol>
+                </div>
+              )}
+
+              {userRole === "customer_admin" && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg">For Customer Admins:</h3>
+                  <ol className="list-decimal list-inside space-y-2 text-sm">
+                    <li>Update organization profile and deployment contacts</li>
+                    <li>Invite team members and assign roles</li>
+                    <li>Create integration flows between your systems</li>
+                    <li>Configure cluster deployment (if applicable)</li>
+                    <li>Monitor flow performance and review reports</li>
+                  </ol>
+                </div>
+              )}
+
+              {userRole === "customer_user" && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg">For Customer Users:</h3>
+                  <ol className="list-decimal list-inside space-y-2 text-sm">
+                    <li>View the dashboard to check flow status</li>
+                    <li>Monitor recent executions and success rates</li>
+                    <li>Review error logs and identify issues</li>
+                    <li>Alert your admin for recurring problems</li>
+                    <li>Configure notification preferences</li>
+                  </ol>
+                </div>
               )}
             </CardContent>
           </Card>
-        </div>
 
-        {/* Main Content - Page Viewer */}
-        <div className="col-span-8 overflow-y-auto">
-          {selectedPage ? (
-            <Card className="h-full">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle>{selectedPage.title}</CardTitle>
-                    <CardDescription className="mt-2 flex items-center gap-2">
-                      <Badge className={getCategoryColor(selectedPage.category)}>
-                        {selectedPage.category}
-                      </Badge>
-                      {selectedPage.accessLevel === "founder" && (
-                        <Badge variant="outline" className="border-purple-500 text-purple-700">
-                          <Lock className="h-3 w-3 mr-1" />
-                          Founder Only
-                        </Badge>
-                      )}
-                    </CardDescription>
-                  </div>
-                </div>
-                {selectedPage.tags.length > 0 && (
-                  <div className="flex items-center gap-2 mt-3 flex-wrap">
-                    {selectedPage.tags.map(tag => (
-                      <Badge key={tag} variant="secondary" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
+          <Card>
+            <CardHeader>
+              <CardTitle>Key Features by Role</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4">
+                {userRole === "superadmin" && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      Superadmin Capabilities
+                    </h4>
+                    <ul className="list-disc list-inside text-sm space-y-1 ml-4">
+                      <li>Full system access and configuration</li>
+                      <li>License management (create, renew, upgrade)</li>
+                      <li>Deployment package generation (4 profiles)</li>
+                      <li>Cluster configuration for enterprise customers</li>
+                      <li>GDPR compliance management</li>
+                      <li>Google Cloud Storage integration</li>
+                    </ul>
                   </div>
                 )}
-              </CardHeader>
-              <Separator />
-              <CardContent className="pt-6">
-                <div 
-                  className="prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ 
-                    __html: selectedPage.content
-                      .split('\n')
-                      .map(line => {
-                        // Convert markdown headings
-                        if (line.startsWith('# ')) return `<h1 class="text-2xl font-bold mt-6 mb-4">${line.slice(2)}</h1>`;
-                        if (line.startsWith('## ')) return `<h2 class="text-xl font-bold mt-5 mb-3">${line.slice(3)}</h2>`;
-                        if (line.startsWith('### ')) return `<h3 class="text-lg font-semibold mt-4 mb-2">${line.slice(4)}</h3>`;
-                        if (line.startsWith('**') && line.endsWith('**')) {
-                          return `<p class="font-semibold">${line.slice(2, -2)}</p>`;
-                        }
-                        if (line.trim() === '---') return '<hr class="my-4" />';
-                        if (line.trim() === '') return '<br />';
-                        return `<p class="mb-2">${line}</p>`;
-                      })
-                      .join('')
-                  }}
-                />
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="h-full flex items-center justify-center">
-              <div className="text-center text-gray-500">
-                <Book className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <p>Select a page from the sidebar to view</p>
-              </div>
-            </Card>
-          )}
-        </div>
-      </div>
 
-      {/* Access Level Info */}
-      {!isCustomerDeployment && userRole === "consultant" && (
-        <Alert className="mx-6 mb-6">
-          <Lock className="h-4 w-4" />
-          <AlertDescription>
-            You're viewing operational documentation. Strategic and business content is restricted to founders.
-          </AlertDescription>
-        </Alert>
-      )}
-      {!isCustomerDeployment && (userRole === "customer_admin" || userRole === "customer_user") && (
-        <Alert className="mx-6 mb-6">
-          <Book className="h-4 w-4" />
-          <AlertDescription>
-            You're viewing customer documentation. Internal operational guides are restricted to consultants and founders.
-          </AlertDescription>
-        </Alert>
-      )}
+                {(userRole === "superadmin" || userRole === "consultant") && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Consultant Capabilities
+                    </h4>
+                    <ul className="list-disc list-inside text-sm space-y-1 ml-4">
+                      <li>Multi-customer workspace access</li>
+                      <li>Flow configuration and mapping</li>
+                      <li>Custom system integration support</li>
+                      <li>Performance optimization</li>
+                      <li>Troubleshooting and escalation</li>
+                    </ul>
+                  </div>
+                )}
+
+                {(userRole === "superadmin" || userRole === "consultant" || userRole === "customer_admin") && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Customer Admin Capabilities
+                    </h4>
+                    <ul className="list-disc list-inside text-sm space-y-1 ml-4">
+                      <li>User management (invite, roles, deactivate)</li>
+                      <li>Flow creation and configuration</li>
+                      <li>Field mapping and transformations</li>
+                      <li>Deployment contact management</li>
+                      <li>Reports and analytics</li>
+                      <li>GDPR data export and deletion</li>
+                    </ul>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <h4 className="font-semibold flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Customer User Capabilities
+                  </h4>
+                  <ul className="list-disc list-inside text-sm space-y-1 ml-4">
+                    <li>Dashboard monitoring</li>
+                    <li>View flow execution history</li>
+                    <li>Error log review and triage</li>
+                    <li>Notification configuration</li>
+                    <li>Performance report viewing</li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

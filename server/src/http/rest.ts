@@ -66,6 +66,7 @@ import systemHealthRoutes from "../routes/system-health-routes.js";
 import clusterConfigRoutes from "../routes/cluster-config.js";
 import testSpriteRoutes from "../routes/testsprite-integration.js";
 import gdprRoutes from "../routes/gdpr.js";
+import wikiRoutes from "../routes/wiki.js";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import type { DynamicWebhookRouter } from "./dynamic-webhook-router.js";
 
@@ -148,6 +149,9 @@ export function registerRESTRoutes(
   
   // Register GDPR Compliance routes (Data export, deletion, privacy info)
   app.use("/api/gdpr", gdprRoutes);
+  
+  // Register Wiki/Documentation routes (Role-based user guides)
+  app.use("/api/wiki", authenticateUser, wikiRoutes);
   
   // ============================================================================
   // NODE CATALOG ENDPOINTS

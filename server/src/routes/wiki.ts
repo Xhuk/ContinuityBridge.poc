@@ -1,243 +1,136 @@
-import { Router } from "express";
-import { authenticateUser, requireSuperAdmin } from "../auth/rbac-middleware";
-import { readFileSync, readdirSync, existsSync } from "fs";
+import { Router, Request, Response } from "express";
+import { readFile } from "fs/promises";
 import { join } from "path";
+import { authenticateUser } from "../auth/rbac-middleware.js";
+import { logger } from "../core/logger.js";
 
 const router = Router();
+const log = logger.child("WikiRoutes");
 
-interface WikiPage {
-  title: string;
-  filename: string;
-  content: string;
-  tags: string[];
-  category: "operational" | "strategic" | "technical" | "business" | "customer";
-  accessLevel: "founder" | "consultant" | "customer" | "all";
-}
-
-/**
- * Get all wiki pages based on user role
- * - Founders (superadmin): See all documentation (full version)
- * - Consultants: See only operational information
- * - Customer Admins/Users: See only customer-facing manuals and basic guides
- * 
- * PRODUCTION MODE: Only customer-level content is available (self-contained deployment)
- */
-router.get("/pages", authenticateUser, async (req, res) => {
-  try {
-    const userRole = req.user?.role;
-    const isProduction = process.env.NODE_ENV === "production";
-    const isCustomerDeployment = process.env.DEPLOYMENT_TYPE === "customer";
-
-    // All authenticated users can access wiki (filtered by role)
-    if (!userRole) {
-      return res.status(403).json({ error: "Authentication required" });
-    }
-
-    const wikiPath = join(process.cwd(), "wiki");
-    
-    if (!existsSync(wikiPath)) {
-      return res.json({ pages: [] });
-    }
-
-    const files = readdirSync(wikiPath).filter(f => f.endsWith('.md'));
-    const pages: WikiPage[] = [];
-
-    for (const file of files) {
-      const filePath = join(wikiPath, file);
-      const content = readFileSync(filePath, 'utf-8');
-      
-      // Parse metadata from markdown
-      const page = parseWikiPage(file, content);
-      
-      // PRODUCTION CUSTOMER DEPLOYMENT: Only show customer-level content
-      if (isProduction && isCustomerDeployment) {
-        if (page.accessLevel === "customer" || page.category === "customer") {
-          pages.push(page);
-        }
-        continue; // Skip role-based filtering for customer deployments
-      }
-      
-      // Filter based on role (for platform/dev deployments)
-      if (userRole === "superadmin") {
-        // Founders see everything
-        pages.push(page);
-      } else if (userRole === "consultant") {
-        // Consultants see operational content
-        if (page.accessLevel === "all" || page.accessLevel === "consultant" || page.accessLevel === "customer" || page.category === "operational" || page.category === "customer") {
-          pages.push(page);
-        }
-      } else if (userRole === "customer_admin" || userRole === "customer_user") {
-        // Customers only see customer-facing manuals and guides
-        if (page.accessLevel === "all" || page.accessLevel === "customer" || page.category === "customer") {
-          pages.push(page);
-        }
-      }
-    }
-
-    res.json({
-      pages,
-      userRole,
-      totalPages: pages.length,
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
+// Map of guides to their required roles
+const guideRoleMap: Record<string, string[]> = {
+  "founder-guide.md": ["superadmin"],
+  "consultant-guide.md": ["superadmin", "consultant"],
+  "customer-admin-guide.md": ["superadmin", "consultant", "customer_admin"],
+  "customer-user-guide.md": ["superadmin", "consultant", "customer_admin", "customer_user"],
+};
 
 /**
- * Get specific wiki page by filename
- * 
- * PRODUCTION MODE: Only customer-level content accessible in customer deployments
+ * GET /api/wiki/view/:fileName
+ * View a user guide based on role permissions
  */
-router.get("/pages/:filename", authenticateUser, async (req, res) => {
+router.get("/view/:fileName", authenticateUser, async (req: Request, res: Response) => {
   try {
-    const userRole = req.user?.role;
-    const { filename } = req.params;
-    const isProduction = process.env.NODE_ENV === "production";
-    const isCustomerDeployment = process.env.DEPLOYMENT_TYPE === "customer";
+    const { fileName } = req.params;
+    const user = (req as any).user;
 
-    if (!userRole) {
-      return res.status(403).json({ error: "Authentication required" });
+    // Validate file name (security)
+    if (!fileName.endsWith(".md") || fileName.includes("..") || fileName.includes("/")) {
+      return res.status(400).json({ error: "Invalid file name" });
     }
 
-    const wikiPath = join(process.cwd(), "wiki");
-    const filePath = join(wikiPath, filename);
-
-    if (!existsSync(filePath)) {
-      return res.status(404).json({ error: "Wiki page not found" });
-    }
-
-    const content = readFileSync(filePath, 'utf-8');
-    const page = parseWikiPage(filename, content);
-
-    // PRODUCTION CUSTOMER DEPLOYMENT: Only allow customer-level content
-    if (isProduction && isCustomerDeployment) {
-      if (page.accessLevel !== "customer" && page.category !== "customer") {
-        return res.status(404).json({ error: "Wiki page not found" });
-      }
-      // Allow access for all authenticated users in customer deployment
-      return res.json({ page });
-    }
-
-    // Check access level (for platform/dev deployments)
-    if (userRole === "consultant") {
-      if (page.accessLevel === "founder") {
-        return res.status(403).json({ error: "This page is restricted to founders only" });
-      }
-      if (page.category === "strategic" || page.category === "business") {
-        if (page.accessLevel !== "consultant" && page.accessLevel !== "all" && page.accessLevel !== "customer") {
-          return res.status(403).json({ error: "Access denied" });
-        }
-      }
-    } else if (userRole === "customer_admin" || userRole === "customer_user") {
-      // Customers can only access customer-level content
-      if (page.accessLevel === "founder" || page.accessLevel === "consultant") {
-        return res.status(403).json({ error: "This page is restricted to internal teams only" });
-      }
-      if (page.category === "strategic" || page.category === "business" || page.category === "operational") {
-        if (page.accessLevel !== "customer" && page.accessLevel !== "all") {
-          return res.status(403).json({ error: "Access denied" });
-        }
-      }
-    }
-
-    res.json({ page });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * Sync wiki from GitHub (superadmin only)
- */
-router.post("/sync", requireSuperAdmin, async (req, res) => {
-  try {
-    const { execSync } = await import("child_process");
-    const wikiPath = join(process.cwd(), "wiki");
-
-    if (!existsSync(join(wikiPath, ".git"))) {
-      return res.status(400).json({ 
-        error: "Wiki git repository not initialized. Run: npm run wiki:export first" 
+    // Check if user has permission to view this guide
+    const allowedRoles = guideRoleMap[fileName];
+    if (!allowedRoles || !allowedRoles.includes(user?.role)) {
+      log.warn("Unauthorized wiki access attempt", { fileName, userRole: user?.role });
+      return res.status(403).json({ 
+        error: "Access denied", 
+        message: "You don't have permission to view this guide" 
       });
     }
 
-    // Pull latest from GitHub
-    const output = execSync("git pull origin wiki-export", { 
-      cwd: wikiPath,
-      encoding: 'utf-8',
-    });
+    // Read the markdown file
+    const filePath = join(process.cwd(), "docs", "user-guides", fileName);
+    const content = await readFile(filePath, "utf-8");
 
-    res.json({
-      success: true,
-      message: "Wiki synced from GitHub",
-      output,
-    });
+    // Return markdown content
+    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    res.send(content);
+
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    log.error("Error serving wiki file", { error: error.message });
+    
+    if (error.code === "ENOENT") {
+      return res.status(404).json({ error: "Guide not found" });
+    }
+    
+    res.status(500).json({ error: "Failed to load guide" });
   }
 });
 
 /**
- * Parse wiki markdown file and extract metadata
+ * GET /api/wiki/download/:fileName
+ * Download a user guide as PDF (placeholder - returns markdown for now)
  */
-function parseWikiPage(filename: string, content: string): WikiPage {
-  // Default metadata
-  let title = filename.replace('.md', '');
-  let tags: string[] = [];
-  let category: "operational" | "strategic" | "technical" | "business" | "customer" = "operational";
-  let accessLevel: "founder" | "consultant" | "customer" | "all" = "all";
+router.get("/download/:fileName", authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const { fileName } = req.params;
+    const user = (req as any).user;
 
-  // Parse frontmatter-style metadata from markdown
-  const lines = content.split('\n');
-  
-  // Extract title from first H1
-  const h1Match = content.match(/^#\s+(.+)$/m);
-  if (h1Match) {
-    title = h1Match[1];
+    // Validate file name (security)
+    if (!fileName.endsWith(".md") || fileName.includes("..") || fileName.includes("/")) {
+      return res.status(400).json({ error: "Invalid file name" });
+    }
+
+    // Check if user has permission to download this guide
+    const allowedRoles = guideRoleMap[fileName];
+    if (!allowedRoles || !allowedRoles.includes(user?.role)) {
+      return res.status(403).json({ 
+        error: "Access denied", 
+        message: "You don't have permission to download this guide" 
+      });
+    }
+
+    // Read the markdown file
+    const filePath = join(process.cwd(), "docs", "user-guides", fileName);
+    const content = await readFile(filePath, "utf-8");
+
+    // Set headers for download
+    const downloadName = fileName.replace(".md", ".txt");
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${downloadName}"`);
+    res.send(content);
+
+  } catch (error: any) {
+    log.error("Error downloading wiki file", { error: error.message });
+    
+    if (error.code === "ENOENT") {
+      return res.status(404).json({ error: "Guide not found" });
+    }
+    
+    res.status(500).json({ error: "Failed to download guide" });
   }
+});
 
-  // Extract tags
-  const tagsMatch = content.match(/\*\*Tags:\*\*\s+(.+)/);
-  if (tagsMatch) {
-    tags = tagsMatch[1].split(',').map(t => t.trim());
+/**
+ * GET /api/wiki/list
+ * List available guides for current user based on role
+ */
+router.get("/list", authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const userRole = user?.role || "customer_user";
+
+    // Filter guides based on user role
+    const availableGuides = Object.entries(guideRoleMap)
+      .filter(([_, roles]) => roles.includes(userRole))
+      .map(([fileName]) => ({
+        fileName,
+        name: fileName
+          .replace(".md", "")
+          .split("-")
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" "),
+        url: `/api/wiki/view/${fileName}`,
+        downloadUrl: `/api/wiki/download/${fileName}`,
+      }));
+
+    res.json({ guides: availableGuides });
+
+  } catch (error: any) {
+    log.error("Error listing wiki files", { error: error.message });
+    res.status(500).json({ error: "Failed to list guides" });
   }
-
-  // Determine category and access level from tags or filename
-  const lowerContent = content.toLowerCase();
-  const lowerFilename = filename.toLowerCase();
-
-  // Category detection
-  if (lowerContent.includes('customer') || lowerFilename.includes('customer') || tags.includes('customer')) {
-    category = "customer";
-  } else if (lowerContent.includes('operational') || lowerFilename.includes('operational')) {
-    category = "operational";
-  } else if (lowerContent.includes('strategic') || lowerFilename.includes('strategic') || lowerFilename.includes('business')) {
-    category = "strategic";
-  } else if (lowerContent.includes('technical') || lowerFilename.includes('technical')) {
-    category = "technical";
-  } else if (lowerContent.includes('business')) {
-    category = "business";
-  }
-
-  // Access level detection
-  if (tags.includes('founder-only') || lowerContent.includes('founder only')) {
-    accessLevel = "founder";
-  } else if (tags.includes('customer') || category === "customer") {
-    accessLevel = "customer";
-  } else if (tags.includes('consultant') || category === "operational") {
-    accessLevel = "consultant";
-  } else if (category === "strategic" || category === "business") {
-    accessLevel = "founder";
-  }
-
-  return {
-    title,
-    filename,
-    content,
-    tags,
-    category,
-    accessLevel,
-  };
-}
+});
 
 export default router;
