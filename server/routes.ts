@@ -17,6 +17,7 @@ import { createInboundAuthMiddleware } from "./src/auth/inbound-auth-middleware.
 import { createAuthGuard } from "./src/middleware/auth-guard.js";
 import { getSchedulerDaemon } from "./src/schedulers/scheduler-daemon.js";
 import { getPollerDaemon } from "./src/schedulers/poller-daemon.js";
+import { getDeploymentBuildScheduler } from "./src/schedulers/deployment-build-scheduler.js";
 import { getLogCleanupJob } from "./src/core/log-cleanup-job.js";
 import { getHealthMonitor } from "./src/core/health-monitor.js";
 import { FlowVersionManager } from "./src/versioning/flow-version-manager.js";
@@ -260,6 +261,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const pollerDaemon = getPollerDaemon(orchestrator);
     pollerDaemon.start();
     log.info("Poller daemon started");
+
+    // Initialize and start deployment build scheduler (daily at 2 AM)
+    const deploymentBuildScheduler = getDeploymentBuildScheduler();
+    deploymentBuildScheduler.start();
+    log.info("Deployment build scheduler started (daily at 2:00 AM UTC)");
 
     // Initialize and start log cleanup job (runs every hour)
     const logCleanupJob = getLogCleanupJob(60); // 60 minutes interval
