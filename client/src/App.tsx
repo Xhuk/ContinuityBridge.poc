@@ -29,6 +29,7 @@ import Landing from "@/pages/landing";
 import Wiki from "@/pages/wiki";
 import QATracking from "@/pages/qa-tracking";
 import AdvancedThrottling from "@/pages/settings/advanced-throttling";
+import ClusterConfig from "@/pages/settings/cluster-config";
 import type { QueueConfig } from "@shared/schema";
 
 function Router() {
@@ -106,6 +107,7 @@ function Router() {
                 <>
                   <Route path="/admin/system-health" component={SystemHealth} />
                   <Route path="/settings/advanced-throttling" component={AdvancedThrottling} />
+                  <Route path="/settings/cluster-config" component={ClusterConfig} />
                 </>
               )}
               {(user?.role === "superadmin" || user?.role === "consultant") && (

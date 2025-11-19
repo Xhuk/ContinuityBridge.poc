@@ -1,4 +1,4 @@
-import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2, Activity, Gauge, Zap } from "lucide-react";
+import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2, Activity, Gauge, Zap, ServerCog } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -96,6 +96,12 @@ const adminMenuItems = [
     title: "Throttling Config",
     url: "/settings/advanced-throttling",
     icon: Gauge,
+    roles: ["superadmin", "consultant", "customer_admin"],
+  },
+  {
+    title: "Cluster Config",
+    url: "/settings/cluster-config",
+    icon: ServerCog,
     roles: ["superadmin", "consultant", "customer_admin"],
   },
   {
