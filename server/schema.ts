@@ -202,18 +202,38 @@ export const changeRequests = sqliteTable("change_requests", {
   organizationName: text("organization_name").notNull(),
   
   // Request metadata
-  title: text("title").notNull(), // e.g., "Add new product mapping for SKU-1234"
+  title: text("title").notNull(), // e.g., "Add new product mapping for SKU-1234" or "Request SOW Amendment: +5 interfaces"
   description: text("description").notNull(), // Detailed explanation
-  requestType: text("request_type").$type<"mapping_change" | "flow_update" | "interface_config" | "datasource_update" | "other">().notNull(),
+  requestType: text("request_type").$type<"mapping_change" | "flow_update" | "interface_config" | "datasource_update" | "sow_amendment" | "license_upgrade" | "other">().notNull(),
   
   // Proposed changes (JSON diff)
   proposedChanges: text("proposed_changes", { mode: "json" }).$type<{
-    resourceType: string; // "flow", "interface", "mapping"
+    resourceType: string; // "flow", "interface", "mapping", "license", "sow"
     resourceId: string;
     resourceName: string;
     oldValue?: any;
     newValue: any;
     action: "create" | "update" | "delete";
+    
+    // SOW Amendment-specific fields
+    sowChanges?: {
+      currentInterfaces: number;
+      requestedInterfaces: number;
+      currentSystems: number;
+      requestedSystems: number;
+      currentLicenseType: string;
+      requestedLicenseType?: string;
+      businessJustification: string;
+      estimatedMonthlyCostIncrease: number;
+    };
+    
+    // AI-generated suggestions
+    aiSuggestions?: {
+      recommendedPlan: string; // "professional" | "enterprise"
+      costOptimization: string;
+      alternativeOptions: string[];
+      confidence: number;
+    };
   }[]>().notNull(),
   
   // Impact assessment
