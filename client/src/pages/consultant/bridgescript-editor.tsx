@@ -9,7 +9,7 @@
  * - Save/Load flow templates
  */
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,10 +33,25 @@ import {
   Eye,
   Download,
   Upload,
-  Sparkles
+  Sparkles,
+  Workflow
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import { queryClient } from "@/lib/queryClient";
+import { 
+  ReactFlow, 
+  Background, 
+  Controls, 
+  MiniMap,
+  type Node,
+  type Edge,
+  type NodeChange,
+  type EdgeChange,
+  applyNodeChanges,
+  applyEdgeChanges,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import YAML from "yaml";
 
 const EXAMPLE_FLOW = `import { SOWFlowBuilder } from "../../server/src/dsl/BridgeScript";
 
@@ -100,6 +115,91 @@ export default function BridgeScriptEditor() {
   const [compiledYaml, setCompiledYaml] = useState("");
   const [validationResult, setValidationResult] = useState<any>(null);
   const [selectedCustomer, setSelectedCustomer] = useState("");
+  
+  // React Flow state for visual preview
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
+  
+  // Node type colors (matching main Flows page)
+  const NODE_TYPE_COLORS: Record<string, string> = {
+    webhook: "hsl(140 85% 60%)",
+    interface: "hsl(160 80% 60%)",
+    timer: "hsl(270 75% 65%)",
+    validation: "hsl(45 90% 60%)",
+    mapper: "hsl(260 80% 65%)",
+    custom_script: "hsl(310 75% 60%)",
+    conditional: "hsl(30 85% 60%)",
+    distributor: "hsl(280 80% 55%)",
+    join: "hsl(200 85% 55%)",
+    egress: "hsl(15 85% 60%)",
+    http_request: "hsl(200 75% 55%)",
+    email_notification: "hsl(340 75% 55%)",
+    logger: "hsl(240 10% 50%)",
+  };
+  
+  // Convert YAML to React Flow nodes/edges
+  const parseFlowToReactFlow = useCallback((yaml: string) => {
+    try {
+      const flowDef = YAML.parse(yaml);
+      
+      if (!flowDef.nodes || !flowDef.edges) {
+        return { nodes: [], edges: [] };
+      }
+      
+      // Convert nodes
+      const reactFlowNodes: Node[] = flowDef.nodes.map((node: any, index: number) => ({
+        id: node.id,
+        type: "default",
+        position: node.position || { 
+          x: 50 + (index % 3) * 300, 
+          y: 100 + Math.floor(index / 3) * 150 
+        },
+        data: {
+          label: node.id.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+          type: node.type,
+          config: node.config,
+        },
+        style: {
+          background: NODE_TYPE_COLORS[node.type] || "hsl(240 5% 64%)",
+          color: "white",
+          border: "2px solid white",
+          borderRadius: "8px",
+          padding: "10px",
+          fontSize: "12px",
+          fontWeight: 600,
+        },
+      }));
+      
+      // Convert edges
+      const reactFlowEdges: Edge[] = flowDef.edges.map((edge: any) => ({
+        id: edge.id || `${edge.source}-${edge.target}`,
+        source: edge.source,
+        target: edge.target,
+        label: edge.label,
+        animated: true,
+        style: {
+          stroke: "hsl(var(--primary) / 0.6)",
+          strokeWidth: 2,
+        },
+      }));
+      
+      return { nodes: reactFlowNodes, edges: reactFlowEdges };
+    } catch (error) {
+      console.error("Failed to parse YAML:", error);
+      return { nodes: [], edges: [] };
+    }
+  }, []);
+  
+  // React Flow change handlers
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
+    []
+  );
+  
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
+    []
+  );
 
   // Fetch customers for dropdown
   const { data: customersData } = useQuery({
@@ -127,6 +227,11 @@ export default function BridgeScriptEditor() {
     onSuccess: (data) => {
       setCompiledYaml(data.yaml);
       setValidationResult(data.validation);
+      
+      // Parse YAML and update visual preview
+      const { nodes: parsedNodes, edges: parsedEdges } = parseFlowToReactFlow(data.yaml);
+      setNodes(parsedNodes);
+      setEdges(parsedEdges);
       
       toast({
         title: "Compilation successful",
@@ -279,8 +384,8 @@ export default function BridgeScriptEditor() {
         </CardContent>
       </Card>
 
-      {/* Editor & Preview */}
-      <div className="flex-1 grid grid-cols-2 gap-6">
+      {/* Editor, Visual Flow, & Preview - 3 Column Layout */}
+      <div className="flex-1 grid grid-cols-3 gap-6">
         {/* Code Editor */}
         <Card className="flex flex-col">
           <CardHeader>
@@ -318,19 +423,68 @@ export default function BridgeScriptEditor() {
             />
           </CardContent>
         </Card>
+        
+        {/* Visual Flow Preview */}
+        <Card className="flex flex-col">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Workflow className="w-5 h-5" />
+                  Visual Flow
+                </CardTitle>
+                <CardDescription>Live preview of your flow</CardDescription>
+              </div>
+              {nodes.length > 0 && (
+                <Badge variant="outline">
+                  {nodes.length} nodes, {edges.length} edges
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1 p-0">
+            {nodes.length > 0 ? (
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                fitView
+                className="bg-muted/30"
+                attributionPosition="bottom-left"
+              >
+                <Background />
+                <Controls />
+                <MiniMap
+                  nodeColor={(node: any) => {
+                    return NODE_TYPE_COLORS[node.data.type] || "hsl(240 5% 64%)";
+                  }}
+                  className="bg-background"
+                />
+              </ReactFlow>
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <div className="text-center">
+                  <Workflow className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                  <p className="text-sm">Compile to see visual flow preview</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-        {/* Preview & Validation */}
+        {/* YAML & Validation */}
         <Card className="flex flex-col">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Eye className="w-5 h-5" />
-              Preview & Validation
+              YAML & Validation
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 p-0">
             <Tabs defaultValue="yaml" className="h-full flex flex-col">
               <TabsList className="mx-6 mt-0">
-                <TabsTrigger value="yaml">Compiled YAML</TabsTrigger>
+                <TabsTrigger value="yaml">YAML</TabsTrigger>
                 <TabsTrigger value="validation">Validation</TabsTrigger>
                 <TabsTrigger value="help">Help</TabsTrigger>
               </TabsList>
