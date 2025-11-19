@@ -260,10 +260,6 @@ export class SchedulerDaemon {
     };
   }
 
-  isRunning(): boolean {
-    return this.isRunning;
-  }
-
   getUptime(): number {
     if (!this.startTime) return 0;
     return Math.floor((Date.now() - this.startTime) / 1000);

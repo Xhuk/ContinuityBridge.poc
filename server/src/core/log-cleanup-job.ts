@@ -229,10 +229,6 @@ export class LogCleanupJob {
     };
   }
 
-  isRunning(): boolean {
-    return this.intervalId !== null;
-  }
-
   getUptime(): number {
     if (!this.startTime) return 0;
     return Math.floor((Date.now() - this.startTime) / 1000);
