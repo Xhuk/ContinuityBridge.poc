@@ -119,6 +119,7 @@ function Router() {
                   <Route path="/admin/customers" component={Customers} />
                   <Route path="/admin/users" component={UsersManagement} />
                   <Route path="/admin/ai-monitoring" component={AIMonitoring} />
+                  <Route path="/admin/sow-requests" component={lazy(() => import("./pages/admin/sow-requests"))} />
                 </>
               )}
               {user?.role === "consultant" && (

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, TestTube, Trash2, Building, Package, ShoppingCart, Truck, Box, MapPin, Cog } from "lucide-react";
+import { Plus, TestTube, Trash2, Building, Package, ShoppingCart, Truck, Box, MapPin, Cog, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -38,6 +38,7 @@ const interfaceLabels: Record<string, string> = {
 export default function Interfaces() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSOWDialogOpen, setIsSOWDialogOpen] = useState(false);
 
   const { data: interfaces = [], isLoading } = useQuery<InterfaceConfig[]>({
     queryKey: ["/api/interfaces"],
@@ -52,6 +53,9 @@ export default function Interfaces() {
   const license = licenseData?.license;
   const canAddInterfaces = license?.features?.canAddInterfaces ?? false;
   const canDeleteResources = license?.features?.canDeleteResources ?? false;
+  const currentInterfaces = interfaces.length;
+  const maxInterfaces = license?.limits?.maxInterfaces || 0;
+  const isAtLimit = currentInterfaces >= maxInterfaces && !canAddInterfaces;
 
   return (
     <div className="flex flex-col h-full">
@@ -63,25 +67,51 @@ export default function Interfaces() {
               Configure connections to WMS, Oracle, Manhattan, Amazon, Last Mile, and other systems
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button 
-                data-testid="button-add-interface"
-                disabled={!canAddInterfaces}
-                title={!canAddInterfaces ? "Upgrade your license to add interfaces" : ""}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Interface
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add Integration Interface</DialogTitle>
-                <DialogDescription>Configure a new system integration interface</DialogDescription>
-              </DialogHeader>
-              <InterfaceForm onSuccess={() => setIsDialogOpen(false)} />
-            </DialogContent>
-          </Dialog>
+          <div className="flex items-center gap-2">
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button 
+                  data-testid="button-add-interface"
+                  disabled={!canAddInterfaces}
+                  title={!canAddInterfaces ? "Upgrade your license to add interfaces" : ""}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Interface
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Add Integration Interface</DialogTitle>
+                  <DialogDescription>Configure a new system integration interface</DialogDescription>
+                </DialogHeader>
+                <InterfaceForm onSuccess={() => setIsDialogOpen(false)} />
+              </DialogContent>
+            </Dialog>
+
+            {isAtLimit && (
+              <Dialog open={isSOWDialogOpen} onOpenChange={setIsSOWDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Request SOW Amendment
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Request SOW Amendment</DialogTitle>
+                    <DialogDescription>
+                      Request additional interfaces or systems for your organization
+                    </DialogDescription>
+                  </DialogHeader>
+                  <SOWRequestForm 
+                    currentInterfaces={currentInterfaces}
+                    maxInterfaces={maxInterfaces}
+                    onSuccess={() => setIsSOWDialogOpen(false)} 
+                  />
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
         </div>
       </div>
 
@@ -648,6 +678,214 @@ function InterfaceForm({ onSuccess }: { onSuccess: () => void }) {
           {createMutation.isPending ? "Creating..." : "Create Interface"}
         </Button>
       </div>
+    </form>
+  );
+}
+
+function SOWRequestForm({ currentInterfaces, maxInterfaces, onSuccess }: { 
+  currentInterfaces: number;
+  maxInterfaces: number;
+  onSuccess: () => void;
+}) {
+  const { toast } = useToast();
+  const [formData, setFormData] = useState({
+    requestedInterfaces: maxInterfaces + 5,
+    requestedSystems: 2,
+    businessJustification: "",
+  });
+  const [aiSuggestions, setAiSuggestions] = useState<any>(null);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+
+  // Get AI suggestions
+  const fetchSuggestions = async () => {
+    setIsLoadingSuggestions(true);
+    try {
+      const res = await apiRequest("POST", "/api/change-requests/sow/suggest", {
+        requestedInterfaces: formData.requestedInterfaces,
+        requestedSystems: formData.requestedSystems,
+        businessJustification: formData.businessJustification,
+      });
+      const data = await res.json();
+      setAiSuggestions(data);
+    } catch (error: any) {
+      toast({
+        title: "Failed to get AI suggestions",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
+
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/change-requests", {
+        title: `SOW Amendment Request: ${formData.requestedInterfaces} interfaces, ${formData.requestedSystems} systems`,
+        description: formData.businessJustification,
+        requestType: "sow_amendment",
+        proposedChanges: [
+          {
+            resourceType: "sow",
+            resourceId: "license",
+            resourceName: "SOW Amendment",
+            action: "update",
+            sowChanges: {
+              currentInterfaces: currentInterfaces,
+              requestedInterfaces: formData.requestedInterfaces,
+              currentSystems: maxInterfaces,
+              requestedSystems: formData.requestedSystems,
+              currentLicenseType: "professional",
+              businessJustification: formData.businessJustification,
+              estimatedMonthlyCostIncrease: aiSuggestions?.requestedState?.costIncrease || 0,
+            },
+            aiSuggestions: aiSuggestions?.aiSuggestions,
+          },
+        ],
+        impactLevel: "high",
+        priority: "normal",
+      });
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "SOW Amendment Requested",
+        description: "Your request has been submitted to the Founder for review. You'll be notified via email once approved.",
+      });
+      onSuccess();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Request Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        submitMutation.mutate();
+      }}
+      className="space-y-4"
+    >
+      <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="flex items-start gap-2">
+          <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-900">License Limit Reached</p>
+            <p className="text-sm text-amber-800 mt-1">
+              Current: {currentInterfaces}/{maxInterfaces} interfaces used
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="requestedInterfaces">Requested Interfaces</Label>
+        <Input
+          id="requestedInterfaces"
+          type="number"
+          value={formData.requestedInterfaces}
+          onChange={(e) => setFormData({ ...formData, requestedInterfaces: parseInt(e.target.value) })}
+          min={maxInterfaces + 1}
+          required
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          You currently have {maxInterfaces} interfaces. Request more to expand your integration capacity.
+        </p>
+      </div>
+
+      <div>
+        <Label htmlFor="requestedSystems">Requested Systems</Label>
+        <Input
+          id="requestedSystems"
+          type="number"
+          value={formData.requestedSystems}
+          onChange={(e) => setFormData({ ...formData, requestedSystems: parseInt(e.target.value) })}
+          min={1}
+          required
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="businessJustification">Business Justification *</Label>
+        <Textarea
+          id="businessJustification"
+          value={formData.businessJustification}
+          onChange={(e) => setFormData({ ...formData, businessJustification: e.target.value })}
+          placeholder="Explain why you need additional interfaces/systems (e.g., expanding to 3 new warehouses in Q2, adding Salesforce integration)"
+          rows={4}
+          required
+        />
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        onClick={fetchSuggestions}
+        disabled={isLoadingSuggestions || !formData.businessJustification}
+        className="w-full"
+      >
+        {isLoadingSuggestions ? "Analyzing..." : "Get AI Cost Analysis"}
+      </Button>
+
+      {aiSuggestions && (
+        <div className="space-y-3">
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h4 className="font-medium text-blue-900 mb-2">Cost Impact</h4>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-blue-700">Current Cost</p>
+                <p className="font-medium text-blue-900">
+                  ${aiSuggestions.currentState.monthlyCost}/month
+                </p>
+              </div>
+              <div>
+                <p className="text-blue-700">New Cost</p>
+                <p className="font-medium text-blue-900">
+                  ${aiSuggestions.requestedState.estimatedMonthlyCost}/month
+                </p>
+              </div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-blue-300">
+              <p className="text-sm text-blue-700">Increase</p>
+              <p className="font-medium text-blue-900">
+                +${aiSuggestions.requestedState.costIncrease}/month
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h4 className="font-medium text-green-900 mb-2">AI Recommendations</h4>
+            <p className="text-sm text-green-800 mb-2">
+              {aiSuggestions.aiSuggestions.costOptimization}
+            </p>
+            <ul className="text-sm text-green-800 space-y-1">
+              {aiSuggestions.aiSuggestions.alternativeOptions.map((option: string, i: number) => (
+                <li key={i}>• {option}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-end gap-2 pt-4">
+        <Button
+          type="submit"
+          disabled={submitMutation.isPending || !aiSuggestions}
+        >
+          {submitMutation.isPending ? "Submitting..." : "Submit Request"}
+        </Button>
+      </div>
+
+      {!aiSuggestions && formData.businessJustification && (
+        <p className="text-xs text-muted-foreground text-center">
+          Click "Get AI Cost Analysis" to see pricing and recommendations before submitting
+        </p>
+      )}
     </form>
   );
 }

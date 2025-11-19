@@ -87,6 +87,12 @@ const adminMenuItems = [
     roles: ["superadmin", "consultant", "customer_admin", "customer_user"],
   },
   {
+    title: "SOW Requests",
+    url: "/admin/sow-requests",
+    icon: FileText,
+    roles: ["superadmin"],
+  },
+  {
     title: "System Health",
     url: "/admin/system-health",
     icon: Activity,
