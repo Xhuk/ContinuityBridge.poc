@@ -161,6 +161,60 @@ export const wafConfig = pgTable("waf_config", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Pricing Catalog Table (Founder-configurable pricing tiers)
+export const pricingCatalog = pgTable("pricing_catalog", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  
+  // Tier identification
+  tierName: text("tier_name").notNull().unique(), // "starter", "professional", "enterprise", "custom"
+  displayName: text("display_name").notNull(), // "Professional Plan"
+  description: text("description"),
+  
+  // Pricing model
+  currency: text("currency").notNull().default("USD"),
+  annualPrice: integer("annual_price").notNull(), // In cents: $24,000 = 2400000
+  monthlyPrice: integer("monthly_price").notNull(), // In cents: $2,000 = 200000
+  
+  // Resource limits
+  maxInterfaces: integer("max_interfaces").notNull(),
+  maxSystems: integer("max_systems").notNull(),
+  maxFlows: integer("max_flows").notNull(),
+  maxUsers: integer("max_users").notNull(),
+  maxExecutionsPerMonth: integer("max_executions_per_month").notNull(),
+  
+  // Add-on pricing (per month, in cents)
+  extraInterfacePrice: integer("extra_interface_price").notNull(), // $100 = 10000
+  extraSystemPrice: integer("extra_system_price").notNull(), // $200 = 20000
+  
+  // Features included
+  features: jsonb("features").$type<{
+    flowEditor: boolean;
+    dataSources: boolean;
+    interfaces: boolean;
+    mappingGenerator: boolean;
+    advancedSettings: boolean;
+    customNodes: boolean;
+    apiAccess: boolean;
+    webhooks: boolean;
+    canEditFlows: boolean;
+    canAddInterfaces: boolean;
+    canAddSystems: boolean;
+    canDeleteResources: boolean;
+    premiumSupport?: boolean;
+    dedicatedConsultant?: boolean;
+  }>().notNull(),
+  
+  // Visibility
+  isActive: boolean("is_active").notNull().default(true),
+  isPublic: boolean("is_public").notNull().default(true), // Show on pricing page
+  sortOrder: integer("sort_order").notNull().default(0), // Display order
+  
+  // Metadata
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Customer License/Contract Configuration
 export const customerLicense = pgTable("customer_license", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { db, customerLicense } from "../../db";
+import { db, customerLicense, pricingCatalog } from "../../db";
 import { changeRequests, configurationVersions } from "../../schema";
 import { eq, desc, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -435,39 +435,54 @@ router.post("/sow/suggest", authenticateUser, async (req: Request, res: Response
     const currentSystems = currentLicense.limits?.maxSystems || 0;
     const currentLicenseType = currentLicense.licenseType || "trial";
 
-    // Calculate cost increase (simplified pricing model)
-    const PRICING = {
-      professional: { platform: 500, perInterface: 100, perSystem: 200 },
-      enterprise: { platform: 1500, perInterface: 150, perSystem: 300 },
-    };
+    // Fetch pricing catalog from database
+    const pricingTiers = await (db.select().from(pricingCatalog)
+      .where(eq(pricingCatalog.isActive, true)) as any);
 
-    const currentPlan = currentLicenseType === "enterprise" ? "enterprise" : "professional";
-    const pricing = PRICING[currentPlan];
+    if (!pricingTiers || pricingTiers.length === 0) {
+      return res.status(500).json({ 
+        error: "Pricing catalog not configured. Founder must seed pricing tiers first." 
+      });
+    }
 
-    const currentCost = pricing.platform + 
-      (currentInterfaces * pricing.perInterface) + 
-      (currentSystems * pricing.perSystem);
+    // Find current tier
+    let currentTier = pricingTiers.find((t: any) => t.tierName === currentLicenseType) || pricingTiers[0];
     
-    const newCost = pricing.platform + 
-      (requestedInterfaces * pricing.perInterface) + 
-      (requestedSystems * pricing.perSystem);
+    // Determine recommended tier based on requested resources
+    let recommendedTier = currentTier;
+    for (const tier of pricingTiers) {
+      if (requestedInterfaces <= tier.maxInterfaces && requestedSystems <= tier.maxSystems) {
+        recommendedTier = tier;
+        break;
+      }
+    }
 
-    const costIncrease = newCost - currentCost;
+    // Calculate current cost (monthly in cents)
+    const currentInterfaceCost = currentInterfaces * (currentTier.extraInterfacePrice || 10000);
+    const currentSystemCost = currentSystems * (currentTier.extraSystemPrice || 20000);
+    const currentMonthlyCost = (currentTier.monthlyPrice + currentInterfaceCost + currentSystemCost) / 100;
 
-    // AI analysis (simplified - in production, use actual AI API)
+    // Calculate new cost (monthly in cents)
+    const newInterfaceCost = requestedInterfaces * (recommendedTier.extraInterfacePrice || 10000);
+    const newSystemCost = requestedSystems * (recommendedTier.extraSystemPrice || 20000);
+    const newMonthlyCost = (recommendedTier.monthlyPrice + newInterfaceCost + newSystemCost) / 100;
+
+    const costIncrease = newMonthlyCost - currentMonthlyCost;
+
+    // AI analysis
     const aiSuggestions = {
-      recommendedPlan: requestedInterfaces > 20 || requestedSystems > 10 ? "enterprise" : "professional",
+      recommendedPlan: recommendedTier.displayName,
       costOptimization: costIncrease > 1000 
-        ? "Consider Enterprise plan for better per-unit pricing"
-        : "Professional plan is cost-effective for your needs",
+        ? `Consider ${recommendedTier.displayName} plan for better per-unit pricing`
+        : `${recommendedTier.displayName} plan is cost-effective for your needs`,
       alternativeOptions: [
         requestedInterfaces > currentInterfaces 
-          ? `Add ${requestedInterfaces - currentInterfaces} interfaces (+$${(requestedInterfaces - currentInterfaces) * pricing.perInterface}/mo)`
+          ? `Add ${requestedInterfaces - currentInterfaces} interfaces (+$${((requestedInterfaces - currentInterfaces) * (recommendedTier.extraInterfacePrice / 100))}/mo)`
           : null,
         requestedSystems > currentSystems
-          ? `Add ${requestedSystems - currentSystems} systems (+$${(requestedSystems - currentSystems) * pricing.perSystem}/mo)`
+          ? `Add ${requestedSystems - currentSystems} systems (+$${((requestedSystems - currentSystems) * (recommendedTier.extraSystemPrice / 100))}/mo)`
           : null,
-        "Negotiate annual contract for 15% discount",
+        `Save 15% with annual billing: $${Math.round(newMonthlyCost * 12 * 0.85)}/year`,
       ].filter(Boolean),
       confidence: 0.85,
     };
@@ -476,17 +491,28 @@ router.post("/sow/suggest", authenticateUser, async (req: Request, res: Response
       success: true,
       currentState: {
         licenseType: currentLicenseType,
+        tierName: currentTier.tierName,
+        displayName: currentTier.displayName,
         interfaces: currentInterfaces,
         systems: currentSystems,
-        monthlyCost: currentCost,
+        monthlyCost: currentMonthlyCost,
       },
       requestedState: {
+        recommendedTier: recommendedTier.tierName,
+        recommendedDisplayName: recommendedTier.displayName,
         interfaces: requestedInterfaces,
         systems: requestedSystems,
-        estimatedMonthlyCost: newCost,
+        estimatedMonthlyCost: newMonthlyCost,
         costIncrease,
       },
       aiSuggestions,
+      availableTiers: pricingTiers.map((t: any) => ({
+        tierName: t.tierName,
+        displayName: t.displayName,
+        monthlyPrice: t.monthlyPrice / 100,
+        maxInterfaces: t.maxInterfaces,
+        maxSystems: t.maxSystems,
+      })),
     });
   } catch (error: any) {
     logger.error("Failed to generate SOW suggestions", error, {
