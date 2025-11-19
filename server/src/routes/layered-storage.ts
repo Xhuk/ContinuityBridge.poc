@@ -37,6 +37,8 @@ router.post("/merge", authenticateUser, async (req: Request, res: Response) => {
     const {
       organizationId = req.user?.organizationId,
       deploymentProfile = "standard",
+      baseVersion = "1.0.0",
+      createSnapshot = true,
     } = req.body;
 
     if (!organizationId) {
@@ -46,12 +48,16 @@ router.post("/merge", authenticateUser, async (req: Request, res: Response) => {
     log.info("Merging deployment layers", {
       organizationId,
       deploymentProfile,
+      baseVersion,
+      createSnapshot,
       userId: req.user?.id,
     });
 
     const service = new LayeredStorageService({
       organizationId,
       deploymentProfile,
+      baseVersion,
+      createSnapshot,
     });
 
     const result = await service.mergeLayersToRuntime();
@@ -78,6 +84,9 @@ router.post("/merge", authenticateUser, async (req: Request, res: Response) => {
       message: "Layer merge completed",
       result: {
         runtimePath: result.runtimePath,
+        runtimeVersion: result.runtimeVersion,
+        baseVersion: result.baseVersion,
+        snapshotPath: result.snapshotPath,
         summary: {
           filesProcessed: result.filesProcessed,
           filesFromBase: result.filesFromBase,
@@ -233,6 +242,52 @@ router.get("/status/:organizationId", authenticateUser, async (req: Request, res
     });
   } catch (error: any) {
     log.error("Failed to get layered storage status", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/layered-storage/snapshots/:organizationId
+ * List all runtime snapshots (version history)
+ * 
+ * 🔒 All authenticated users (own org)
+ */
+router.get("/snapshots/:organizationId", authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const { organizationId } = req.params;
+    const { deploymentProfile = "standard" } = req.query;
+
+    // Authorization check
+    if (
+      req.user?.role !== "superadmin" &&
+      req.user?.organizationId !== organizationId
+    ) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const service = new LayeredStorageService({
+      organizationId,
+      deploymentProfile: deploymentProfile as any,
+    });
+
+    const snapshots = await service.listRuntimeSnapshots();
+
+    res.json({
+      organizationId,
+      deploymentProfile,
+      snapshotsCount: snapshots.length,
+      snapshots: snapshots.map((s) => ({
+        version: s.version,
+        baseVersion: s.baseVersion,
+        customIncrement: s.customIncrement,
+        createdAt: s.createdAt,
+        downloadUrl: `/api/deployments/download/${encodeURIComponent(
+          `${organizationId}/snapshots/${s.version}`
+        )}`,
+      })),
+    });
+  } catch (error: any) {
+    log.error("Failed to list snapshots", error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -33,11 +33,18 @@ export interface LayeredStorageConfig {
   customPath?: string;    // Default: /customer/customadhoc
   runtimePath?: string;   // Default: /customer/runtime
   reworkPath?: string;    // Default: /customer/rework_required
+  
+  // Versioning
+  createSnapshot?: boolean;  // Create versioned snapshot before merge (default: true)
+  baseVersion?: string;      // BASE version (e.g., "1.2.0" from Foundation/Core)
 }
 
 export interface MergeResult {
   success: boolean;
   runtimePath: string;
+  runtimeVersion: string;    // Generated version (e.g., "1.2.0-custom.3")
+  baseVersion: string;       // BASE version used
+  snapshotPath?: string;     // Path to versioned snapshot
   filesProcessed: number;
   filesFromBase: number;
   filesFromCustom: number;
@@ -82,6 +89,8 @@ export class LayeredStorageService {
       customPath = path.join(this.storagePath, organizationId, "customadhoc"),
       runtimePath = path.join(this.storagePath, organizationId, "runtime"),
       reworkPath = path.join(this.storagePath, organizationId, "rework_required"),
+      createSnapshot = true,
+      baseVersion = "1.0.0",
     } = this.config;
 
     log.info("Starting layer merge", {
@@ -90,11 +99,17 @@ export class LayeredStorageService {
       basePath,
       customPath,
       runtimePath,
+      baseVersion,
     });
+
+    // Get next runtime version
+    const runtimeVersion = await this.getNextRuntimeVersion(organizationId, baseVersion);
 
     const result: MergeResult = {
       success: true,
       runtimePath,
+      runtimeVersion,
+      baseVersion,
       filesProcessed: 0,
       filesFromBase: 0,
       filesFromCustom: 0,
@@ -126,10 +141,10 @@ export class LayeredStorageService {
       const customIndex = new Map(customFiles.map((f) => [f.relativePath, f]));
 
       // Get all unique file paths
-      const allPaths = new Set([...baseIndex.keys(), ...customIndex.keys()]);
+      const allPaths = new Set([...Array.from(baseIndex.keys()), ...Array.from(customIndex.keys())]);
 
       // Process each file
-      for (const filePath of allPaths) {
+      for (const filePath of Array.from(allPaths)) {
         const hasBase = baseIndex.has(filePath);
         const hasCustom = customIndex.has(filePath);
 
@@ -180,12 +195,20 @@ export class LayeredStorageService {
       // Generate runtime manifest
       await this.generateRuntimeManifest(runtimePath, result);
 
+      // Create snapshot if requested
+      if (createSnapshot) {
+        const snapshotPath = await this.createRuntimeSnapshot(runtimePath, runtimeVersion);
+        result.snapshotPath = snapshotPath;
+        log.info("Runtime snapshot created", { version: runtimeVersion, snapshotPath });
+      }
+
       log.info("Layer merge completed", {
         filesProcessed: result.filesProcessed,
         filesFromBase: result.filesFromBase,
         filesFromCustom: result.filesFromCustom,
         filesOverridden: result.filesOverridden,
         filesFailed: result.filesFailed,
+        runtimeVersion: result.runtimeVersion,
       });
 
       return result;
@@ -481,6 +504,147 @@ export class LayeredStorageService {
       }
 
       return reworkFiles;
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Get next runtime version based on BASE version and existing snapshots
+   * 
+   * Version format: {baseVersion}-custom.{increment}
+   * Examples:
+   *   - BASE v1.0.0 → runtime v1.0.0-custom.1
+   *   - BASE v1.0.0 → runtime v1.0.0-custom.2 (after redeploy)
+   *   - BASE v1.2.0 → runtime v1.2.0-custom.1 (BASE updated)
+   *   - BASE v1.2.0 → runtime v1.2.0-custom.2 (after redeploy)
+   */
+  private async getNextRuntimeVersion(
+    organizationId: string,
+    baseVersion: string
+  ): Promise<string> {
+    const snapshotsPath = path.join(
+      this.storagePath,
+      organizationId,
+      "snapshots"
+    );
+
+    try {
+      await fs.access(snapshotsPath);
+      const snapshots = await fs.readdir(snapshotsPath);
+
+      // Find snapshots matching current BASE version
+      const pattern = new RegExp(`^${baseVersion.replace(/\./g, "\\.")}-custom\\.(\\d+)$`);
+      const matchingVersions = snapshots
+        .map((name) => {
+          const match = name.match(pattern);
+          return match ? parseInt(match[1], 10) : 0;
+        })
+        .filter((num) => num > 0);
+
+      const maxIncrement = matchingVersions.length > 0 ? Math.max(...matchingVersions) : 0;
+      const nextIncrement = maxIncrement + 1;
+
+      return `${baseVersion}-custom.${nextIncrement}`;
+    } catch {
+      // No snapshots directory or first time
+      return `${baseVersion}-custom.1`;
+    }
+  }
+
+  /**
+   * Create versioned snapshot of runtime package
+   * 
+   * This preserves history for rollback and audit purposes
+   */
+  private async createRuntimeSnapshot(
+    runtimePath: string,
+    runtimeVersion: string
+  ): Promise<string> {
+    const snapshotsPath = path.join(
+      this.storagePath,
+      this.config.organizationId,
+      "snapshots",
+      runtimeVersion
+    );
+
+    log.info("Creating runtime snapshot", {
+      runtimeVersion,
+      snapshotsPath,
+    });
+
+    // Create snapshots directory
+    await fs.mkdir(snapshotsPath, { recursive: true });
+
+    // Copy entire runtime folder to snapshot
+    const files = await this.listFilesRecursive(runtimePath);
+    
+    for (const file of files) {
+      const targetPath = path.join(snapshotsPath, file.relativePath);
+      await fs.mkdir(path.dirname(targetPath), { recursive: true });
+      await fs.copyFile(file.fullPath, targetPath);
+    }
+
+    log.info("Runtime snapshot created", {
+      runtimeVersion,
+      filesSnapshotted: files.length,
+    });
+
+    return snapshotsPath;
+  }
+
+  /**
+   * List all runtime snapshots (versions) for this organization
+   */
+  async listRuntimeSnapshots(): Promise<{
+    version: string;
+    baseVersion: string;
+    customIncrement: number;
+    createdAt: Date;
+    path: string;
+  }[]> {
+    const snapshotsPath = path.join(
+      this.storagePath,
+      this.config.organizationId,
+      "snapshots"
+    );
+
+    try {
+      const snapshots = await fs.readdir(snapshotsPath);
+      const results: {
+        version: string;
+        baseVersion: string;
+        customIncrement: number;
+        createdAt: Date;
+        path: string;
+      }[] = [];
+
+      for (const snapshotDir of snapshots) {
+        const snapshotPath = path.join(snapshotsPath, snapshotDir);
+        const stats = await fs.stat(snapshotPath);
+
+        if (stats.isDirectory()) {
+          // Parse version (format: "1.0.0-custom.3")
+          const match = snapshotDir.match(/^(.+)-custom\.(\d+)$/);
+          if (match) {
+            results.push({
+              version: snapshotDir,
+              baseVersion: match[1],
+              customIncrement: parseInt(match[2], 10),
+              createdAt: stats.birthtime,
+              path: snapshotPath,
+            });
+          }
+        }
+      }
+
+      // Sort by version (newest first)
+      return results.sort((a, b) => {
+        if (a.baseVersion !== b.baseVersion) {
+          return b.baseVersion.localeCompare(a.baseVersion);
+        }
+        return b.customIncrement - a.customIncrement;
+      });
     } catch {
       return [];
     }
