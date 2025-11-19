@@ -374,6 +374,9 @@ docs/drafts/
 !DEPLOYMENT.md
 !PRODUCTION_CHECKLIST.md
 
+# Keep user documentation
+!docs/**/*.md
+
 # MCP (Model Context Protocol) configuration
 .mcp/
 !.mcp/config.json
