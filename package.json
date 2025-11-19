@@ -16,6 +16,7 @@
     "seed:transforms": "tsx scripts/seed-transformation-templates.ts",
     "setup:demo": "tsx scripts/setup-demo.ts",
     "demo:quick": "tsx scripts/quick-demo.ts",
+    "demo:bridgescript": "tsx scripts/demo-bridgescript.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
