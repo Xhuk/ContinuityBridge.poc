@@ -55,6 +55,7 @@ import {
   ChevronRight,
   History,
   Info,
+  Settings,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -65,6 +66,13 @@ export default function DeploymentManager() {
   const [selectedProfile, setSelectedProfile] = useState<string>("standard");
   const [baseVersion, setBaseVersion] = useState<string>("1.0.0");
   const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [showRetentionDialog, setShowRetentionDialog] = useState(false);
+  
+  // Retention policy settings
+  const [maxSnapshots, setMaxSnapshots] = useState<number>(10);
+  const [minSnapshots, setMinSnapshots] = useState<number>(3);
+  const [maxAgeDays, setMaxAgeDays] = useState<number>(90);
+  const [keepLatestPerBase, setKeepLatestPerBase] = useState<number>(2);
 
   // Fetch customers (consultants can see assigned customers)
   const { data: customersData } = useQuery({
@@ -101,6 +109,12 @@ export default function DeploymentManager() {
           deploymentProfile: selectedProfile,
           baseVersion,
           createSnapshot: true,
+          retentionPolicy: {
+            maxSnapshots,
+            minSnapshots,
+            maxAgeDays,
+            keepLatestPerBase,
+          },
         }),
       });
 
@@ -158,14 +172,26 @@ export default function DeploymentManager() {
           </p>
         </div>
 
-        <Button
-          onClick={() => setShowMergeDialog(true)}
-          disabled={!selectedCustomer}
-          size="lg"
-        >
-          <GitMerge className="mr-2 h-4 w-4" />
-          Create New Build
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setShowRetentionDialog(true)}
+            disabled={!selectedCustomer}
+            variant="outline"
+            size="lg"
+          >
+            <Settings className="mr-2 h-4 w-4" />
+            Retention Policy
+          </Button>
+          
+          <Button
+            onClick={() => setShowMergeDialog(true)}
+            disabled={!selectedCustomer}
+            size="lg"
+          >
+            <GitMerge className="mr-2 h-4 w-4" />
+            Create New Build
+          </Button>
+        </div>
       </div>
 
       {/* Customer & Profile Selection */}
@@ -462,6 +488,141 @@ export default function DeploymentManager() {
                   Create Build
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Retention Policy Dialog */}
+      <Dialog open={showRetentionDialog} onOpenChange={setShowRetentionDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Snapshot Retention Policy</DialogTitle>
+            <DialogDescription>
+              Configure automatic cleanup of old snapshots to manage storage
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                The retention policy automatically removes old snapshots while preserving
+                important versions for rollback. Current policy applies to <strong>{customers.find((c: any) => c.id === selectedCustomer)?.name}</strong>.
+              </AlertDescription>
+            </Alert>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Maximum Snapshots</label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border rounded-md"
+                  value={maxSnapshots}
+                  onChange={(e) => setMaxSnapshots(Number(e.target.value))}
+                  min={1}
+                  max={50}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Maximum total snapshots to keep (default: 10)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Minimum Snapshots</label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border rounded-md"
+                  value={minSnapshots}
+                  onChange={(e) => setMinSnapshots(Number(e.target.value))}
+                  min={1}
+                  max={10}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Always keep at least this many (default: 3)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Maximum Age (Days)</label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border rounded-md"
+                  value={maxAgeDays}
+                  onChange={(e) => setMaxAgeDays(Number(e.target.value))}
+                  min={7}
+                  max={365}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Delete snapshots older than X days (default: 90)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Keep Per BASE Version</label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border rounded-md"
+                  value={keepLatestPerBase}
+                  onChange={(e) => setKeepLatestPerBase(Number(e.target.value))}
+                  min={1}
+                  max={10}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Keep N latest per BASE version (default: 2)
+                </p>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold">Current Impact</h4>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="flex items-center justify-between p-3 bg-muted rounded-md">
+                  <span className="text-muted-foreground">Total Snapshots:</span>
+                  <span className="font-bold">{snapshots.length}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-muted rounded-md">
+                  <span className="text-muted-foreground">Would Keep:</span>
+                  <span className="font-bold text-green-600">
+                    ~{Math.min(maxSnapshots, Math.max(minSnapshots, snapshots.length))}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-muted rounded-md">
+                  <span className="text-muted-foreground">Est. Storage:</span>
+                  <span className="font-bold">{(snapshots.length * 50).toFixed(0)} MB</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-muted rounded-md">
+                  <span className="text-muted-foreground">After Cleanup:</span>
+                  <span className="font-bold text-green-600">
+                    {(Math.min(maxSnapshots, snapshots.length) * 50).toFixed(0)} MB
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Policy runs automatically after each build. Deleted snapshots cannot be recovered.
+              </AlertDescription>
+            </Alert>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRetentionDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              toast({
+                title: "Retention Policy Updated",
+                description: `Policy will apply on next build for ${customers.find((c: any) => c.id === selectedCustomer)?.name}`,
+              });
+              setShowRetentionDialog(false);
+            }}>
+              <Settings className="mr-2 h-4 w-4" />
+              Apply Policy
             </Button>
           </DialogFooter>
         </DialogContent>

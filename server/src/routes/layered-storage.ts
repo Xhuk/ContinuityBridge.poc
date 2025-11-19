@@ -39,6 +39,7 @@ router.post("/merge", authenticateUser, async (req: Request, res: Response) => {
       deploymentProfile = "standard",
       baseVersion = "1.0.0",
       createSnapshot = true,
+      retentionPolicy,
     } = req.body;
 
     if (!organizationId) {
@@ -50,6 +51,7 @@ router.post("/merge", authenticateUser, async (req: Request, res: Response) => {
       deploymentProfile,
       baseVersion,
       createSnapshot,
+      retentionPolicy,
       userId: req.user?.id,
     });
 
@@ -58,6 +60,7 @@ router.post("/merge", authenticateUser, async (req: Request, res: Response) => {
       deploymentProfile,
       baseVersion,
       createSnapshot,
+      retentionPolicy,
     });
 
     const result = await service.mergeLayersToRuntime();
