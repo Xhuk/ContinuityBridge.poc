@@ -109,7 +109,7 @@ export const sqlite = sqliteClient;
 
 // Export table definitions from PostgreSQL schema when using postgres
 // This ensures runtime code uses the correct schema types
-export const { users, systemLogs, logConfigurations, magicLinks, smtpSettings, wafConfig, customerLicense, pricingCatalog, pricingChangeNotifications } = 
+export const { users, systemLogs, logConfigurations, magicLinks, smtpSettings, wafConfig, customerLicense, pricingCatalog, pricingChangeNotifications, qaTestSessions, qaTestResults } = 
   dbType === "postgres" 
     ? await import("./schema.pg.js")
     : sqliteSchema;

@@ -434,3 +434,96 @@ export const pricingChangeNotifications = pgTable("pricing_change_notifications"
   createdAt: timestamp("created_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
 });
+
+// ============================================================================
+// QA TESTING TABLES (TestSprite Integration)
+// ============================================================================
+
+// QA Test Sessions Table (Test runs)
+export const qaTestSessions = pgTable("qa_test_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  
+  // Session metadata
+  sessionName: text("session_name").notNull(),
+  flowId: text("flow_id"),
+  flowName: text("flow_name"),
+  
+  // Test configuration
+  testType: text("test_type").$type<"unit" | "integration" | "e2e" | "regression">().notNull(),
+  browser: text("browser").$type<"chrome" | "firefox" | "safari" | "edge">(),
+  device: text("device").$type<"desktop" | "mobile" | "tablet">(),
+  
+  // Status
+  status: text("status").$type<"pending" | "running" | "passed" | "failed" | "skipped">().notNull().default("pending"),
+  
+  // Timing
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  durationMs: integer("duration_ms"),
+  
+  // Results summary
+  totalTests: integer("total_tests").notNull().default(0),
+  passedTests: integer("passed_tests").notNull().default(0),
+  failedTests: integer("failed_tests").notNull().default(0),
+  skippedTests: integer("skipped_tests").notNull().default(0),
+  
+  // Triggered by
+  triggeredBy: text("triggered_by"),
+  triggeredByEmail: text("triggered_by_email"),
+  
+  // Organization context
+  organizationId: text("organization_id"),
+  
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// QA Test Results Table (Individual test cases)
+export const qaTestResults = pgTable("qa_test_results", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  
+  // Session reference
+  sessionId: text("session_id").notNull(),
+  
+  // Test identification
+  testName: text("test_name").notNull(),
+  testDescription: text("test_description"),
+  testUrl: text("test_url"),
+  
+  // Test details
+  expectedBehavior: text("expected_behavior"),
+  actualBehavior: text("actual_behavior"),
+  
+  // Status
+  status: text("status").$type<"passed" | "failed" | "skipped">().notNull(),
+  
+  // Timing
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  durationMs: integer("duration_ms"),
+  
+  // Evidence
+  screenshotUrl: text("screenshot_url"),
+  videoUrl: text("video_url"),
+  errorMessage: text("error_message"),
+  errorStack: text("error_stack"),
+  
+  // Steps taken
+  stepsToReproduce: jsonb("steps_to_reproduce").$type<string[]>(),
+  
+  // Browser/device context
+  browser: text("browser"),
+  device: text("device"),
+  viewport: text("viewport"),
+  userAgent: text("user_agent"),
+  
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type QATestSession = typeof qaTestSessions.$inferSelect;
+export type InsertQATestSession = typeof qaTestSessions.$inferInsert;
+export type QATestResult = typeof qaTestResults.$inferSelect;
+export type InsertQATestResult = typeof qaTestResults.$inferInsert;

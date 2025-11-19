@@ -30,8 +30,7 @@ import Wiki from "@/pages/wiki";
 import QATracking from "@/pages/qa-tracking";
 import SOWRequests from "@/pages/admin/sow-requests";
 import PricingCatalog from "@/pages/admin/pricing-catalog";
-// TEMP: FinanceAnalytics disabled due to duplicate code issue
-// import FinanceAnalytics from "@/pages/admin/finance-analytics";
+import FinanceAnalytics from "@/pages/admin/finance-analytics";
 import SalesDashboard from "@/pages/sales/dashboard";
 import MySOWRequests from "@/pages/customer/my-sow-requests";
 import AdvancedThrottling from "@/pages/settings/advanced-throttling";
@@ -130,8 +129,7 @@ function Router() {
                   <Route path="/admin/ai-monitoring" component={AIMonitoring} />
                   <Route path="/admin/sow-requests" component={SOWRequests} />
                   <Route path="/admin/pricing-catalog" component={PricingCatalog} />
-                  {/* TEMP: Finance Analytics disabled due to duplicate code issue */}
-                  {/* <Route path="/admin/finance-analytics" component={FinanceAnalytics} /> */}
+                  <Route path="/admin/finance-analytics" component={FinanceAnalytics} />
                   <Route path="/admin/storage" component={StorageManagement} />
                   <Route path="/consultant/deployment-manager" component={DeploymentManager} />
                 </>

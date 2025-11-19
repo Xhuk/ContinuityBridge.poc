@@ -6,9 +6,7 @@
 import { Router, type Request, type Response } from "express";
 import { randomUUID } from "crypto";
 import { logger } from "../core/logger.js";
-import { db } from "../../db.js";
-// TODO: Add QA test tables to schema
-// import { qaTestResults, qaTestSessions } from "../../schema.js";
+import { db, qaTestResults, qaTestSessions } from "../../db.js";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { TestSpriteMCPService } from "../services/testsprite-mcp-service.js";
