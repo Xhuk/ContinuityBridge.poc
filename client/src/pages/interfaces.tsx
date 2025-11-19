@@ -44,6 +44,15 @@ export default function Interfaces() {
     refetchInterval: 30000,
   });
 
+  // Fetch license to check permissions
+  const { data: licenseData } = useQuery({
+    queryKey: ["/api/license"],
+  });
+
+  const license = licenseData?.license;
+  const canAddInterfaces = license?.features?.canAddInterfaces ?? false;
+  const canDeleteResources = license?.features?.canDeleteResources ?? false;
+
   return (
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-border">
@@ -56,7 +65,11 @@ export default function Interfaces() {
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-add-interface">
+              <Button 
+                data-testid="button-add-interface"
+                disabled={!canAddInterfaces}
+                title={!canAddInterfaces ? "Upgrade your license to add interfaces" : ""}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Interface
               </Button>
@@ -82,7 +95,7 @@ export default function Interfaces() {
             </div>
           ) : (
             interfaces.map((iface) => (
-              <InterfaceCard key={iface.id} interface={iface} />
+              <InterfaceCard key={iface.id} interface={iface} canDelete={canDeleteResources} />
             ))
           )}
         </div>
@@ -91,7 +104,7 @@ export default function Interfaces() {
   );
 }
 
-function InterfaceCard({ interface: iface }: { interface: InterfaceConfig }) {
+function InterfaceCard({ interface: iface, canDelete }: { interface: InterfaceConfig; canDelete: boolean }) {
   const { toast } = useToast();
   const Icon = interfaceIcons[iface.type] || Cog;
 
@@ -166,20 +179,22 @@ function InterfaceCard({ interface: iface }: { interface: InterfaceConfig }) {
             <TestTube className="h-4 w-4 mr-1" />
             Test
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              if (confirm(`Delete interface "${iface.name}"?`)) {
-                deleteMutation.mutate();
-              }
-            }}
-            disabled={deleteMutation.isPending}
-            data-testid={`button-delete-${iface.id}`}
-          >
-            <Trash2 className="h-4 w-4 mr-1" />
-            Delete
-          </Button>
+          {canDelete && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (confirm(`Delete interface "${iface.name}"?`)) {
+                  deleteMutation.mutate();
+                }
+              }}
+              disabled={deleteMutation.isPending}
+              data-testid={`button-delete-${iface.id}`}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Delete
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
