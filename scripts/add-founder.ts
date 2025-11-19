@@ -10,15 +10,35 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Add Emilio Navarro as Founder (Superadmin)
+ * Add Founder (Superadmin)
  * Role: QA Manager
+ * 
+ * SECURITY: Email must be provided via environment variable
+ * Usage: FOUNDER_EMAIL=email@example.com FOUNDER_NAME="Full Name" npm run add:founder
  */
 
-const EMILIO_EMAIL = "navarropadilla@gmail.com";
-const EMILIO_NAME = "Emilio Navarro";
-const EMILIO_ROLE_TITLE = "QA Manager";
+const FOUNDER_EMAIL = process.env.FOUNDER_EMAIL;
+const FOUNDER_NAME = process.env.FOUNDER_NAME || "QA Manager";
+const FOUNDER_ROLE_TITLE = process.env.FOUNDER_ROLE_TITLE || "QA Manager";
 
-async function addEmilioFounder() {
+if (!FOUNDER_EMAIL) {
+  console.error(`\n❌ ERROR: FOUNDER_EMAIL environment variable is required`);
+  console.error(`   Usage: FOUNDER_EMAIL=email@example.com FOUNDER_NAME="Full Name" npm run add:founder\n`);
+  process.exit(1);
+}
+
+async function addFounder() {
+  // Type guard to ensure FOUNDER_EMAIL is defined
+  if (!FOUNDER_EMAIL) {
+    console.error(`\n❌ ERROR: FOUNDER_EMAIL environment variable is required`);
+    console.error(`   Usage: FOUNDER_EMAIL=email@example.com FOUNDER_NAME="Full Name" npm run add:founder\n`);
+    process.exit(1);
+  }
+
+  const founderEmail: string = FOUNDER_EMAIL;
+  const founderName: string = FOUNDER_NAME || "QA Manager";
+  const founderRoleTitle: string = FOUNDER_ROLE_TITLE || "QA Manager";
+
   let sqliteClient: Database.Database | null = null;
   
   try {
@@ -29,12 +49,12 @@ async function addEmilioFounder() {
     sqliteClient = new Database(dbPath);
     const db = drizzle(sqliteClient);
     
-    console.log(`🔍 Checking if ${EMILIO_EMAIL} already exists...`);
+    console.log(`🔍 Checking if ${founderEmail} already exists...`);
 
     // Check if user already exists
     const existing = await db.select()
       .from(users)
-      .where(eq(users.email, EMILIO_EMAIL))
+      .where(eq(users.email, founderEmail))
       .get();
 
     if (existing) {
@@ -42,11 +62,11 @@ async function addEmilioFounder() {
       console.log(`   Email: ${existing.email}`);
       console.log(`   Role: ${existing.role}`);
       console.log(`   API Key: ${existing.apiKey?.substring(0, 15)}...`);
-      console.log(`\n✅ No action needed - Emilio is already in the system.\n`);
+      console.log(`\n✅ No action needed - Founder is already in the system.\n`);
       return;
     }
 
-    console.log(`✨ Creating new superadmin account for ${EMILIO_NAME}...`);
+    console.log(`✨ Creating new superadmin account for ${founderName}...`);
 
     // Generate API key
     const apiKey = `cb_${randomUUID().replace(/-/g, "")}`;
@@ -54,7 +74,7 @@ async function addEmilioFounder() {
     // Create superadmin user
     await db.insert(users).values({
       id: randomUUID(),
-      email: EMILIO_EMAIL,
+      email: founderEmail,
       passwordHash: null, // No password - API key auth only
       role: "superadmin",
       apiKey,
@@ -62,7 +82,7 @@ async function addEmilioFounder() {
       organizationName: "ContinuityBridge Founders Team",
       enabled: true,
       metadata: {
-        roleTitle: EMILIO_ROLE_TITLE,
+        roleTitle: founderRoleTitle,
         team: "Founders",
         addedBy: "system-script",
         addedAt: new Date().toISOString(),
@@ -71,22 +91,22 @@ async function addEmilioFounder() {
       updatedAt: new Date().toISOString(),
     }).run();
 
-    console.log(`\n✅ Emilio Navarro added successfully!`);
+    console.log(`\n✅ Founder added successfully!`);
     console.log(`\n📋 Account Details:`);
-    console.log(`   Name: ${EMILIO_NAME}`);
-    console.log(`   Email: ${EMILIO_EMAIL}`);
+    console.log(`   Name: ${founderName}`);
+    console.log(`   Email: ${founderEmail}`);
     console.log(`   Role: Superadmin (Founder)`);
-    console.log(`   Title: ${EMILIO_ROLE_TITLE}`);
+    console.log(`   Title: ${founderRoleTitle}`);
     console.log(`   Team: Founders`);
     console.log(`\n🔑 API Key (save securely):`);
     console.log(`   ${apiKey}`);
     console.log(`\n📧 Next Steps:`);
-    console.log(`   1. Share the API key with Emilio securely`);
-    console.log(`   2. Emilio can authenticate using X-API-Key header`);
+    console.log(`   1. Share the API key with founder securely`);
+    console.log(`   2. Founder can authenticate using X-API-Key header`);
     console.log(`   3. Access all superadmin features (export, license, user mgmt)`);
     console.log(`\n`);
   } catch (error: any) {
-    console.error(`\n❌ Error adding Emilio:`, error.message);
+    console.error(`\n❌ Error adding founder:`, error.message);
     console.error(error);
     process.exit(1);
   } finally {
@@ -98,7 +118,7 @@ async function addEmilioFounder() {
 }
 
 // Run the script
-addEmilioFounder()
+addFounder()
   .then(() => {
     console.log(`🎉 Script completed successfully!\n`);
     process.exit(0);
