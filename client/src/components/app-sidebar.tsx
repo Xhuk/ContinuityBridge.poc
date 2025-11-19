@@ -103,6 +103,7 @@ const adminMenuItems = [
     url: "/settings/cluster-config",
     icon: ServerCog,
     roles: ["superadmin", "consultant", "customer_admin"],
+    requiresClusterMode: true,  // Only show if cluster deployment is configured
   },
   {
     title: "QA Tracking",
@@ -150,8 +151,15 @@ export function AppSidebar({ queueBackend }: { queueBackend?: string }) {
     enabled: !!user,
   });
 
+  // Fetch cluster configuration to check if cluster mode is enabled
+  const { data: clusterConfigData } = useQuery({
+    queryKey: ["/api/cluster/config"],
+    enabled: !!user && isAdmin,
+  });
+
   const license = licenseData?.license;
   const features = license?.features || {};
+  const clusterModeEnabled = clusterConfigData?.enabled || false;
 
   // Admins and consultants see all features
   const showAllFeatures = isSuperAdmin || isConsultant;
@@ -221,7 +229,19 @@ export function AppSidebar({ queueBackend }: { queueBackend?: string }) {
             <SidebarGroupContent>
               <SidebarMenu>
                 {adminMenuItems
-                  .filter(item => item.roles.includes(user?.role || ""))
+                  .filter(item => {
+                    // Filter by role
+                    if (!item.roles.includes(user?.role || "")) {
+                      return false;
+                    }
+                    
+                    // Filter by cluster mode requirement
+                    if (item.requiresClusterMode && !clusterModeEnabled) {
+                      return false;
+                    }
+                    
+                    return true;
+                  })
                   .map((item) => {
                     const isActive = location === item.url;
                     return (
