@@ -379,4 +379,11 @@ docs/drafts/
 
 # MCP (Model Context Protocol) configuration
 .mcp/
-!.mcp/config.json
+mcp.json
+mcp_config.json
+.cursor/mcp.json
+.qoder/mcp.json
+!.mcp/config.json.example
+
+# Debug scripts with API credentials
+scripts/debug-render-logs.js

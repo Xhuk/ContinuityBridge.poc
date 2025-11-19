@@ -51,8 +51,8 @@ export default defineConfig({
           // Charts and visualization
           'charts': ['recharts'],
           
-          // Icon libraries
-          'icons': ['lucide-react'],
+          // Icon libraries - removed to fix tree-shaking issues
+          // 'icons': ['lucide-react'],
           
           // Utility libraries
           'utils': ['clsx', 'tailwind-merge', 'class-variance-authority', 'date-fns'],
