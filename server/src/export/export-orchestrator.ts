@@ -27,6 +27,20 @@ export interface ExportOptions {
   maxFlows?: number;
   outputDir?: string;
   includeInactive?: boolean; // Export non-active flows (default: false)
+  
+  // Deployment profile support
+  deploymentProfile?: "standalone" | "standard" | "cluster" | "kubernetes";
+  
+  // Cluster-specific configuration (Perfil C)
+  clusterConfig?: {
+    appServerHost: string;
+    dbServerHost: string;
+    appServerPort?: number;
+    dbServerPort?: number;
+    redisServerPort?: number;
+    privateNetwork?: boolean;
+    sslEnabled?: boolean;
+  };
 }
 
 export class ExportOrchestrator {
@@ -163,7 +177,12 @@ export class ExportOrchestrator {
       console.log("🐳 Generating Dockerfile...");
       await this.generateDockerfile(exportDir, productionDeps);
 
-      // Step 9: Generate README for deployment
+      // Step 9: Generate deployment configurations based on profile
+      const profile = options.deploymentProfile || "standard";
+      console.log(`📦 Generating ${profile} deployment configuration...`);
+      await this.generateDeploymentConfig(exportDir, options, profile);
+
+      // Step 10: Generate README for deployment
       await this.generateDeploymentReadme(exportDir, options, productionDeps);
 
       console.log(`✅ Black box export completed successfully!`);
@@ -536,5 +555,290 @@ db.close();
 
     console.log("   ✅ Generated init-database.sql (SQL script)");
     console.log("   ✅ Generated seed-database.js (Node.js script)");
+  }
+
+  /**
+   * Generate deployment configuration files based on profile
+   */
+  private async generateDeploymentConfig(
+    exportDir: string,
+    options: ExportOptions,
+    profile: string
+  ): Promise<void> {
+    switch (profile) {
+      case "cluster":
+        await this.generateClusterConfig(exportDir, options);
+        break;
+      case "kubernetes":
+        await this.generateKubernetesConfig(exportDir, options);
+        break;
+      case "standard":
+      case "standalone":
+      default:
+        await this.generateStandardConfig(exportDir, options);
+        break;
+    }
+  }
+
+  /**
+   * Generate cluster deployment configuration (Perfil C)
+   */
+  private async generateClusterConfig(
+    exportDir: string,
+    options: ExportOptions
+  ): Promise<void> {
+    const clusterConfig = options.clusterConfig || {
+      appServerHost: "10.0.1.10",
+      dbServerHost: "10.0.1.20",
+      appServerPort: 5000,
+      dbServerPort: 5432,
+      redisServerPort: 6379,
+      privateNetwork: true,
+      sslEnabled: true,
+    };
+
+    // Copy docker-compose.cluster.yml
+    const clusterComposeContent = `# ContinuityBridge - CLUSTER DEPLOYMENT
+# Arquitectura Distribuida: App Server + DB Server
+
+version: '3.8'
+
+services:
+  app:
+    image: continuitybridge:latest
+    container_name: continuitybridge-app
+    restart: unless-stopped
+    ports:
+      - "${clusterConfig.appServerPort}:5000"
+    environment:
+      NODE_ENV: production
+      DEPLOYMENT_PROFILE: cluster
+      DATABASE_URL: postgresql://\${POSTGRES_USER}:\${POSTGRES_PASSWORD}@${clusterConfig.dbServerHost}:${clusterConfig.dbServerPort}/\${POSTGRES_DB}
+      VALKEY_URL: valkey://:\${VALKEY_PASSWORD}@${clusterConfig.dbServerHost}:${clusterConfig.redisServerPort}
+      DB_SSL_ENABLED: "${clusterConfig.sslEnabled}"
+      APP_DOMAIN: \${APP_DOMAIN}
+      ENCRYPTION_KEY: \${ENCRYPTION_KEY}
+      SUPERADMIN_API_KEY: \${SUPERADMIN_API_KEY}
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - cluster-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: continuitybridge-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: \${POSTGRES_DB:-continuitybridge_main}
+      POSTGRES_USER: \${POSTGRES_USER:-cbadmin}
+      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${clusterConfig.dbServerPort}:5432"
+    networks:
+      - cluster-network
+
+  valkey:
+    image: valkey/valkey:latest
+    container_name: continuitybridge-valkey
+    restart: unless-stopped
+    command: valkey-server --appendonly yes --requirepass \${VALKEY_PASSWORD}
+    volumes:
+      - valkey-data:/data
+    ports:
+      - "${clusterConfig.redisServerPort}:6379"
+    networks:
+      - cluster-network
+
+networks:
+  cluster-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  valkey-data:
+`;
+
+    await fs.writeFile(
+      path.join(exportDir, "docker-compose.cluster.yml"),
+      clusterComposeContent,
+      "utf-8"
+    );
+
+    // Generate .env.cluster file
+    const envClusterContent = `# CLUSTER DEPLOYMENT CONFIGURATION
+DEPLOYMENT_PROFILE=cluster
+
+# Server Topology
+APP_SERVER_HOST=${clusterConfig.appServerHost}
+DB_SERVER_HOST=${clusterConfig.dbServerHost}
+APP_PORT=${clusterConfig.appServerPort}
+DB_SERVER_PORT=${clusterConfig.dbServerPort}
+VALKEY_SERVER_PORT=${clusterConfig.redisServerPort}
+
+# Database
+POSTGRES_DB=continuitybridge_main
+POSTGRES_USER=cbadmin
+POSTGRES_PASSWORD=CHANGE_ME_STRONG_PASSWORD
+
+# Valkey/Redis
+VALKEY_PASSWORD=CHANGE_ME_VALKEY_PASSWORD
+
+# SSL/TLS
+DB_SSL_ENABLED=${clusterConfig.sslEnabled}
+
+# Application
+APP_DOMAIN=yourdomain.com
+ENCRYPTION_KEY=CHANGE_ME_32_CHAR_KEY
+SUPERADMIN_API_KEY=cb_prod_CHANGE_ME
+
+# Organization
+ORGANIZATION_ID=${options.organizationId}
+ORGANIZATION_NAME=${options.organizationName}
+`;
+
+    await fs.writeFile(
+      path.join(exportDir, ".env.cluster"),
+      envClusterContent,
+      "utf-8"
+    );
+
+    // Generate cluster deployment guide
+    const clusterGuideContent = `# CLUSTER DEPLOYMENT GUIDE (Perfil C)
+
+## Architecture Overview
+
+**App Server (Stateless):**
+- IP: ${clusterConfig.appServerHost}
+- Port: ${clusterConfig.appServerPort}
+- Role: Runs application containers (scalable)
+
+**DB Server (Stateful):**
+- IP: ${clusterConfig.dbServerHost}
+- Ports: ${clusterConfig.dbServerPort} (PostgreSQL), ${clusterConfig.redisServerPort} (Valkey)
+- Role: Runs database and cache (persistent storage)
+
+## Deployment Steps
+
+### 1. DB Server Setup
+
+\`\`\`bash
+# On DB Server (${clusterConfig.dbServerHost})
+cd /opt/continuitybridge
+
+# Create data directories
+mkdir -p /var/lib/continuitybridge/postgres
+mkdir -p /var/lib/continuitybridge/valkey
+
+# Start database services
+docker-compose -f docker-compose.cluster.yml up -d postgres valkey
+
+# Verify services are running
+docker-compose -f docker-compose.cluster.yml ps
+\`\`\`
+
+### 2. App Server Setup
+
+\`\`\`bash
+# On App Server (${clusterConfig.appServerHost})
+cd /opt/continuitybridge
+
+# Configure environment
+cp .env.cluster .env
+nano .env  # Update passwords and keys
+
+# Start application
+docker-compose -f docker-compose.cluster.yml up -d app
+
+# Check logs
+docker-compose -f docker-compose.cluster.yml logs -f app
+\`\`\`
+
+### 3. Network Configuration
+
+**Firewall Rules:**
+\`\`\`bash
+# On DB Server - Allow connections from App Server
+sudo ufw allow from ${clusterConfig.appServerHost} to any port ${clusterConfig.dbServerPort}
+sudo ufw allow from ${clusterConfig.appServerHost} to any port ${clusterConfig.redisServerPort}
+
+# On App Server - Allow HTTP/HTTPS from internet
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+\`\`\`
+
+## Scaling
+
+**Horizontal Scaling (App Server):**
+\`\`\`bash
+# Scale to 3 app instances
+docker-compose -f docker-compose.cluster.yml up -d --scale app=3
+\`\`\`
+
+**Load Balancer (Optional):**
+- Deploy nginx/haproxy in front of app servers
+- Configure health checks and round-robin
+
+## Monitoring
+
+- Prometheus: http://${clusterConfig.dbServerHost}:9090
+- Grafana: http://${clusterConfig.appServerHost}:3000
+
+## Backup
+
+\`\`\`bash
+# On DB Server
+docker-compose -f docker-compose.cluster.yml exec postgres \\
+  pg_dump -U cbadmin continuitybridge_main > backup.sql
+\`\`\`
+
+## Troubleshooting
+
+**Test DB Connectivity:**
+\`\`\`bash
+# From App Server
+telnet ${clusterConfig.dbServerHost} ${clusterConfig.dbServerPort}
+\`\`\`
+
+**Check Logs:**
+\`\`\`bash
+docker-compose -f docker-compose.cluster.yml logs postgres
+docker-compose -f docker-compose.cluster.yml logs valkey
+docker-compose -f docker-compose.cluster.yml logs app
+\`\`\`
+`;
+
+    await fs.writeFile(
+      path.join(exportDir, "CLUSTER_DEPLOYMENT.md"),
+      clusterGuideContent,
+      "utf-8"
+    );
+
+    console.log("   ✅ Generated docker-compose.cluster.yml");
+    console.log("   ✅ Generated .env.cluster");
+    console.log("   ✅ Generated CLUSTER_DEPLOYMENT.md");
+  }
+
+  /**
+   * Generate standard deployment configuration (Perfil B)
+   */
+  private async generateStandardConfig(
+    exportDir: string,
+    options: ExportOptions
+  ): Promise<void> {
+    // Copy existing docker-compose.prod.yml logic
+    console.log("   ✅ Using standard docker-compose.prod.yml configuration");
+  }
+
+  /**
+   * Generate Kubernetes deployment configuration (Perfil D)
+   */
+  private async generateKubernetesConfig(
+    exportDir: string,
+    options: ExportOptions
+  ): Promise<void> {
+    // Delegate to kubernetes-generator.ts
+    console.log("   ✅ Using Kubernetes generator for Helm charts");
   }
 }

@@ -177,6 +177,53 @@ export const systemRestartSchema = z.object({
 
 export type SystemRestart = z.infer<typeof systemRestartSchema>;
 
+// ============================================================================
+// DEPLOYMENT PROFILES - Architecture & Infrastructure Configuration
+// ============================================================================
+
+// Deployment Profile Schema
+export const deploymentProfileSchema = z.enum([
+  "standalone",     // Perfil A: Todo en un servidor (App + DB + Redis)
+  "standard",       // Perfil B: App + Postgres/Redis en Docker Compose
+  "cluster",        // Perfil C: 1 Servidor App (Stateless) + 1 Servidor DB/Queues
+  "kubernetes",     // Perfil D: Full Kubernetes deployment
+]);
+
+export type DeploymentProfile = z.infer<typeof deploymentProfileSchema>;
+
+// Deployment Configuration Schema
+export const deploymentConfigSchema = z.object({
+  profile: deploymentProfileSchema,
+  
+  // Cluster-specific configuration (Perfil C)
+  cluster: z.object({
+    appServerHost: z.string(),         // IP/hostname del servidor de aplicación
+    dbServerHost: z.string(),          // IP/hostname del servidor de base de datos
+    appServerPort: z.number().default(5000),
+    dbServerPort: z.number().default(5432),
+    redisServerPort: z.number().default(6379),
+    
+    // Network configuration
+    privateNetwork: z.boolean().default(true),  // Usar red privada entre servidores
+    sslEnabled: z.boolean().default(true),      // SSL entre app y db
+  }).optional(),
+  
+  // Kubernetes-specific configuration (Perfil D)
+  kubernetes: z.object({
+    namespace: z.string().default("continuitybridge"),
+    replicas: z.number().default(3),
+    storageClass: z.string().default("standard"),
+    ingressEnabled: z.boolean().default(true),
+  }).optional(),
+  
+  // Common settings
+  environment: z.enum(["development", "staging", "production"]).default("production"),
+  organizationId: z.string(),
+  organizationName: z.string(),
+});
+
+export type DeploymentConfig = z.infer<typeof deploymentConfigSchema>;
+
 // XML IFD Request Schema
 export const xmlIfdRequestSchema = z.object({
   xml: z.string(),

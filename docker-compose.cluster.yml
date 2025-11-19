@@ -1,0 +1,279 @@
+# ==============================================================================
+# Docker Compose for CLUSTER DEPLOYMENT (Perfil C)
+# Arquitectura Distribuida: 1 Servidor App + 1 Servidor DB/Queues
+# ==============================================================================
+#
+# DEPLOYMENT MODEL:
+# - App Server (Stateless):  Runs the application containers
+# - DB Server (Stateful):    Runs PostgreSQL + Valkey (Redis)
+#
+# USAGE:
+#   App Server:  docker-compose -f docker-compose.cluster.yml up -d app
+#   DB Server:   docker-compose -f docker-compose.cluster.yml up -d postgres valkey
+#
+# NETWORK:
+#   - Servers communicate via external network or Docker overlay network
+#   - For production: Use private network between servers
+#   - For cloud: Use VPC or private subnets
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # APPLICATION SERVER (Stateless - Scalable)
+  # ===========================================================================
+  # Deploy this service on the APP SERVER
+  # No persistent volumes - pure stateless containers
+  # Can be scaled horizontally: docker-compose up -d --scale app=3
+  
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: continuitybridge-app
+    restart: unless-stopped
+    
+    # NO PORTS EXPOSED - Use load balancer in front
+    # For testing: uncomment to expose directly
+    ports:
+      - "${APP_PORT:-5000}:5000"
+    
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      
+      # ===== DATABASE CONNECTION (REMOTE) =====
+      # Points to DB server (separate machine)
+      DB_TYPE: postgres
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cbadmin}:${POSTGRES_PASSWORD}@${DB_SERVER_HOST}:${DB_SERVER_PORT:-5432}/${POSTGRES_DB:-continuitybridge_main}
+      
+      # ===== VALKEY/REDIS CONNECTION (REMOTE) =====
+      # Points to Valkey on DB server
+      VALKEY_ENABLED: "true"
+      VALKEY_URL: valkey://:${VALKEY_PASSWORD}@${DB_SERVER_HOST}:${VALKEY_SERVER_PORT:-6379}
+      
+      # ===== SSL/TLS BETWEEN SERVERS =====
+      # Enable SSL for database connections in production
+      DB_SSL_ENABLED: "${DB_SSL_ENABLED:-true}"
+      DB_SSL_REJECT_UNAUTHORIZED: "${DB_SSL_REJECT_UNAUTHORIZED:-false}"
+      
+      # ===== APPLICATION SETTINGS =====
+      APP_DOMAIN: ${APP_DOMAIN:-yourdomain.com}
+      APP_URL: ${APP_URL:-https://yourdomain.com}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      SUPERADMIN_API_KEY: ${SUPERADMIN_API_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      
+      # ===== DEPLOYMENT IDENTIFICATION =====
+      DEPLOYMENT_PROFILE: cluster
+      DEPLOYMENT_ROLE: app_server
+      SERVER_ID: ${APP_SERVER_ID:-app-01}
+      
+      # Customer deployment type
+      VITE_DEPLOYMENT_TYPE: customer
+      AUTH_GUARD_ENABLED: ${AUTH_GUARD_ENABLED:-true}
+    
+    # Minimal volumes - only logs (optional)
+    volumes:
+      - ./logs:/app/logs
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Network configuration
+    networks:
+      - cluster-network
+    
+    # Resource limits (adjust based on workload)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # ===========================================================================
+  # DATABASE SERVER (PostgreSQL - Stateful)
+  # ===========================================================================
+  # Deploy this service on the DB SERVER
+  # Requires persistent storage - DO NOT SCALE
+  
+  postgres:
+    image: postgres:16-alpine
+    container_name: continuitybridge-postgres
+    restart: unless-stopped
+    
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-continuitybridge_main}
+      POSTGRES_USER: ${POSTGRES_USER:-cbadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      
+      # Performance tuning
+      POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS:-512MB}
+      POSTGRES_EFFECTIVE_CACHE_SIZE: ${POSTGRES_EFFECTIVE_CACHE_SIZE:-2GB}
+      POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS:-200}
+    
+    volumes:
+      # Persistent data storage
+      - postgres-data:/var/lib/postgresql/data
+      
+      # Optional: Custom PostgreSQL configuration
+      # - ./postgresql.cluster.conf:/etc/postgresql/postgresql.conf
+    
+    ports:
+      # Expose to allow connections from App Server
+      # Restrict via firewall rules in production
+      - "${DB_SERVER_PORT:-5432}:5432"
+    
+    # Health check
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cbadmin} -d ${POSTGRES_DB:-continuitybridge_main}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    # Network configuration
+    networks:
+      - cluster-network
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+  # ===========================================================================
+  # VALKEY/REDIS SERVER (Cache & Queues - Stateful)
+  # ===========================================================================
+  # Deploy this service on the DB SERVER
+  # Co-located with PostgreSQL for low-latency access
+  
+  valkey:
+    image: valkey/valkey:latest
+    container_name: continuitybridge-valkey
+    restart: unless-stopped
+    
+    command: >
+      valkey-server
+      --appendonly yes
+      --requirepass ${VALKEY_PASSWORD}
+      --maxmemory ${VALKEY_MAX_MEMORY:-2gb}
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    
+    volumes:
+      # Persistent cache/queue data
+      - valkey-data:/data
+    
+    ports:
+      # Expose to allow connections from App Server
+      - "${VALKEY_SERVER_PORT:-6379}:6379"
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "valkey-cli", "--pass", "${VALKEY_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    
+    # Network configuration
+    networks:
+      - cluster-network
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  # ===========================================================================
+  # OPTIONAL: PostgreSQL Backup Service
+  # ===========================================================================
+  # Automated database backups (runs on DB Server)
+  
+  postgres-backup:
+    image: postgres:16-alpine
+    container_name: continuitybridge-backup
+    restart: unless-stopped
+    
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-continuitybridge_main}
+      POSTGRES_USER: ${POSTGRES_USER:-cbadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup-db.sh:/backup-db.sh:ro
+    
+    # Run backup daily at 2 AM
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add --no-cache dcron
+        echo "0 2 * * * /backup-db.sh" | crontab -
+        crond -f -l 2
+    
+    networks:
+      - cluster-network
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+    
+    profiles:
+      - backup  # Only start if 'backup' profile is activated
+
+# ==============================================================================
+# NETWORKS
+# ==============================================================================
+# For production: Use Docker overlay network or external VPC
+
+networks:
+  cluster-network:
+    driver: bridge
+    # For multi-host deployment, use overlay:
+    # driver: overlay
+    # attachable: true
+    # ipam:
+    #   config:
+    #     - subnet: 10.0.1.0/24
+
+# ==============================================================================
+# VOLUMES (Data Persistence)
+# ==============================================================================
+# Only created on DB SERVER
+
+volumes:
+  postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${POSTGRES_DATA_PATH:-./data/postgres}
+  
+  valkey-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VALKEY_DATA_PATH:-./data/valkey}
