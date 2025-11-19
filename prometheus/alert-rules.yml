@@ -1,0 +1,338 @@
+# Prometheus Alert Rules
+# Define when to trigger alerts based on metrics
+
+groups:
+  - name: continuitybridge_health
+    interval: 30s
+    rules:
+      # Critical: Application is down
+      - alert: ApplicationDown
+        expr: up{job="continuitybridge"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ContinuityBridge application is down"
+          description: "Application has been down for more than 1 minute"
+      
+      # Critical: Health status is critical
+      - alert: HealthStatusCritical
+        expr: continuitybridge_health_status == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "System health is CRITICAL"
+          description: "Health monitor reports critical status"
+      
+      # Warning: Health status is warning
+      - alert: HealthStatusWarning
+        expr: continuitybridge_health_status == 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "System health is WARNING"
+          description: "Health monitor reports warning status"
+      
+      # Critical: High error rate
+      - alert: HighErrorRate
+        expr: continuitybridge_error_rate_per_minute > 10
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors/min (threshold: 10)"
+      
+      # Warning: Elevated error rate
+      - alert: ElevatedErrorRate
+        expr: continuitybridge_error_rate_per_minute > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated error rate"
+          description: "Error rate is {{ $value }} errors/min"
+      
+      # Warning: High latency
+      - alert: HighLatency
+        expr: continuitybridge_http_request_duration_milliseconds{quantile="0.95"} > 5000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request latency"
+          description: "P95 latency is {{ $value }}ms (threshold: 5000ms)"
+      
+      # Critical: Memory usage high
+      - alert: HighMemoryUsage
+        expr: continuitybridge_memory_usage_percent > 85
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}% (threshold: 85%)"
+      
+      # Warning: Memory usage elevated
+      - alert: ElevatedMemoryUsage
+        expr: continuitybridge_memory_usage_percent > 70
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated memory usage"
+          description: "Memory usage is {{ $value }}%"
+      
+      # Critical: Daemon stopped
+      - alert: DaemonStopped
+        expr: continuitybridge_daemon_running == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Daemon {{ $labels.daemon }} is stopped"
+          description: "Background daemon is not running"
+      
+      # Warning: High request rate
+      - alert: HighRequestRate
+        expr: continuitybridge_throughput_requests_per_second > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request rate"
+          description: "Request rate is {{ $value }} req/sec"
+      
+      # Warning: Queue depth growing
+      - alert: QueueDepthGrowing
+        expr: continuitybridge_queue_depth > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Queue depth is growing"
+          description: "{{ $labels.queue }} queue depth is {{ $value }}"
+      
+      # Critical: Queue depth very high
+      - alert: QueueDepthCritical
+        expr: continuitybridge_queue_depth > 1000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Queue depth critical"
+          description: "{{ $labels.queue }} queue depth is {{ $value }}"
+
+  - name: continuitybridge_performance
+    interval: 1m
+    rules:
+      # Warning: Scheduler job failures
+      - alert: SchedulerJobFailures
+        expr: rate(continuitybridge_scheduler_jobs_total{status="failed"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scheduler jobs failing"
+          description: "Scheduler failure rate is {{ $value }} jobs/sec"
+      
+      # Warning: High CPU usage
+      - alert: HighCPUUsage
+        expr: continuitybridge_process_cpu_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}%"
+      
+      # Warning: System load high
+      - alert: HighSystemLoad
+        expr: continuitybridge_system_load_average{period="5m"} > 4
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High system load"
+          description: "5-min load average is {{ $value }}"
+      
+      # Info: Low throughput (possible issue)
+      - alert: LowThroughput
+        expr: continuitybridge_throughput_requests_per_second < 0.1
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "Low request throughput"
+          description: "Only {{ $value }} requests/sec for 15 minutes"
+# Prometheus Alert Rules
+# Define when to trigger alerts based on metrics
+
+groups:
+  - name: continuitybridge_health
+    interval: 30s
+    rules:
+      # Critical: Application is down
+      - alert: ApplicationDown
+        expr: up{job="continuitybridge"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ContinuityBridge application is down"
+          description: "Application has been down for more than 1 minute"
+      
+      # Critical: Health status is critical
+      - alert: HealthStatusCritical
+        expr: continuitybridge_health_status == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "System health is CRITICAL"
+          description: "Health monitor reports critical status"
+      
+      # Warning: Health status is warning
+      - alert: HealthStatusWarning
+        expr: continuitybridge_health_status == 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "System health is WARNING"
+          description: "Health monitor reports warning status"
+      
+      # Critical: High error rate
+      - alert: HighErrorRate
+        expr: continuitybridge_error_rate_per_minute > 10
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors/min (threshold: 10)"
+      
+      # Warning: Elevated error rate
+      - alert: ElevatedErrorRate
+        expr: continuitybridge_error_rate_per_minute > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated error rate"
+          description: "Error rate is {{ $value }} errors/min"
+      
+      # Warning: High latency
+      - alert: HighLatency
+        expr: continuitybridge_http_request_duration_milliseconds{quantile="0.95"} > 5000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request latency"
+          description: "P95 latency is {{ $value }}ms (threshold: 5000ms)"
+      
+      # Critical: Memory usage high
+      - alert: HighMemoryUsage
+        expr: continuitybridge_memory_usage_percent > 85
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}% (threshold: 85%)"
+      
+      # Warning: Memory usage elevated
+      - alert: ElevatedMemoryUsage
+        expr: continuitybridge_memory_usage_percent > 70
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated memory usage"
+          description: "Memory usage is {{ $value }}%"
+      
+      # Critical: Daemon stopped
+      - alert: DaemonStopped
+        expr: continuitybridge_daemon_running == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Daemon {{ $labels.daemon }} is stopped"
+          description: "Background daemon is not running"
+      
+      # Warning: High request rate
+      - alert: HighRequestRate
+        expr: continuitybridge_throughput_requests_per_second > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request rate"
+          description: "Request rate is {{ $value }} req/sec"
+      
+      # Warning: Queue depth growing
+      - alert: QueueDepthGrowing
+        expr: continuitybridge_queue_depth > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Queue depth is growing"
+          description: "{{ $labels.queue }} queue depth is {{ $value }}"
+      
+      # Critical: Queue depth very high
+      - alert: QueueDepthCritical
+        expr: continuitybridge_queue_depth > 1000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Queue depth critical"
+          description: "{{ $labels.queue }} queue depth is {{ $value }}"
+
+  - name: continuitybridge_performance
+    interval: 1m
+    rules:
+      # Warning: Scheduler job failures
+      - alert: SchedulerJobFailures
+        expr: rate(continuitybridge_scheduler_jobs_total{status="failed"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scheduler jobs failing"
+          description: "Scheduler failure rate is {{ $value }} jobs/sec"
+      
+      # Warning: High CPU usage
+      - alert: HighCPUUsage
+        expr: continuitybridge_process_cpu_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}%"
+      
+      # Warning: System load high
+      - alert: HighSystemLoad
+        expr: continuitybridge_system_load_average{period="5m"} > 4
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High system load"
+          description: "5-min load average is {{ $value }}"
+      
+      # Info: Low throughput (possible issue)
+      - alert: LowThroughput
+        expr: continuitybridge_throughput_requests_per_second < 0.1
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "Low request throughput"
+          description: "Only {{ $value }} requests/sec for 15 minutes"

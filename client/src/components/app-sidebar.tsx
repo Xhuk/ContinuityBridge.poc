@@ -1,4 +1,4 @@
-import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2, Activity } from "lucide-react";
+import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2, Activity, Gauge, Zap } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -90,6 +90,12 @@ const adminMenuItems = [
     title: "System Health",
     url: "/admin/system-health",
     icon: Activity,
+    roles: ["superadmin", "consultant", "customer_admin"],
+  },
+  {
+    title: "Throttling Config",
+    url: "/settings/advanced-throttling",
+    icon: Gauge,
     roles: ["superadmin", "consultant", "customer_admin"],
   },
   {

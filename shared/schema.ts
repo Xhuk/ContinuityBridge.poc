@@ -123,6 +123,60 @@ export const workerStatusSchema = z.object({
 
 export type WorkerStatus = z.infer<typeof workerStatusSchema>;
 
+// Advanced Throttling Configuration Schema
+export const throttlingConfigSchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  
+  // Worker-level throttling
+  workerConcurrency: z.number().min(1).max(100).default(3),
+  
+  // HTTP request throttling (per node)
+  httpRequestsPerSecond: z.number().min(1).max(1000).default(50),
+  httpMaxConcurrent: z.number().min(1).max(100).default(10),
+  
+  // CSV/Batch processing
+  csvBatchSize: z.number().min(1).max(10000).default(100),
+  csvProcessingDelay: z.number().min(0).max(5000).default(0), // ms between batches
+  
+  // Retry configuration
+  maxRetries: z.number().min(0).max(10).default(3),
+  retryDelayMs: z.number().min(100).max(30000).default(1000),
+  retryBackoffMultiplier: z.number().min(1).max(5).default(2),
+  
+  // Queue-level settings
+  queuePollInterval: z.number().min(100).max(10000).default(1000),
+  deadLetterAfterRetries: z.number().min(1).max(20).default(5),
+  
+  // Metadata
+  enabled: z.boolean().default(true),
+  requiresRestart: z.boolean().default(false),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+export type ThrottlingConfig = z.infer<typeof throttlingConfigSchema>;
+
+export const insertThrottlingConfigSchema = throttlingConfigSchema.omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true,
+  requiresRestart: true,
+});
+export type InsertThrottlingConfig = z.infer<typeof insertThrottlingConfigSchema>;
+
+// System Restart Configuration
+export const systemRestartSchema = z.object({
+  requestedBy: z.string(),
+  requestedAt: z.string(),
+  reason: z.string(),
+  status: z.enum(["pending", "in_progress", "completed", "failed"]),
+  completedAt: z.string().optional(),
+  error: z.string().optional(),
+});
+
+export type SystemRestart = z.infer<typeof systemRestartSchema>;
+
 // XML IFD Request Schema
 export const xmlIfdRequestSchema = z.object({
   xml: z.string(),
@@ -635,6 +689,14 @@ export const flowNodeTypeSchema = z.enum([
   "loop",                   // Iterate over array
   "delay",                  // Add delay/wait
   "error_handler",          // Catch and handle errors
+  
+  // Advanced Integration Nodes (Caso 4 support)
+  "mqtt_publisher",         // Publish to MQTT broker
+  "mqtt_subscriber",        // Subscribe to MQTT topic
+  "wcs_connector",          // WCS/Conveyor integration
+  "opc_ua_connector",       // OPC-UA industrial automation
+  "distributor",            // Split order (Caso 1)
+  "join",                   // Wait for multiple completions (Caso 1)
 ]);
 
 export type FlowNodeType = z.infer<typeof flowNodeTypeSchema>;
@@ -679,6 +741,32 @@ export const flowNodeDataSchema = z.object({
   
   // Timer trigger configuration
   cronExpression: z.string().optional(),
+  
+  // MQTT configuration (for mqtt_publisher/subscriber)
+  mqttBroker: z.string().optional(),          // mqtt://broker:1883
+  mqttTopic: z.string().optional(),
+  mqttQos: z.enum(["0", "1", "2"]).optional(),
+  mqttRetain: z.boolean().optional(),
+  
+  // WCS/Conveyor configuration
+  wcsEndpoint: z.string().optional(),
+  wcsProtocol: z.enum(["rest", "mqtt", "opc-ua"]).optional(),
+  conveyorZone: z.string().optional(),
+  sortingRules: z.record(z.unknown()).optional(),
+  
+  // Distributor configuration (Caso 1)
+  splitStrategy: z.enum(["by_warehouse", "by_carrier", "by_item", "custom"]).optional(),
+  distributionRules: z.array(z.unknown()).optional(),
+  
+  // Join configuration (Caso 1)
+  joinStrategy: z.enum(["all", "any", "majority", "timeout"]).optional(),
+  joinTimeout: z.number().optional(),           // ms to wait
+  minimumJoins: z.number().optional(),
+  
+  // Throttling configuration (per-node)
+  throttleEnabled: z.boolean().optional(),
+  throttleRateLimit: z.number().optional(),     // requests per second
+  throttleMaxConcurrent: z.number().optional(),
   
   // Generic configuration for extensibility
   config: z.record(z.unknown()).optional(),

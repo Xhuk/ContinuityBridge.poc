@@ -1,0 +1,308 @@
+{
+  "dashboard": {
+    "title": "ContinuityBridge - System Overview",
+    "tags": ["continuitybridge", "production"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(continuitybridge_http_requests_total[5m])",
+            "legendFormat": "Requests/sec"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
+      },
+      {
+        "id": 2,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(continuitybridge_http_errors_total[5m])",
+            "legendFormat": "Errors/sec"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 }
+      },
+      {
+        "id": 3,
+        "title": "P95 Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "continuitybridge_http_request_duration_milliseconds{quantile=\"0.95\"}",
+            "legendFormat": "P95 Latency (ms)"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 }
+      },
+      {
+        "id": 4,
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "continuitybridge_memory_usage_percent",
+            "legendFormat": "Memory %"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 }
+      },
+      {
+        "id": 5,
+        "title": "Daemon Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "continuitybridge_daemon_running{daemon=\"scheduler\"}",
+            "legendFormat": "Scheduler"
+          },
+          {
+            "expr": "continuitybridge_daemon_running{daemon=\"poller\"}",
+            "legendFormat": "Poller"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 16, "w": 6, "h": 4 }
+      },
+      {
+        "id": 6,
+        "title": "Health Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "continuitybridge_health_status",
+            "legendFormat": "Health"
+          }
+        ],
+        "gridPos": { "x": 6, "y": 16, "w": 6, "h": 4 }
+      },
+      {
+        "id": 7,
+        "title": "Queue Depth",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "continuitybridge_queue_depth{queue=\"inbound\"}",
+            "legendFormat": "Inbound"
+          },
+          {
+            "expr": "continuitybridge_queue_depth{queue=\"outbound\"}",
+            "legendFormat": "Outbound"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 }
+      },
+      {
+        "id": 8,
+        "title": "System Load",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "continuitybridge_system_load_average{period=\"1m\"}",
+            "legendFormat": "1min"
+          },
+          {
+            "expr": "continuitybridge_system_load_average{period=\"5m\"}",
+            "legendFormat": "5min"
+          },
+          {
+            "expr": "continuitybridge_system_load_average{period=\"15m\"}",
+            "legendFormat": "15min"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 }
+      },
+      {
+        "id": 9,
+        "title": "Process CPU",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "continuitybridge_process_cpu_usage_percent",
+            "legendFormat": "CPU %"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 }
+      },
+      {
+        "id": 10,
+        "title": "Scheduler Jobs",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(continuitybridge_scheduler_jobs_total{status=\"completed\"}[5m])",
+            "legendFormat": "Completed"
+          },
+          {
+            "expr": "rate(continuitybridge_scheduler_jobs_total{status=\"failed\"}[5m])",
+            "legendFormat": "Failed"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 28, "w": 12, "h": 8 }
+      }
+    ]
+  }
+}
+{
+  "dashboard": {
+    "title": "ContinuityBridge - System Overview",
+    "tags": ["continuitybridge", "production"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(continuitybridge_http_requests_total[5m])",
+            "legendFormat": "Requests/sec"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
+      },
+      {
+        "id": 2,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(continuitybridge_http_errors_total[5m])",
+            "legendFormat": "Errors/sec"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 }
+      },
+      {
+        "id": 3,
+        "title": "P95 Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "continuitybridge_http_request_duration_milliseconds{quantile=\"0.95\"}",
+            "legendFormat": "P95 Latency (ms)"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 }
+      },
+      {
+        "id": 4,
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "continuitybridge_memory_usage_percent",
+            "legendFormat": "Memory %"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 }
+      },
+      {
+        "id": 5,
+        "title": "Daemon Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "continuitybridge_daemon_running{daemon=\"scheduler\"}",
+            "legendFormat": "Scheduler"
+          },
+          {
+            "expr": "continuitybridge_daemon_running{daemon=\"poller\"}",
+            "legendFormat": "Poller"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 16, "w": 6, "h": 4 }
+      },
+      {
+        "id": 6,
+        "title": "Health Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "continuitybridge_health_status",
+            "legendFormat": "Health"
+          }
+        ],
+        "gridPos": { "x": 6, "y": 16, "w": 6, "h": 4 }
+      },
+      {
+        "id": 7,
+        "title": "Queue Depth",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "continuitybridge_queue_depth{queue=\"inbound\"}",
+            "legendFormat": "Inbound"
+          },
+          {
+            "expr": "continuitybridge_queue_depth{queue=\"outbound\"}",
+            "legendFormat": "Outbound"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 }
+      },
+      {
+        "id": 8,
+        "title": "System Load",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "continuitybridge_system_load_average{period=\"1m\"}",
+            "legendFormat": "1min"
+          },
+          {
+            "expr": "continuitybridge_system_load_average{period=\"5m\"}",
+            "legendFormat": "5min"
+          },
+          {
+            "expr": "continuitybridge_system_load_average{period=\"15m\"}",
+            "legendFormat": "15min"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 }
+      },
+      {
+        "id": 9,
+        "title": "Process CPU",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "continuitybridge_process_cpu_usage_percent",
+            "legendFormat": "CPU %"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 }
+      },
+      {
+        "id": 10,
+        "title": "Scheduler Jobs",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(continuitybridge_scheduler_jobs_total{status=\"completed\"}[5m])",
+            "legendFormat": "Completed"
+          },
+          {
+            "expr": "rate(continuitybridge_scheduler_jobs_total{status=\"failed\"}[5m])",
+            "legendFormat": "Failed"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 28, "w": 12, "h": 8 }
+      }
+    ]
+  }
+}

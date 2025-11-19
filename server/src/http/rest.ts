@@ -413,6 +413,109 @@ export function registerRESTRoutes(
     }
   });
 
+  // ============================================================================
+  // THROTTLING CONFIGURATION API (Caso 3 support)
+  // ============================================================================
+
+  // GET /api/throttling/config - Get throttling configuration for organization
+  app.get("/api/throttling/config", authenticateUser, async (req, res) => {
+    try {
+      const { getThrottlingConfig } = await import("../services/throttling-config-service.js");
+      const organizationId = (req as any).user?.organizationId || "default";
+      const config = getThrottlingConfig(organizationId);
+      res.json(config);
+    } catch (error: any) {
+      log.error("Error fetching throttling config", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PUT /api/throttling/config - Update throttling configuration
+  app.put("/api/throttling/config", authenticateUser, async (req, res) => {
+    try {
+      const { upsertThrottlingConfig } = await import("../services/throttling-config-service.js");
+      const organizationId = (req as any).user?.organizationId || "default";
+      const updates = req.body;
+      
+      const result = upsertThrottlingConfig(organizationId, updates);
+      res.json(result);
+    } catch (error: any) {
+      log.error("Error updating throttling config", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/throttling/apply - Apply throttling configuration
+  app.post("/api/throttling/apply", authenticateUser, async (req, res) => {
+    try {
+      const { applyThrottlingConfig } = await import("../services/throttling-config-service.js");
+      const organizationId = (req as any).user?.organizationId || "default";
+      
+      const result = await applyThrottlingConfig(organizationId);
+      res.json(result);
+    } catch (error: any) {
+      log.error("Error applying throttling config", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================================================
+  // SYSTEM RESTART API
+  // ============================================================================
+
+  // GET /api/system/restart/status - Get restart status
+  app.get("/api/system/restart/status", authenticateUser, async (req, res) => {
+    try {
+      const { getRestartStatus } = await import("../services/system-restart-service.js");
+      const status = getRestartStatus();
+      res.json(status);
+    } catch (error: any) {
+      log.error("Error fetching restart status", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/system/restart/request - Request system restart
+  app.post("/api/system/restart/request", authenticateUser, async (req, res) => {
+    try {
+      const { requestSystemRestart } = await import("../services/system-restart-service.js");
+      const { reason } = req.body;
+      const requestedBy = (req as any).user?.email || "unknown";
+      
+      const restart = requestSystemRestart(requestedBy, reason || "Configuration change");
+      res.json(restart);
+    } catch (error: any) {
+      log.error("Error requesting restart", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/system/restart/execute - Execute system restart
+  app.post("/api/system/restart/execute", authenticateUser, async (req, res) => {
+    try {
+      const { executeSystemRestart } = await import("../services/system-restart-service.js");
+      const requestedBy = (req as any).user?.email || "unknown";
+      
+      const result = await executeSystemRestart(requestedBy);
+      res.json(result);
+    } catch (error: any) {
+      log.error("Error executing restart", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/system/restart/clear - Clear pending restart
+  app.post("/api/system/restart/clear", authenticateUser, async (req, res) => {
+    try {
+      const { clearPendingRestart } = await import("../services/system-restart-service.js");
+      clearPendingRestart();
+      res.json({ success: true });
+    } catch (error: any) {
+      log.error("Error clearing restart", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // GET /api/queue/dead-letter - Get dead letter queue depth and stats
   app.get("/api/queue/dead-letter", async (req, res) => {
     try {

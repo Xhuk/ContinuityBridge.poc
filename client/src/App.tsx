@@ -28,6 +28,7 @@ import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Wiki from "@/pages/wiki";
 import QATracking from "@/pages/qa-tracking";
+import AdvancedThrottling from "@/pages/settings/advanced-throttling";
 import type { QueueConfig } from "@shared/schema";
 
 function Router() {
@@ -102,7 +103,10 @@ function Router() {
               <Route path="/profile" component={Profile} />
               <Route path="/wiki" component={Wiki} />
               {(user?.role === "superadmin" || user?.role === "consultant" || user?.role === "customer_admin") && (
-                <Route path="/admin/system-health" component={SystemHealth} />
+                <>
+                  <Route path="/admin/system-health" component={SystemHealth} />
+                  <Route path="/settings/advanced-throttling" component={AdvancedThrottling} />
+                </>
               )}
               {(user?.role === "superadmin" || user?.role === "consultant") && (
                 <Route path="/admin/qa-tracking" component={QATracking} />

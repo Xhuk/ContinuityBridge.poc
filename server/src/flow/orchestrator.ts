@@ -27,6 +27,9 @@ import { executeScheduler } from "./executors/scheduler";
 import { executeHttpRequest } from "./executors/http-request";
 import { executeEmailNotification } from "./executors/email-notification";
 import { executeErrorHandler } from "./executors/error-handler";
+import { executeDistributor } from "./executors/distributor";
+import { executeMqttPublisher } from "./executors/mqtt-publisher";
+import { executeWcsConnector } from "./executors/wcs-connector";
 
 /**
  * Flow Orchestrator - Executes flows by traversing nodes and executing them in sequence
@@ -80,6 +83,9 @@ export class FlowOrchestrator {
     this.registerExecutor("executeHttpRequest", executeHttpRequest);
     this.registerExecutor("executeEmailNotification", executeEmailNotification);
     this.registerExecutor("executeErrorHandler", executeErrorHandler);
+    this.registerExecutor("executeDistributor", executeDistributor);
+    this.registerExecutor("executeMqttPublisher", executeMqttPublisher);
+    this.registerExecutor("executeWcsConnector", executeWcsConnector);
     
     // Also register in global node registry for plugin support
     // Note: Global registry allows dynamic executor lookup with multi-tenant support
@@ -368,6 +374,11 @@ export class FlowOrchestrator {
       http_request: "executeHttpRequest",
       email_notification: "executeEmailNotification",
       error_handler: "executeErrorHandler",
+      distributor: "executeDistributor",
+      mqtt_publisher: "executeMqttPublisher",
+      mqtt_subscriber: "executeMqttPublisher", // Same as publisher for now
+      wcs_connector: "executeWcsConnector",
+      opc_ua_connector: "executeWcsConnector", // WCS handles OPC-UA
     };
 
     return executorMap[node.type] || node.type;

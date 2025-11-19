@@ -171,9 +171,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const enrollmentRouter = (await import("./src/routes/enrollment.js")).default;
     app.use("/api/enrollment", enrollmentRouter);
 
-    // Register QA tracking routes (QA team + founders)
-    const qaTrackingRouter = (await import("./src/routes/qa-tracking.js")).default;
-    app.use("/api/qa", qaTrackingRouter);
+    // Register System Health routes (superadmin/consultant/customer_admin)
+    const systemHealthRouter = (await import("./src/routes/system-health-routes.js")).default;
+    app.use("/api/admin/system-health", systemHealthRouter);
+    
+    // Register Cache Management routes (superadmin)
+    const cacheRouter = (await import("./src/routes/cache-routes.js")).default;
+    app.use("/api/admin/cache", cacheRouter);
+    
+    // Register Test Alert routes (superadmin)
+    const testAlertRouter = (await import("./src/routes/test-alert.js")).default;
+    app.use("/api/admin/test-alert", testAlertRouter);
+    
+    // Register TestSprite Integration routes
+    const testspriteRouter = (await import("./src/routes/testsprite-integration.js")).default;
+    app.use("/api/testsprite", testspriteRouter);
     
     // Register Flow DSL API routes (YAML/JSON import/export)
     const flowDslRouter = initFlowDSLAPI(storage, quotaManager);
@@ -268,6 +280,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
     healthMonitor.start();
     log.info("Health monitor started (checks every 5 minutes)");
+
+    // Register Prometheus metrics exporter
+    const prometheusRouter = (await import("./src/monitoring/prometheus-exporter.js")).default;
+    app.use("/", prometheusRouter); // Exposes /metrics and /health
+    log.info("Prometheus metrics exporter registered at /metrics");
 
     log.info("All routes and services registered successfully");
 

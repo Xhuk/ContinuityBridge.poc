@@ -1,0 +1,110 @@
+# Artillery Load Testing Configuration
+# Open-source alternative: https://artillery.io
+#
+# Installation: npm install -g artillery
+# Run: artillery run load-tests/artillery-config.yml
+# Generate report: artillery run --output report.json load-tests/artillery-config.yml && artillery report report.json
+
+config:
+  target: "http://localhost:5000"
+  phases:
+    # Warm-up phase
+    - duration: 60
+      arrivalRate: 5
+      name: "Warm up"
+    
+    # Ramp up phase
+    - duration: 120
+      arrivalRate: 10
+      rampTo: 50
+      name: "Ramp up to 50 req/sec"
+    
+    # Sustained load
+    - duration: 300
+      arrivalRate: 50
+      name: "Sustained load (50 req/sec)"
+    
+    # Spike test
+    - duration: 60
+      arrivalRate: 100
+      name: "Spike to 100 req/sec"
+    
+    # Cool down
+    - duration: 60
+      arrivalRate: 10
+      name: "Cool down"
+  
+  # Performance thresholds
+  ensure:
+    maxErrorRate: 1    # Max 1% errors
+    p95: 500           # 95th percentile < 500ms
+    p99: 1000          # 99th percentile < 1000ms
+  
+  # HTTP settings
+  http:
+    timeout: 10
+    pool: 50
+
+scenarios:
+  # Scenario 1: Health checks
+  - name: "Health Check"
+    weight: 20
+    flow:
+      - get:
+          url: "/health"
+          expect:
+            - statusCode: 200
+
+  # Scenario 2: Metrics endpoint
+  - name: "Metrics Endpoint"
+    weight: 10
+    flow:
+      - get:
+          url: "/metrics"
+          expect:
+            - statusCode: 200
+            - hasHeader: "Content-Type"
+
+  # Scenario 3: Webhook execution
+  - name: "Webhook Execution"
+    weight: 30
+    flow:
+      - post:
+          url: "/webhook/test-load-test"
+          json:
+            test: true
+            timestamp: "{{ $timestamp }}"
+            data:
+              message: "Load test from Artillery"
+          expect:
+            - statusCode:
+                - 200
+                - 404  # OK if webhook doesn't exist
+
+  # Scenario 4: API authentication (if you have test credentials)
+  - name: "API Authentication"
+    weight: 20
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "test@example.com"
+            password: "testpassword"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+
+  # Scenario 5: Mixed workflow
+  - name: "Mixed User Flow"
+    weight: 20
+    flow:
+      - get:
+          url: "/health"
+      - think: 2
+      - get:
+          url: "/metrics"
+      - think: 3
+      - post:
+          url: "/webhook/test-load-test"
+          json:
+            test: true
