@@ -191,17 +191,50 @@ router.delete("/delete", authenticateUser, async (req: Request, res: Response) =
     }
 
     // ================================================================
-    // PROTECTION: Cannot delete critical roles
+    // PROTECTION: Only PRIMARY FOUNDER cannot delete (system owner)
+    // ================================================================
+    
+    const primaryFounderId = process.env.PRIMARY_FOUNDER_USER_ID;
+    
+    if (userRole === "superadmin" && userId === primaryFounderId) {
+      log.warn("GDPR deletion blocked - primary founder", { userId });
+      return res.status(403).json({
+        error: "Cannot delete account",
+        message: "Primary founder account cannot be deleted as it owns the system. You can disable it or transfer ownership to another superadmin.",
+        alternative: "Disable account or transfer system ownership",
+        contactEmail: process.env.GDPR_CONTACT_EMAIL || "privacy@continuitybridge.com",
+      });
+    }
+
+    // ================================================================
+    // ALLOWED: Consultants and other superadmins CAN delete
     // ================================================================
     
     if (userRole === "superadmin" || userRole === "consultant") {
-      log.warn("GDPR deletion blocked - critical role", { userId, role: userRole });
-      return res.status(403).json({
-        error: "Cannot delete account",
-        message: `${userRole} accounts cannot be self-deleted as they are critical to system operations. Contact support for account deactivation.`,
-        alternative: "You can disable your account instead of deleting it",
-        contactEmail: process.env.GDPR_CONTACT_EMAIL || "privacy@continuitybridge.com",
-      });
+      log.info("GDPR deletion allowed for consultant/superadmin", { userId, role: userRole });
+      
+      // Check if this superadmin/consultant has active customer assignments
+      if (userRole === "consultant" && userData.assignedCustomers && userData.assignedCustomers.length > 0) {
+        log.warn("Consultant has active customer assignments", { 
+          userId, 
+          assignedCustomers: userData.assignedCustomers.length 
+        });
+        
+        return res.status(403).json({
+          error: "Cannot delete account",
+          message: "You have active customer assignments. Please transfer or remove them first.",
+          assignedCustomers: userData.assignedCustomers.length,
+          steps: [
+            "1. Transfer customer assignments to another consultant, OR",
+            "2. Remove all customer assignments, THEN",
+            "3. Request deletion again",
+          ],
+          contactEmail: process.env.GDPR_CONTACT_EMAIL || "privacy@continuitybridge.com",
+        });
+      }
+      
+      // If no active assignments, allow deletion
+      // Continue to deletion flow below (same as customer_user)
     }
 
     // ================================================================
