@@ -167,6 +167,12 @@ export const customerLicense = pgTable("customer_license", {
   organizationId: text("organization_id").notNull().unique(),
   organizationName: text("organization_name").notNull(),
   
+  // Deployment Contact Information (for notifications)
+  deploymentContactEmail: text("deployment_contact_email"),
+  deploymentContactName: text("deployment_contact_name"),
+  technicalContactEmail: text("technical_contact_email"),
+  technicalContactName: text("technical_contact_name"),
+  
   // License type
   licenseType: text("license_type").notNull().$type<"trial" | "basic" | "professional" | "enterprise">().default("trial"),
   
@@ -247,4 +253,50 @@ export const customerLicense = pgTable("customer_license", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   createdBy: text("created_by"),
+});
+
+// Deployment Packages Table (for tracking generated builds)
+export const deploymentPackages = pgTable("deployment_packages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name").notNull(),
+  
+  // Deployment Configuration
+  deploymentProfile: text("deployment_profile").notNull().$type<"standalone" | "standard" | "cluster" | "kubernetes">(),
+  deploymentVersion: text("deployment_version").notNull(),
+  
+  // Storage Information
+  storagePath: text("storage_path").notNull(), // Path in GCS/Azure Blob
+  downloadUrl: text("download_url"), // Signed URL (temporary)
+  downloadUrlExpiresAt: timestamp("download_url_expires_at"),
+  
+  // Files included in package
+  filesIncluded: jsonb("files_included").$type<string[]>(),
+  packageSizeBytes: integer("package_size_bytes"),
+  
+  // Notification Status
+  notificationSent: boolean("notification_sent").notNull().default(false),
+  notificationSentAt: timestamp("notification_sent_at"),
+  notificationRecipient: text("notification_recipient"),
+  
+  // Download Tracking
+  downloadCount: integer("download_count").notNull().default(0),
+  lastDownloadedAt: timestamp("last_downloaded_at"),
+  
+  // Deployment Status
+  deployed: boolean("deployed").notNull().default(false),
+  deployedAt: timestamp("deployed_at"),
+  deployedBy: text("deployed_by"),
+  
+  // Metadata
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  notes: text("notes"),
+  
+  // Auto-deletion (based on lifecycle policy)
+  expiresAt: timestamp("expires_at"), // When GCS will auto-delete
+  deleted: boolean("deleted").notNull().default(false),
+  deletedAt: timestamp("deleted_at"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdBy: text("created_by").notNull(), // Founder/Consultant who generated it
 });
