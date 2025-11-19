@@ -5,7 +5,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { getCache } from "../cache/valkey-cache.js";
-import { authenticateJWT } from "../middleware/auth.js";
+import { authenticateUser } from "../auth/rbac-middleware.js";
 import { logger } from "../core/logger.js";
 
 const router = Router();
@@ -15,7 +15,7 @@ const log = logger.child("CacheRoutes");
  * GET /api/admin/cache/stats
  * Get cache statistics (admin only)
  */
-router.get("/stats", authenticateJWT, async (req: Request, res: Response) => {
+router.get("/stats", authenticateUser, async (req: Request, res: Response) => {
   try {
     const cache = getCache();
 
@@ -42,7 +42,7 @@ router.get("/stats", authenticateJWT, async (req: Request, res: Response) => {
  * POST /api/admin/cache/flush
  * Flush all cache entries (superadmin only)
  */
-router.post("/flush", authenticateJWT, async (req: Request, res: Response) => {
+router.post("/flush", authenticateUser, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
 
@@ -74,7 +74,7 @@ router.post("/flush", authenticateJWT, async (req: Request, res: Response) => {
  * DELETE /api/admin/cache/key/:key
  * Delete specific cache key (superadmin only)
  */
-router.delete("/key/:key", authenticateJWT, async (req: Request, res: Response) => {
+router.delete("/key/:key", authenticateUser, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
 

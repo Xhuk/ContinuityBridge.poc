@@ -4,7 +4,7 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { authenticateJWT } from "../middleware/auth.js";
+import { authenticateUser } from "../auth/rbac-middleware.js";
 import { logger } from "../core/logger.js";
 
 const router = Router();
@@ -14,7 +14,7 @@ const log = logger.child("TestAlert");
  * POST /api/admin/test-alert
  * Send a test alert to Alertmanager (superadmin only)
  */
-router.post("/", authenticateJWT, async (req: Request, res: Response) => {
+router.post("/", authenticateUser, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
 
@@ -81,7 +81,7 @@ router.post("/", authenticateJWT, async (req: Request, res: Response) => {
  * GET /api/admin/test-alert/status
  * Check Alertmanager connectivity
  */
-router.get("/status", authenticateJWT, async (req: Request, res: Response) => {
+router.get("/status", authenticateUser, async (req: Request, res: Response) => {
   try {
     const alertmanagerUrl = process.env.ALERTMANAGER_URL || "http://localhost:9093";
 

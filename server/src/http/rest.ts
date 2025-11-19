@@ -64,7 +64,8 @@ import customizationMigrationRoutes from "../routes/customization-migration.js";
 import brandingRoutes from "../routes/branding.js";
 import systemHealthRoutes from "../routes/system-health-routes.js";
 import clusterConfigRoutes from "../routes/cluster-config.js";
-import testSpriteRoutes from "../routes/testsprite-integration.js";
+// TODO: Fix missing QA test tables
+// import testSpriteRoutes from "../routes/testsprite-integration.js";
 import gdprRoutes from "../routes/gdpr.js";
 import wikiRoutes from "../routes/wiki.js";
 import { authenticateUser } from "../auth/rbac-middleware.js";
@@ -144,8 +145,9 @@ export function registerRESTRoutes(
   // Register Cluster Configuration routes (Superadmin, Consultant, Customer Admin)
   app.use("/api/cluster", authenticateUser, clusterConfigRoutes);
   
+  // TODO: Enable when QA test tables are added to schema
   // Register TestSprite Integration routes (External testing platform)
-  app.use("/api/testsprite", testSpriteRoutes);
+  // app.use("/api/testsprite", testSpriteRoutes);
   
   // Register GDPR Compliance routes (Data export, deletion, privacy info)
   app.use("/api/gdpr", gdprRoutes);
