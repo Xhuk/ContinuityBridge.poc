@@ -50,7 +50,14 @@ export function createInboundAuthMiddleware(options: InboundAuthMiddlewareOption
     if (policiesLoaded) return;
     
     try {
-      const policies = await storage.getInboundAuthPolicies?.() || [];
+      // Skip if storage doesn't support inbound auth policies (fresh installation)
+      if (!storage.getInboundAuthPolicies) {
+        policiesLoaded = true;
+        log.debug("Inbound auth policies not supported by storage (fresh installation)");
+        return;
+      }
+      
+      const policies = await storage.getInboundAuthPolicies() || [];
       policyCache.length = 0; // Clear array
       
       for (const policy of policies) {
@@ -67,9 +74,12 @@ export function createInboundAuthMiddleware(options: InboundAuthMiddlewareOption
       }
       
       policiesLoaded = true;
-      log.info("Loaded inbound auth policies", { count: policyCache.length });
+      if (policies.length > 0) {
+        log.info("Loaded inbound auth policies", { count: policyCache.length });
+      }
     } catch (error: any) {
       log.error("Failed to load inbound auth policies", { error: error.message });
+      policiesLoaded = true; // Don't retry on error
     }
   }
 
