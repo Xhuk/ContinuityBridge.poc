@@ -37,6 +37,14 @@ export interface LayeredStorageConfig {
   // Versioning
   createSnapshot?: boolean;  // Create versioned snapshot before merge (default: true)
   baseVersion?: string;      // BASE version (e.g., "1.2.0" from Foundation/Core)
+  
+  // Retention policy
+  retentionPolicy?: {
+    maxSnapshots?: number;      // Max snapshots to keep (default: 10)
+    minSnapshots?: number;      // Min snapshots to always keep (default: 3)
+    maxAgeDays?: number;        // Max age in days (default: 90)
+    keepLatestPerBase?: number; // Keep N latest per BASE version (default: 2)
+  };
 }
 
 export interface MergeResult {
@@ -200,6 +208,9 @@ export class LayeredStorageService {
         const snapshotPath = await this.createRuntimeSnapshot(runtimePath, runtimeVersion);
         result.snapshotPath = snapshotPath;
         log.info("Runtime snapshot created", { version: runtimeVersion, snapshotPath });
+        
+        // Apply retention policy to cleanup old snapshots
+        await this.applyRetentionPolicy();
       }
 
       log.info("Layer merge completed", {
@@ -648,6 +659,133 @@ export class LayeredStorageService {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Apply retention policy to cleanup old snapshots
+   * 
+   * Strategy:
+   * 1. Keep minimum N snapshots (default: 3)
+   * 2. Keep latest N per BASE version (default: 2)
+   * 3. Keep max total snapshots (default: 10)
+   * 4. Delete snapshots older than X days (default: 90)
+   */
+  private async applyRetentionPolicy(): Promise<{
+    deleted: number;
+    kept: number;
+    deletedVersions: string[];
+  }> {
+    const policy = this.config.retentionPolicy || {};
+    const maxSnapshots = policy.maxSnapshots || 10;
+    const minSnapshots = policy.minSnapshots || 3;
+    const maxAgeDays = policy.maxAgeDays || 90;
+    const keepLatestPerBase = policy.keepLatestPerBase || 2;
+
+    log.info("Applying snapshot retention policy", {
+      organizationId: this.config.organizationId,
+      maxSnapshots,
+      minSnapshots,
+      maxAgeDays,
+      keepLatestPerBase,
+    });
+
+    const snapshots = await this.listRuntimeSnapshots();
+    const deleted: string[] = [];
+    const kept: string[] = [];
+
+    if (snapshots.length <= minSnapshots) {
+      log.info("Retention policy: keeping all snapshots (below minimum)", {
+        count: snapshots.length,
+        minSnapshots,
+      });
+      return { deleted: 0, kept: snapshots.length, deletedVersions: [] };
+    }
+
+    // Group by BASE version
+    const byBase = new Map<string, Array<{
+      version: string;
+      baseVersion: string;
+      customIncrement: number;
+      createdAt: Date;
+      path: string;
+    }>>();
+    for (const snapshot of snapshots) {
+      if (!byBase.has(snapshot.baseVersion)) {
+        byBase.set(snapshot.baseVersion, []);
+      }
+      byBase.get(snapshot.baseVersion)!.push(snapshot);
+    }
+
+    // Determine what to keep
+    const toKeep = new Set<string>();
+
+    // Rule 1: Keep latest N per BASE version
+    for (const [baseVersion, baseSnapshots] of Array.from(byBase.entries())) {
+      const sorted = baseSnapshots.sort((a, b) => b.customIncrement - a.customIncrement);
+      for (let i = 0; i < Math.min(keepLatestPerBase, sorted.length); i++) {
+        toKeep.add(sorted[i].version);
+      }
+    }
+
+    // Rule 2: Keep latest N snapshots overall (if not already kept)
+    const sortedByDate = [...snapshots].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+    );
+    for (let i = 0; i < Math.min(maxSnapshots, sortedByDate.length); i++) {
+      toKeep.add(sortedByDate[i].version);
+    }
+
+    // Rule 3: Ensure minimum snapshots are kept
+    for (let i = 0; i < Math.min(minSnapshots, sortedByDate.length); i++) {
+      toKeep.add(sortedByDate[i].version);
+    }
+
+    // Rule 4: Delete snapshots older than max age (unless protected by other rules)
+    const now = new Date();
+    const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+
+    // Delete snapshots not in toKeep set
+    for (const snapshot of snapshots) {
+      if (toKeep.has(snapshot.version)) {
+        kept.push(snapshot.version);
+        continue;
+      }
+
+      const age = now.getTime() - snapshot.createdAt.getTime();
+      const isOld = age > maxAgeMs;
+      const isExcess = snapshots.length - deleted.length > maxSnapshots;
+
+      if (isOld || isExcess) {
+        try {
+          await fs.rm(snapshot.path, { recursive: true, force: true });
+          deleted.push(snapshot.version);
+          log.info("Snapshot deleted by retention policy", {
+            version: snapshot.version,
+            ageDays: Math.floor(age / (24 * 60 * 60 * 1000)),
+            reason: isOld ? "age" : "excess",
+          });
+        } catch (error: any) {
+          log.error("Failed to delete snapshot", {
+            version: snapshot.version,
+            error: error.message,
+          });
+        }
+      } else {
+        kept.push(snapshot.version);
+      }
+    }
+
+    log.info("Retention policy applied", {
+      deleted: deleted.length,
+      kept: kept.length,
+      deletedVersions: deleted,
+    });
+
+    return {
+      deleted: deleted.length,
+      kept: kept.length,
+      deletedVersions: deleted,
+    };
   }
 }
 
