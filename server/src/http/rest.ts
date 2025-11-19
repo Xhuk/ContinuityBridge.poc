@@ -65,6 +65,7 @@ import brandingRoutes from "../routes/branding.js";
 import systemHealthRoutes from "../routes/system-health-routes.js";
 import clusterConfigRoutes from "../routes/cluster-config.js";
 import testSpriteRoutes from "../routes/testsprite-integration.js";
+import gdprRoutes from "../routes/gdpr.js";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import type { DynamicWebhookRouter } from "./dynamic-webhook-router.js";
 
@@ -144,6 +145,9 @@ export function registerRESTRoutes(
   
   // Register TestSprite Integration routes (External testing platform)
   app.use("/api/testsprite", testSpriteRoutes);
+  
+  // Register GDPR Compliance routes (Data export, deletion, privacy info)
+  app.use("/api/gdpr", gdprRoutes);
   
   // ============================================================================
   // NODE CATALOG ENDPOINTS
