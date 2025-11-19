@@ -38,8 +38,8 @@ async function runBridgeScriptDemo() {
     console.log('✅ Flow compiled successfully!');
     console.log(`   Name: ${flowDef.name}`);
     console.log(`   Version: ${flowDef.version}`);
-    console.log(`   Nodes: ${flowDef.customNodes?.length || 0}`);
-    console.log(`   Edges: ${flowDef.customEdges?.length || 0}`);
+    console.log(`   Nodes: ${(flowDef.nodes || []).length}`);
+    console.log(`   Edges: ${(flowDef.edges || []).length}`);
     
     // STEP 2: Save to filesystem for inspection
     console.log('\n💾 Step 2: Saving compiled YAML...');
@@ -54,17 +54,17 @@ async function runBridgeScriptDemo() {
     const reactFlowFormat = {
       id: 'demo-bridgescript-ecommerce',
       name: flowDef.name,
-      description: flowDef.metadata.description,
+      description: flowDef.metadata?.description || 'Demo flow',
       version: flowDef.version,
       organizationId: DEMO_ORG_ID,
       enabled: true,
-      tags: flowDef.metadata.tags,
+      tags: flowDef.metadata?.tags || [],
       
       // Convert nodes for React Flow
-      nodes: (flowDef.customNodes || []).map((node: any, index: number) => ({
+      nodes: (flowDef.nodes || []).map((node: any, index: number) => ({
         id: node.id,
         type: node.type,
-        position: { x: 50 + (index * 250), y: 100 },
+        position: node.position || { x: 50 + (index * 250), y: 100 },
         data: {
           label: node.id.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
           type: node.type,
@@ -73,8 +73,8 @@ async function runBridgeScriptDemo() {
       })),
       
       // Convert edges
-      edges: (flowDef.customEdges || []).map((edge: any, index: number) => ({
-        id: `e${index + 1}`,
+      edges: (flowDef.edges || []).map((edge: any) => ({
+        id: edge.id,
         source: edge.source,
         target: edge.target,
         label: edge.label,
@@ -82,7 +82,14 @@ async function runBridgeScriptDemo() {
     };
     
     // Delete existing if present
-    await (db as any).delete(flowDefinitions).where({ id: reactFlowFormat.id }).run();
+    try {
+      await (db as any)
+        .delete(flowDefinitions)
+        .where((row: any) => row.id === reactFlowFormat.id)
+        .run();
+    } catch (e) {
+      // Ignore if doesn't exist
+    }
     
     // Insert new
     await (db as any).insert(flowDefinitions).values(reactFlowFormat).run();

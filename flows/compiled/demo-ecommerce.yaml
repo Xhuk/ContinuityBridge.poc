@@ -1,0 +1,165 @@
+name: ecommerce-intelligent-fulfillment
+version: 1.0.0-custom.1
+source: custom
+metadata:
+  baseVersion: 1.0.0
+  organizationId: demo-company-001
+  environment: dev
+  description: Complete e-commerce order processing with fraud check and smart fulfillment
+  tags:
+    - demo
+    - ecommerce
+    - fraud-detection
+    - multi-warehouse
+changeType: minor
+changeDescription: Add fraud detection and intelligent warehouse distribution
+nodes:
+  - id: webhook-1
+    type: webhook_trigger
+    config:
+      path: /shopify/orders/create
+      method: POST
+      authentication:
+        type: hmac
+        secret: ${SHOPIFY_WEBHOOK_SECRET}
+      responseMode: sync
+      timeout: 30000
+    position:
+      x: 250
+      y: 100
+  - id: validate-2
+    type: validation
+    config:
+      schema:
+        type: object
+        required:
+          - order_id
+          - customer
+          - line_items
+          - total_price
+      mode: strict
+      onError: throw
+    position:
+      x: 250
+      y: 200
+  - id: custom-3
+    type: custom_script
+    config:
+      script: "
+
+        \    const order = context.input;
+
+        \   \ 
+
+        \    // Calculate fraud score based on multiple factors
+
+        \    let fraudScore = 0;
+
+        \   \ 
+
+        \    // Factor 1: High order value (>$500)
+
+        \    if (order.total_price > 500) fraudScore += 30;
+
+        \   \ 
+
+        \    // Factor 2: New customer (<30 days account age)
+
+        \    const accountAge = Date.now() - new
+        Date(order.customer.created_at).getTime();
+
+        \    if (accountAge < 30 * 24 * 60 * 60 * 1000) fraudScore += 20;
+
+        \   \ 
+
+        \    // Factor 3: Shipping address mismatch with billing
+
+        \    if (order.shipping_address.country !==
+        order.billing_address.country) {
+
+        \      fraudScore += 25;
+
+        \    }
+
+        \   \ 
+
+        \    // Factor 4: Multiple high-value items
+
+        \    if (order.line_items.filter(item => item.price > 200).length > 2) {
+
+        \      fraudScore += 15;
+
+        \    }
+
+        \   \ 
+
+        \    // Factor 5: Expedited shipping on first order
+
+        \    if (order.shipping_lines[0]?.code.includes('EXPRESS') && accountAge
+        < 7 * 24 * 60 * 60 * 1000) {
+
+        \      fraudScore += 10;
+
+        \    }
+
+        \   \ 
+
+        \    // Determine risk level
+
+        \    const riskLevel = fraudScore > 60 ? 'HIGH' : fraudScore > 30 ?
+        'MEDIUM' : 'LOW';
+
+        \   \ 
+
+        \    return {
+
+        \      ...order,
+
+        \      fraudAnalysis: {
+
+        \        score: fraudScore,
+
+        \        riskLevel,
+
+        \        timestamp: new Date().toISOString(),
+
+        \        factors: {
+
+        \          highValue: order.total_price > 500,
+
+        \          newCustomer: accountAge < 30 * 24 * 60 * 60 * 1000,
+
+        \          addressMismatch: order.shipping_address.country !==
+        order.billing_address.country,
+
+        \        }
+
+        \      }
+
+        \    };
+
+        \  "
+      timeout: 5000
+      allowedModules: []
+    position:
+      x: 250
+      y: 300
+  - id: condition-4
+    type: condition
+    config:
+      expression: $.fraudAnalysis.riskLevel === 'HIGH'
+    position:
+      x: 250
+      y: 400
+edges:
+  - id: condition-4-email-1
+    source: condition-4
+    target: email-1
+    animated: false
+    label: "true"
+  - id: condition-4-http-1
+    source: condition-4
+    target: http-1
+    animated: false
+    label: "false"
+
