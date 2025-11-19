@@ -7,7 +7,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash"),
   
-  role: text("role").notNull().$type<"superadmin" | "consultant" | "customer_admin" | "customer_user">().default("customer_user"),
+  role: text("role").notNull().$type<"superadmin" | "sales" | "consultant" | "customer_admin" | "customer_user">().default("customer_user"),
   apiKey: text("api_key").unique(),
   
   organizationId: text("organization_id"),
@@ -186,6 +186,12 @@ export const pricingCatalog = pgTable("pricing_catalog", {
   extraInterfacePrice: integer("extra_interface_price").notNull(), // $100 = 10000
   extraSystemPrice: integer("extra_system_price").notNull(), // $200 = 20000
   
+  // Volume discounts & bundles (better than unlimited add-ons)
+  volumeBundles: jsonb("volume_bundles").$type<{
+    interfacePacks?: Array<{ quantity: number; price: number; discount: number }>, // e.g., [{quantity: 10, price: 800, discount: 20}]
+    systemPacks?: Array<{ quantity: number; price: number; discount: number }>,
+  }>(),
+  
   // Features included
   features: jsonb("features").$type<{
     flowEditor: boolean;
@@ -285,6 +291,18 @@ export const customerLicense = pgTable("customer_license", {
     perSystem: number;          // Cost per system/month
     currency?: string;          // USD, EUR, etc
     billingCycle?: string;      // monthly, yearly, etc
+    
+    // Grandfathered pricing (frozen from catalog changes)
+    isGrandfathered?: boolean;  // true = pricing locked, won't change with catalog updates
+    grandfatheredAt?: string;   // ISO timestamp when pricing was locked
+    grandfatheredReason?: string; // e.g., "Catalog update 2024-11-18"
+    originalTierSnapshot?: {    // Original tier config at time of grandfathering
+      tierName: string;
+      displayName: string;
+      monthlyPrice: number;
+      extraInterfacePrice: number;
+      extraSystemPrice: number;
+    };
   }>().default({
     basePlatform: 500,
     perInterface: 100,
@@ -353,4 +371,66 @@ export const deploymentPackages = pgTable("deployment_packages", {
   
   createdAt: timestamp("created_at").notNull().defaultNow(),
   createdBy: text("created_by").notNull(), // Founder/Consultant who generated it
+});
+
+// Pricing Change Notifications (Internal Sales Team Alerts)
+export const pricingChangeNotifications = pgTable("pricing_change_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  
+  // Change tracking
+  catalogTierName: text("catalog_tier_name").notNull(), // Which tier was changed
+  changeType: text("change_type").notNull().$type<"price_increase" | "price_decrease" | "limit_change" | "feature_change" | "tier_deleted">(),
+  changedBy: text("changed_by").notNull(), // Founder user ID
+  changeDescription: text("change_description").notNull(),
+  
+  // Old vs New values
+  oldValues: jsonb("old_values").$type<{
+    monthlyPrice?: number;
+    annualPrice?: number;
+    extraInterfacePrice?: number;
+    extraSystemPrice?: number;
+    maxInterfaces?: number;
+    maxSystems?: number;
+    features?: Record<string, boolean>;
+  }>(),
+  newValues: jsonb("new_values").$type<{
+    monthlyPrice?: number;
+    annualPrice?: number;
+    extraInterfacePrice?: number;
+    extraSystemPrice?: number;
+    maxInterfaces?: number;
+    maxSystems?: number;
+    features?: Record<string, boolean>;
+  }>(),
+  
+  // Affected customers (for Sales Team reference)
+  affectedCustomers: jsonb("affected_customers").$type<Array<{
+    organizationId: string;
+    organizationName: string;
+    currentTier: string;
+    grandfathered: boolean; // Was customer grandfathered?
+    currentMonthlySpend: number; // For sales team context
+    estimatedNewMonthlySpend: number;
+    deploymentContactEmail?: string; // For sales team to reach out
+    deploymentContactName?: string;
+    salesRepAssigned?: string; // Which sales rep should handle this
+  }>>(),
+  
+  // Sales Team Notification (INTERNAL ONLY)
+  salesTeamNotified: boolean("sales_team_notified").notNull().default(false),
+  salesTeamNotifiedAt: timestamp("sales_team_notified_at"),
+  salesTeamEmails: jsonb("sales_team_emails").$type<string[]>(), // Internal sales team emails
+  
+  // Summary stats
+  totalAffectedCustomers: integer("total_affected_customers").notNull().default(0),
+  grandfatheredCount: integer("grandfathered_count").notNull().default(0),
+  
+  // Status
+  status: text("status").notNull().$type<"pending" | "sales_notified" | "completed">().default("pending"),
+  
+  // Sales team notes
+  salesNotes: text("sales_notes"), // For sales team to track customer outreach
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
 });

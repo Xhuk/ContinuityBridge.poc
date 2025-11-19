@@ -28,8 +28,14 @@ import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Wiki from "@/pages/wiki";
 import QATracking from "@/pages/qa-tracking";
+import SOWRequests from "@/pages/admin/sow-requests";
+import PricingCatalog from "@/pages/admin/pricing-catalog";
+import FinanceAnalytics from "@/pages/admin/finance-analytics";
+import SalesDashboard from "@/pages/sales/dashboard";
+import MySOWRequests from "@/pages/customer/my-sow-requests";
 import AdvancedThrottling from "@/pages/settings/advanced-throttling";
 import ClusterConfig from "@/pages/settings/cluster-config";
+import StorageManagement from "@/pages/admin/storage-management";
 import type { QueueConfig } from "@shared/schema";
 
 function Router() {
@@ -119,14 +125,25 @@ function Router() {
                   <Route path="/admin/customers" component={Customers} />
                   <Route path="/admin/users" component={UsersManagement} />
                   <Route path="/admin/ai-monitoring" component={AIMonitoring} />
-                  <Route path="/admin/sow-requests" component={lazy(() => import("./pages/admin/sow-requests"))} />
+                  <Route path="/admin/sow-requests" component={SOWRequests} />
+                  <Route path="/admin/pricing-catalog" component={PricingCatalog} />
+                  <Route path="/admin/finance-analytics" component={FinanceAnalytics} />
+                  <Route path="/admin/storage" component={StorageManagement} />
+                </>
+              )}
+              {user?.role === "sales" && (
+                <>
+                  <Route path="/sales/dashboard" component={SalesDashboard} />
                 </>
               )}
               {user?.role === "consultant" && (
                 <Route path="/admin/users" component={UsersManagement} />
               )}
               {user?.role === "customer_admin" && (
-                <Route path="/admin/users" component={UsersManagement} />
+                <>
+                  <Route path="/admin/users" component={UsersManagement} />
+                  <Route path="/customer/my-sow-requests" component={MySOWRequests} />
+                </>
               )}
               <Route component={NotFound} />
             </Switch>

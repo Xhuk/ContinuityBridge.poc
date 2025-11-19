@@ -14,6 +14,8 @@
     "seed:demo": "tsx scripts/seed-demo-flows.ts",
     "seed:adapters": "tsx scripts/seed-interface-adapters.ts",
     "seed:transforms": "tsx scripts/seed-transformation-templates.ts",
+    "setup:demo": "tsx scripts/setup-demo.ts",
+    "demo:quick": "tsx scripts/quick-demo.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

@@ -77,6 +77,9 @@ import {
   FileText,
   Calendar,
   HardDrive,
+  Search,
+  AlertTriangle,
+  Info,
 } from "lucide-react";
 
 // Node types from catalog
@@ -254,6 +257,20 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
   // Execution status from node data
   const executionStatus = data.executionStatus; // 'pending' | 'running' | 'completed' | 'failed' | 'skipped'
   
+  // Mapping debug info (for BYDM mapper and interface nodes)
+  const mappingInfo = data.mappingInfo || data.config?.mappingInfo;
+  const hasMappingIssues = mappingInfo && (
+    (mappingInfo.unmapped_fields > 0) || 
+    (mappingInfo.missing_required_fields?.length > 0) ||
+    (mappingInfo.warnings?.length > 0)
+  );
+  const mappingConfidence = mappingInfo?.confidence_score || 100;
+  
+  // Scheduler/Poller status (for trigger nodes)
+  const triggerStatus = data.triggerStatus; // { running: boolean, lastRun: string, nextRun: string, error: string }
+  const hasTriggerIssue = triggerStatus && (!triggerStatus.running || triggerStatus.error);
+  const isTriggerNode = category === 'trigger' && (data.type === 'scheduler' || data.type.includes('_poller'));
+  
   // Determine trigger type for pollers/schedulers
   const getTriggerType = () => {
     if (category !== 'trigger') return null;
@@ -396,6 +413,166 @@ function CustomNode({ data, selected, id }: { data: any; selected?: boolean; id:
             />
             <div className="relative bg-amber-400 text-amber-950 rounded-full w-5 h-5 flex items-center justify-center">
               <AlertCircle className="w-3 h-3" />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Mapping Debug Badge (for BYDM/interface nodes) */}
+      {hasMappingIssues && !hasConnectionWarning && !hasTriggerIssue && (
+        <div className="absolute -top-2 -right-2 z-10">
+          <div className="relative group">
+            <motion.div
+              animate={{ scale: [1, 1.15, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className={`absolute inset-0 rounded-full blur-sm opacity-50 ${
+                mappingConfidence >= 80 ? 'bg-blue-400' : 'bg-orange-400'
+              }`}
+            />
+            <div className={`relative rounded-full w-6 h-6 flex items-center justify-center text-white font-bold text-[10px] ${
+              mappingConfidence >= 80 ? 'bg-blue-500' : 'bg-orange-500'
+            }`}>
+              <Search className="w-3 h-3" />
+            </div>
+            
+            {/* Debug tooltip */}
+            <div className="absolute top-7 right-0 hidden group-hover:block z-50 bg-gray-900 text-white rounded-lg shadow-xl p-3 w-64 text-xs">
+              <div className="font-semibold mb-2 flex items-center gap-1">
+                <Search className="w-3 h-3" />
+                Mapping Debug Info
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-gray-300">Confidence:</span>
+                  <span className={`font-semibold ${
+                    mappingConfidence >= 90 ? 'text-green-400' :
+                    mappingConfidence >= 70 ? 'text-blue-400' : 'text-orange-400'
+                  }`}>{mappingConfidence}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-300">Mapped fields:</span>
+                  <span className="text-white">{mappingInfo?.mapped_fields || 0}</span>
+                </div>
+                {mappingInfo?.unmapped_fields > 0 && (
+                  <div className="flex justify-between text-orange-400">
+                    <span>⚠️ Unmapped:</span>
+                    <span className="font-semibold">{mappingInfo.unmapped_fields}</span>
+                  </div>
+                )}
+                {mappingInfo?.missing_required_fields?.length > 0 && (
+                  <div className="border-t border-gray-700 pt-1.5 mt-1.5">
+                    <div className="text-red-400 font-semibold flex items-center gap-1 mb-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Missing Required:
+                    </div>
+                    <div className="pl-2 text-gray-300 max-h-20 overflow-y-auto">
+                      {mappingInfo.missing_required_fields.map((field: string, idx: number) => (
+                        <div key={idx} className="text-[10px]">• {field}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {mappingInfo?.warnings?.length > 0 && (
+                  <div className="border-t border-gray-700 pt-1.5 mt-1.5">
+                    <div className="text-yellow-400 font-semibold flex items-center gap-1 mb-1">
+                      <Info className="w-3 h-3" />
+                      Warnings:
+                    </div>
+                    <div className="pl-2 text-gray-300 max-h-16 overflow-y-auto">
+                      {mappingInfo.warnings.map((warning: string, idx: number) => (
+                        <div key={idx} className="text-[10px] mb-0.5">{warning}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-gray-700 mt-2 pt-2 text-[10px] text-gray-400">
+                💡 Click node to see detailed mapping
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Trigger Status Badge (for scheduler/poller nodes) */}
+      {isTriggerNode && triggerStatus && !hasConnectionWarning && (
+        <div className="absolute -top-2 -right-2 z-10">
+          <div className="relative group">
+            <motion.div
+              animate={triggerStatus.running ? {
+                scale: [1, 1.1, 1],
+                opacity: [0.5, 0.8, 0.5]
+              } : {}}
+              transition={{ duration: 2, repeat: Infinity }}
+              className={`absolute inset-0 rounded-full blur-sm ${
+                triggerStatus.running ? 'bg-green-400' : triggerStatus.error ? 'bg-red-400' : 'bg-gray-400'
+              }`}
+            />
+            <div className={`relative rounded-full w-6 h-6 flex items-center justify-center text-white ${
+              triggerStatus.running ? 'bg-green-500' : triggerStatus.error ? 'bg-red-500' : 'bg-gray-500'
+            }`}>
+              {triggerStatus.running ? (
+                <Clock className="w-3 h-3 animate-pulse" />
+              ) : triggerStatus.error ? (
+                <AlertTriangle className="w-3 h-3" />
+              ) : (
+                <Clock className="w-3 h-3 opacity-50" />
+              )}
+            </div>
+            
+            {/* Trigger Status tooltip */}
+            <div className="absolute top-7 right-0 hidden group-hover:block z-50 bg-gray-900 text-white rounded-lg shadow-xl p-3 w-64 text-xs">
+              <div className="font-semibold mb-2 flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                Trigger Status
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-gray-300">Status:</span>
+                  <span className={`font-semibold ${
+                    triggerStatus.running ? 'text-green-400' : triggerStatus.error ? 'text-red-400' : 'text-gray-400'
+                  }`}>
+                    {triggerStatus.running ? '▶️ Running' : triggerStatus.error ? '❌ Stopped' : '⏸️ Paused'}
+                  </span>
+                </div>
+                {triggerStatus.lastRun && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-300">Last Run:</span>
+                    <span className="text-white text-[10px]">
+                      {new Date(triggerStatus.lastRun).toLocaleTimeString()}
+                    </span>
+                  </div>
+                )}
+                {triggerStatus.nextRun && triggerStatus.running && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-300">Next Run:</span>
+                    <span className="text-blue-400 text-[10px]">
+                      {new Date(triggerStatus.nextRun).toLocaleTimeString()}
+                    </span>
+                  </div>
+                )}
+                {triggerStatus.error && (
+                  <div className="border-t border-gray-700 pt-1.5 mt-1.5">
+                    <div className="text-red-400 font-semibold flex items-center gap-1 mb-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Error:
+                    </div>
+                    <div className="pl-2 text-gray-300 text-[10px]">
+                      {triggerStatus.error}
+                    </div>
+                  </div>
+                )}
+                {!triggerStatus.running && !triggerStatus.error && (
+                  <div className="border-t border-gray-700 pt-1.5 mt-1.5">
+                    <div className="text-yellow-400 text-[10px]">
+                      ⚠️ Trigger is paused. Check System Health.
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-gray-700 mt-2 pt-2 text-[10px] text-gray-400">
+                📊 Go to System Health for details
+              </div>
             </div>
           </div>
         </div>

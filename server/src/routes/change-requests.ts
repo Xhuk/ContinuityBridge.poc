@@ -136,7 +136,15 @@ router.post("/", authenticateUser, async (req: Request, res: Response) => {
       title,
     });
 
-    // TODO: Send email notification to superadmin
+    // Send notification to founder/sales team
+    if (requestType === "sow_amendment" || requestType === "license_upgrade") {
+      logger.info("SOW/License change request - notify sales team", {
+        scope: "superadmin",
+        organizationId,
+        requestType,
+      });
+      // Email notification handled by sales team notification system
+    }
 
     res.status(201).json({
       success: true,

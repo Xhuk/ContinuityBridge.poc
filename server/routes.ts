@@ -198,6 +198,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     // Register Dynamic Webhook Router (hot-reload endpoints)
     app.use("/api/webhook", webhookRouter.createRouter());
+    
+    // Register Deployment Download routes (local storage access)
+    const deploymentDownloadRouter = (await import("./src/routes/deployment-download.js")).default;
+    app.use("/api/deployments", deploymentDownloadRouter);
+    
+    // Register Storage Statistics routes (founder only)
+    const storageStatsRouter = (await import("./src/routes/storage-stats.js")).default;
+    app.use("/api/admin/storage", storageStatsRouter);
+    
+    // Register Layered Storage routes (BASE + CUSTOM override system)
+    const layeredStorageRouter = (await import("./src/routes/layered-storage.js")).default;
+    app.use("/api/layered-storage", layeredStorageRouter);
+    log.info("Layered storage (override system) registered");
+    
     log.info("Dynamic webhook endpoints registered");
     
     // Register Remote Updates API (Founder platform only)
@@ -291,6 +305,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const prometheusRouter = (await import("./src/monitoring/prometheus-exporter.js")).default;
     app.use("/", prometheusRouter); // Exposes /metrics and /health
     log.info("Prometheus metrics exporter registered at /metrics");
+
+    // Register AI Expert Advisors (Founder only - multi-AI consensus)
+    const aiExpertsRouter = (await import("./src/routes/ai-experts.js")).default;
+    app.use("/api/ai", aiExpertsRouter);
+    log.info("AI Expert Advisors registered (Founder only)");
+    
+    // Register Mock Systems API (Demo environment only)
+    const mockSystemsRouter = (await import("./src/routes/mock-systems.js")).default;
+    app.use("/api/mock", mockSystemsRouter);
+    log.info("Mock Systems API registered (Demo/Testing)");
 
     log.info("All routes and services registered successfully");
 

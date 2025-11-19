@@ -1,0 +1,72 @@
+{
+  "event_type": "order.created",
+  "order_id": "DEMO-ORD-20241118-001",
+  "marketplace": "Demo E-commerce Platform",
+  "created_at": "2024-11-18T10:30:00Z",
+  "customer": {
+    "email": "demo.customer@example.com",
+    "name": "John Demo Customer",
+    "phone": "+1-555-0123-4567",
+    "customer_id": "CUST-98765",
+    "shipping_address": {
+      "street": "456 Commerce Boulevard",
+      "suite": "Apt 2B",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94105",
+      "country": "US"
+    },
+    "billing_address": {
+      "street": "456 Commerce Boulevard",
+      "suite": "Apt 2B",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94105",
+      "country": "US"
+    }
+  },
+  "items": [
+    {
+      "sku": "DEMO-SKU-001",
+      "name": "Widget Pro 3000",
+      "description": "Professional-grade widget with advanced features",
+      "quantity": 2,
+      "unit_price": 49.99,
+      "line_total": 99.98,
+      "weight": 2.5,
+      "weight_unit": "lbs"
+    },
+    {
+      "sku": "DEMO-SKU-002",
+      "name": "Gadget Elite",
+      "description": "Elite gadget for power users",
+      "quantity": 1,
+      "unit_price": 79.99,
+      "line_total": 79.99,
+      "weight": 1.8,
+      "weight_unit": "lbs"
+    }
+  ],
+  "pricing": {
+    "subtotal": 179.97,
+    "shipping_cost": 12.99,
+    "tax": 15.36,
+    "discount": 0,
+    "total": 208.32,
+    "currency": "USD"
+  },
+  "payment": {
+    "method": "credit_card",
+    "status": "authorized",
+    "last_four": "4242",
+    "card_type": "visa"
+  },
+  "fulfillment": {
+    "requested_ship_date": "2024-11-19T00:00:00Z",
+    "carrier_preference": "DEMO_EXPRESS",
+    "service_level": "ground",
+    "warehouse": "DEMO-WH-001"
+  },
+  "notes": "Customer requested: Leave package at front door if not home. Ring doorbell.",
+  "tags": ["demo", "test", "priority"]
+}

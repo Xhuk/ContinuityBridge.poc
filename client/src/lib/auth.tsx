@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 interface AuthUser {
   id: string;
   email: string;
-  role: "superadmin" | "consultant" | "customer_admin" | "customer_user";
+  role: "superadmin" | "sales" | "consultant" | "customer_admin" | "customer_user";
   organizationId?: string;
   organizationName?: string;
   assignedCustomers?: string[];

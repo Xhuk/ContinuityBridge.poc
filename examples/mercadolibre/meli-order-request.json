@@ -1,0 +1,178 @@
+{
+  "__comment": "MercadoLibre Orders API - Create Shipment",
+  "__schema": "https://developers.mercadolibre.com.ar/es_ar/gestiona-las-publicaciones#Crear-envío",
+  "__mapped_from_bydm": "orderRelease.sample.json",
+  
+  "order_id": "ORD-2025-001234",
+  "external_reference": "PO-987654",
+  
+  "buyer": {
+    "id": "CUST-12345",
+    "nickname": "Acme Corporation",
+    "email": "orders@acme.com",
+    "phone": {
+      "area_code": "555",
+      "number": "01230000",
+      "extension": ""
+    },
+    "__bydm_source": "buyer",
+    "__mapping_status": "complete"
+  },
+  
+  "shipping": {
+    "id": null,
+    "shipment_type": "custom",
+    "status": "pending",
+    "substatus": "ready_to_ship",
+    "receiver_address": {
+      "address_line": "123 Main Street Suite 100",
+      "street_name": "Main Street",
+      "street_number": "123",
+      "comment": "Suite 100",
+      "zip_code": "62701",
+      "city": {
+        "name": "Springfield"
+      },
+      "state": {
+        "name": "Illinois",
+        "id": "US-IL"
+      },
+      "country": {
+        "id": "US",
+        "name": "United States"
+      },
+      "latitude": null,
+      "longitude": null,
+      "__bydm_source": "shipTo.address",
+      "__mapping_status": "partial",
+      "__missing_fields": ["latitude", "longitude"]
+    },
+    "shipping_option": {
+      "id": null,
+      "shipping_method_id": null,
+      "name": "Standard",
+      "speed": {
+        "shipping": "standard",
+        "handling": 24
+      },
+      "cost": 0,
+      "currency_id": "USD",
+      "estimated_delivery_time": {
+        "type": "known_frame",
+        "date": "2025-11-15T10:00:00.000Z",
+        "shipping": 5,
+        "handling": 0,
+        "schedule": null
+      },
+      "__bydm_source": "carrier + requestedDeliveryDateTime",
+      "__mapping_status": "complete"
+    },
+    "carrier": {
+      "id": "CARR-UPS",
+      "name": "UPS",
+      "service_type": "GROUND",
+      "__bydm_source": "carrier",
+      "__mapping_status": "complete"
+    }
+  },
+  
+  "order_items": [
+    {
+      "item": {
+        "id": "SKU-ABC-123",
+        "title": "Widget Pro - Blue",
+        "category_id": null,
+        "variation_id": null,
+        "seller_custom_field": "00012345678905",
+        "global_price": null,
+        "net_weight": null,
+        "__bydm_source": "lineItem[0].transactionalTradeItem",
+        "__mapping_status": "partial",
+        "__missing_fields": ["category_id", "global_price", "net_weight"]
+      },
+      "quantity": 100,
+      "unit_price": 29.99,
+      "full_unit_price": 29.99,
+      "currency_id": "USD",
+      "manufacturing_days": null,
+      "sale_fee": 0,
+      "__mapping_status": "complete"
+    },
+    {
+      "item": {
+        "id": "SKU-XYZ-789",
+        "title": "Gadget Plus - Red",
+        "category_id": null,
+        "variation_id": null,
+        "seller_custom_field": "00098765432109",
+        "global_price": null,
+        "net_weight": null,
+        "__bydm_source": "lineItem[1].transactionalTradeItem",
+        "__mapping_status": "partial",
+        "__missing_fields": ["category_id", "global_price", "net_weight"]
+      },
+      "quantity": 50,
+      "unit_price": 49.99,
+      "full_unit_price": 49.99,
+      "currency_id": "USD",
+      "manufacturing_days": null,
+      "sale_fee": 0,
+      "__mapping_status": "complete"
+    }
+  ],
+  
+  "payments": [
+    {
+      "id": null,
+      "order_id": "ORD-2025-001234",
+      "payer_id": "CUST-12345",
+      "collector": {
+        "id": null
+      },
+      "currency_id": "USD",
+      "status": "pending",
+      "status_detail": null,
+      "transaction_amount": 5499.00,
+      "shipping_cost": 0,
+      "overpaid_amount": 0,
+      "total_paid_amount": 5499.00,
+      "installments": 1,
+      "date_approved": null,
+      "date_created": "2025-11-10T14:30:00.000Z",
+      "__bydm_calculated": "sum(lineItem[].orderedQuantity.value * unitPrice.amount)",
+      "__mapping_status": "calculated",
+      "__missing_fields": ["date_approved", "payment_method_id"]
+    }
+  ],
+  
+  "status": "confirmed",
+  "status_detail": null,
+  "date_created": "2025-11-10T14:30:00.000Z",
+  "date_closed": null,
+  "last_updated": "2025-11-10T14:30:00.000Z",
+  "currency_id": "USD",
+  
+  "__mapping_metadata": {
+    "total_fields": 47,
+    "mapped_fields": 38,
+    "unmapped_fields": 9,
+    "confidence_score": 81,
+    "missing_required_fields": [],
+    "missing_optional_fields": [
+      "shipping.receiver_address.latitude",
+      "shipping.receiver_address.longitude",
+      "order_items[0].item.category_id",
+      "order_items[0].item.global_price",
+      "order_items[0].item.net_weight",
+      "order_items[1].item.category_id",
+      "order_items[1].item.global_price",
+      "order_items[1].item.net_weight",
+      "payments[0].date_approved"
+    ],
+    "warnings": [
+      "⚠️ Missing product weights - may affect shipping calculations",
+      "⚠️ Missing geolocation - delivery estimates may be inaccurate",
+      "⚠️ Missing category_id - product classification incomplete"
+    ]
+  }
+}

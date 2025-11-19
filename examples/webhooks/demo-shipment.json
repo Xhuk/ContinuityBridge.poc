@@ -1,0 +1,36 @@
+{
+  "event_type": "order.shipped",
+  "order_id": "DEMO-ORD-20241118-001",
+  "shipment_id": "SHIP-20241118-001",
+  "shipped_at": "2024-11-18T14:00:00Z",
+  "customer_email": "demo.customer@example.com",
+  "customer_name": "John Demo Customer",
+  "items": [
+    {
+      "sku": "DEMO-SKU-001",
+      "name": "Widget Pro 3000",
+      "quantity": 2
+    },
+    {
+      "sku": "DEMO-SKU-002",
+      "name": "Gadget Elite",
+      "quantity": 1
+    }
+  ],
+  "destination": {
+    "name": "John Demo Customer",
+    "street": "456 Commerce Boulevard",
+    "suite": "Apt 2B",
+    "city": "San Francisco",
+    "state": "CA",
+    "zip": "94105",
+    "country": "US",
+    "phone": "+1-555-0123-4567"
+  },
+  "weight": {
+    "value": 6.8,
+    "unit": "lbs"
+  },
+  "carrier_service": "DEMO_EXPRESS",
+  "service_level": "ground"
+}

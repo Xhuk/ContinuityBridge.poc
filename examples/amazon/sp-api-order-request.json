@@ -1,0 +1,84 @@
+{
+  "__comment": "Amazon SP-API Orders v0 - Create Fulfillment Order",
+  "__schema": "https://developer-docs.amazon.com/sp-api/docs/fulfillment-outbound-api-v2020-07-01-reference",
+  "__mapped_from_bydm": "orderRelease.sample.json",
+  
+  "sellerFulfillmentOrderId": "ORD-2025-001234",
+  "displayableOrderId": "PO-987654",
+  "displayableOrderDate": "2025-11-10T14:30:00Z",
+  "displayableOrderComment": "Order from BYDM integration",
+  
+  "shippingSpeedCategory": "Standard",
+  "deliveryWindow": {
+    "startDate": "2025-11-15T00:00:00Z",
+    "endDate": "2025-11-15T23:59:59Z"
+  },
+  
+  "destinationAddress": {
+    "name": "Acme Warehouse",
+    "addressLine1": "123 Main Street",
+    "addressLine2": "Suite 100",
+    "city": "Springfield",
+    "stateOrProvinceCode": "IL",
+    "postalCode": "62701",
+    "countryCode": "US",
+    "phone": "+1-555-0123",
+    "__bydm_source": "shipTo.address"
+  },
+  
+  "fulfillmentAction": "Ship",
+  "fulfillmentPolicy": "FillOrKill",
+  
+  "shipFromCountryCode": "US",
+  
+  "notificationEmails": [
+    "orders@acme.com"
+  ],
+  
+  "items": [
+    {
+      "sellerSku": "SKU-ABC-123",
+      "sellerFulfillmentOrderItemId": "1",
+      "quantity": 100,
+      "giftMessage": null,
+      "displayableComment": "Widget Pro - Blue",
+      "fulfillmentNetworkSku": "00012345678905",
+      "perUnitDeclaredValue": {
+        "currencyCode": "USD",
+        "value": "29.99"
+      },
+      "__bydm_source": "lineItem[0]",
+      "__mapping_status": "complete"
+    },
+    {
+      "sellerSku": "SKU-XYZ-789",
+      "sellerFulfillmentOrderItemId": "2",
+      "quantity": 50,
+      "giftMessage": null,
+      "displayableComment": "Gadget Plus - Red",
+      "fulfillmentNetworkSku": "00098765432109",
+      "perUnitDeclaredValue": {
+        "currencyCode": "USD",
+        "value": "49.99"
+      },
+      "__bydm_source": "lineItem[1]",
+      "__mapping_status": "complete"
+    }
+  ],
+  
+  "featureConstraints": [
+    {
+      "featureName": "BLOCK_AMZL",
+      "featureFulfillmentPolicy": "NotRequired"
+    }
+  ],
+  
+  "__mapping_metadata": {
+    "total_fields": 23,
+    "mapped_fields": 23,
+    "unmapped_fields": 0,
+    "confidence_score": 100,
+    "missing_required_fields": [],
+    "warnings": []
+  }
+}

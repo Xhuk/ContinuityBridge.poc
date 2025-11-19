@@ -1,4 +1,4 @@
-import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2, Activity, Gauge, Zap, ServerCog } from "lucide-react";
+import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2, Activity, Gauge, Zap, ServerCog, DollarSign, BarChart3, HardDrive } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -84,12 +84,30 @@ const adminMenuItems = [
     title: "Wiki",
     url: "/wiki",
     icon: Book,
-    roles: ["superadmin", "consultant", "customer_admin", "customer_user"],
+    roles: ["superadmin", "sales", "consultant", "customer_admin", "customer_user"],
+  },
+  {
+    title: "Finance & Analytics",
+    url: "/admin/finance-analytics",
+    icon: BarChart3,
+    roles: ["superadmin"],
+  },
+  {
+    title: "Sales Dashboard",
+    url: "/sales/dashboard",
+    icon: DollarSign,
+    roles: ["sales"],
   },
   {
     title: "SOW Requests",
     url: "/admin/sow-requests",
     icon: FileText,
+    roles: ["superadmin"],
+  },
+  {
+    title: "Pricing Catalog",
+    url: "/admin/pricing-catalog",
+    icon: DollarSign,
     roles: ["superadmin"],
   },
   {
@@ -140,6 +158,18 @@ const adminMenuItems = [
     url: "/admin/users",
     icon: Users,
     roles: ["superadmin", "consultant", "customer_admin"],
+  },
+  {
+    title: "Storage Management",
+    url: "/admin/storage",
+    icon: HardDrive,
+    roles: ["superadmin"],
+  },
+  {
+    title: "My SOW Requests",
+    url: "/customer/my-sow-requests",
+    icon: FileText,
+    roles: ["customer_admin"],
   },
 ];
 
@@ -293,7 +323,7 @@ export function AppSidebar({ queueBackend }: { queueBackend?: string }) {
           {/* Queue Backend Badge */}
           <div className="px-2 pt-2 border-t border-sidebar-border">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Queue Backend</span>
+             <span className="text-xs text-muted-foreground">Queue Backend</span>
               <Badge
                 variant="secondary"
                 className="rounded-full text-xs font-medium"

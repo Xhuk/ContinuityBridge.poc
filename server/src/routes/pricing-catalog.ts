@@ -9,6 +9,7 @@ const router = Router();
 /**
  * GET /api/pricing-catalog
  * Get all pricing tiers (public endpoint for pricing page)
+ * 🔒 Filters sensitive pricing data for sales role
  */
 router.get("/", async (req: Request, res: Response) => {
   try {
@@ -16,18 +17,40 @@ router.get("/", async (req: Request, res: Response) => {
       .where(eq(pricingCatalog.isActive, true))
       .orderBy(pricingCatalog.sortOrder) as any);
 
+    // Check if user is sales role (hide exact prices)
+    const userRole = (req as any).user?.role;
+    const isSalesRole = userRole === "sales";
+
     // Convert cents to dollars for display
-    const tiersWithDollars = tiers.map((tier: any) => ({
-      ...tier,
-      annualPriceDollars: tier.annualPrice / 100,
-      monthlyPriceDollars: tier.monthlyPrice / 100,
-      extraInterfacePriceDollars: tier.extraInterfacePrice / 100,
-      extraSystemPriceDollars: tier.extraSystemPrice / 100,
-    }));
+    const tiersWithDollars = tiers.map((tier: any) => {
+      if (isSalesRole) {
+        // Sales role: Only show tier names and relative price indicators
+        return {
+          id: tier.id,
+          tierName: tier.tierName,
+          displayName: tier.displayName,
+          description: tier.description,
+          // Masked pricing - only show ranges
+          priceRange: tier.monthlyPrice < 150000 ? "Standard" : tier.monthlyPrice < 300000 ? "Professional" : "Enterprise",
+          isActive: tier.isActive,
+          sortOrder: tier.sortOrder,
+        };
+      }
+      
+      // Full access for superadmin/consultant
+      return {
+        ...tier,
+        annualPriceDollars: tier.annualPrice / 100,
+        monthlyPriceDollars: tier.monthlyPrice / 100,
+        extraInterfacePriceDollars: tier.extraInterfacePrice / 100,
+        extraSystemPriceDollars: tier.extraSystemPrice / 100,
+      };
+    });
 
     res.json({
       success: true,
       tiers: tiersWithDollars,
+      restricted: isSalesRole, // Indicator that data is filtered
     });
   } catch (error: any) {
     logger.error("Failed to fetch pricing catalog", error);
@@ -352,6 +375,34 @@ router.post("/seed", authenticateUser, async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error("Failed to seed pricing catalog", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/pricing-catalog/:tierName - Delete pricing tier (Founder only)
+router.delete("/:tierName", authenticateUser, async (req, res) => {
+  if (req.user?.role !== "superadmin") {
+    return res.status(403).json({ error: "Founder access required" });
+  }
+
+  try {
+    const { tierName } = req.params;
+
+    if (!tierName) {
+      return res.status(400).json({ error: "tierName is required" });
+    }
+
+    const result = await db
+      .delete(pricingCatalog)
+      .where(eq(pricingCatalog.tierName, tierName))
+      .run();
+
+    res.json({
+      success: true,
+      message: `Pricing tier "${tierName}" deleted successfully`,
+    });
+  } catch (error: any) {
+    logger.error("Failed to delete pricing tier", error);
     res.status(500).json({ error: error.message });
   }
 });
