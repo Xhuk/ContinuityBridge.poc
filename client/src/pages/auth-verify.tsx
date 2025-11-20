@@ -67,10 +67,34 @@ export default function AuthVerify() {
         if (data.success) {
           setStatus("success");
           
-          // Store JWT token in secure storage (AES-GCM encrypted + fingerprinted)
+          // Store JWT token in localStorage (simple approach first, encryption can be added later)
           if (data.sessionToken) {
-            await secureStorage.setToken(data.sessionToken);
-            console.log("[AuthVerify] Token stored with AES-GCM encryption + device fingerprint");
+            try {
+              console.log("[AuthVerify] Storing token...", {
+                tokenLength: data.sessionToken.length,
+                tokenPreview: data.sessionToken.substring(0, 30) + '...',
+              });
+              
+              // TEMPORARY: Use plain localStorage to verify it works
+              // Store with expiry
+              const payload = {
+                token: data.sessionToken,
+                timestamp: Date.now(),
+                expiresIn: 7 * 24 * 60 * 60 * 1000, // 7 days
+              };
+              localStorage.setItem('auth_token', JSON.stringify(payload));
+              
+              console.log("[AuthVerify] ✅ Token stored in localStorage successfully!");
+              
+              // Verify it was stored
+              const storedToken = localStorage.getItem('auth_token');
+              console.log("[AuthVerify] Verification - token in localStorage:", {
+                exists: !!storedToken,
+                length: storedToken?.length,
+              });
+            } catch (error) {
+              console.error("[AuthVerify] ❌ Failed to store token:", error);
+            }
           }
           
           // Detect device and redirect accordingly

@@ -40,21 +40,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     
     try {
-      // Get JWT token from secure storage (async now)
-      console.log("[Auth] Reading token from secure storage...");
-      const token = await secureStorage.getToken();
+      // Get JWT token from localStorage (plain for now)
+      console.log("[Auth] Reading token from localStorage...");
+      const storedData = localStorage.getItem('auth_token');
       
       console.log("[Auth] Token retrieval result:", {
-        hasToken: !!token,
-        tokenLength: token?.length,
-        tokenPreview: token?.substring(0, 20) + '...',
+        hasStoredData: !!storedData,
+        dataLength: storedData?.length,
       });
       
-      if (!token) {
+      if (!storedData) {
         console.log("[Auth] No token found - user not authenticated");
         setIsLoading(false);
         return;
       }
+      
+      // Parse and validate
+      const payload = JSON.parse(storedData);
+      
+      console.log("[Auth] Parsed payload:", {
+        hasToken: !!payload.token,
+        tokenLength: payload.token?.length,
+        age: Date.now() - payload.timestamp,
+        expired: Date.now() - payload.timestamp > payload.expiresIn,
+      });
+      
+      // Check expiration
+      if (Date.now() - payload.timestamp > payload.expiresIn) {
+        console.log("[Auth] Token expired - clearing");
+        localStorage.removeItem('auth_token');
+        setIsLoading(false);
+        return;
+      }
+      
+      const token = payload.token;
 
       // Validate token with server
       console.log("[Auth] Validating token with server...");
@@ -88,11 +107,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         // Token invalid or expired, clear it
         console.log("[Auth] Token invalid or expired - clearing storage");
-        secureStorage.clearToken();
+        localStorage.removeItem('auth_token');
       }
     } catch (error) {
       console.error("[Auth] Auth check failed with error:", error);
-      secureStorage.clearToken();
+      localStorage.removeItem('auth_token');
     } finally {
       console.log("[Auth] Auth check complete - setting isLoading = false");
       setIsLoading(false);
