@@ -119,9 +119,12 @@ export const smtpSettings = pgTable("smtp_settings", {
   port: integer("port").notNull().default(587),
   secure: boolean("secure").notNull().default(false),
   
-  // Authentication
-  username: text("username").notNull(),
-  password: text("password").notNull(),
+  // Authentication (DEPRECATED - use secretRef instead)
+  username: text("username"),
+  password: text("password"), // DEPRECATED: Use secretsVault via secretRef
+  
+  // Encrypted credentials reference (RECOMMENDED)
+  secretRef: text("secret_ref").references(() => secretsVault.id, { onDelete: "set null" }),
   
   // Email Settings
   fromAddress: text("from_address").notNull(),
@@ -143,7 +146,7 @@ export const smtpSettings = pgTable("smtp_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
   fromEmailCheck: check("smtp_settings_from_email_check", 
-    sql`${table.fromAddress} ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'`),
+    sql`${table.fromAddress} ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'`),
   portCheck: check("smtp_settings_port_check", sql`${table.port} > 0 AND ${table.port} <= 65535`),
 }));
 
