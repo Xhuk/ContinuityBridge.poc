@@ -22,6 +22,15 @@ interface RateLimitEntry {
 const rateLimitStore = new Map<string, RateLimitEntry>();
 const blockedIPs = new Set<string>();
 
+// Authenticated IP whitelist with grace period (24 hours after successful login)
+interface AuthenticatedIP {
+  ip: string;
+  lastAuthenticated: number;
+  userEmail?: string;
+}
+const authenticatedIPs = new Map<string, AuthenticatedIP>();
+const AUTH_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 // Suspicious patterns that indicate automated scanners/bots
 const SUSPICIOUS_PATTERNS = [
   /\/\.env/i,
@@ -116,6 +125,53 @@ function getClientIP(req: Request): string {
   
   // Fallback to socket address
   return req.socket.remoteAddress || 'unknown';
+}
+
+/**
+ * Register IP as authenticated after successful login
+ * IP will be whitelisted for 24 hours
+ */
+export function registerAuthenticatedIP(ip: string, userEmail?: string): void {
+  authenticatedIPs.set(ip, {
+    ip,
+    lastAuthenticated: Date.now(),
+    userEmail,
+  });
+  
+  // Clear any rate limiting or blocking for this IP
+  rateLimitStore.delete(ip);
+  blockedIPs.delete(ip);
+  
+  logger.info('WAF: IP registered as authenticated', {
+    scope: 'superadmin',
+    ip,
+    userEmail,
+    gracePeriod: '24 hours',
+  });
+}
+
+/**
+ * Check if IP is in the authenticated whitelist (within grace period)
+ */
+function isAuthenticatedIP(ip: string): boolean {
+  const authInfo = authenticatedIPs.get(ip);
+  if (!authInfo) return false;
+  
+  const now = Date.now();
+  const elapsed = now - authInfo.lastAuthenticated;
+  
+  if (elapsed > AUTH_GRACE_PERIOD_MS) {
+    // Grace period expired, remove from whitelist
+    authenticatedIPs.delete(ip);
+    logger.info('WAF: Authenticated IP grace period expired', {
+      scope: 'superadmin',
+      ip,
+      userEmail: authInfo.userEmail,
+    });
+    return false;
+  }
+  
+  return true;
 }
 
 /**
@@ -287,6 +343,11 @@ export function wafMiddleware(config: Partial<WAFConfig> = {}) {
       return next();
     }
     
+    // Check authenticated IP whitelist (24-hour grace period after login)
+    if (isAuthenticatedIP(ip)) {
+      return next();
+    }
+    
     // Whitelist check
     if (finalConfig.whitelist.includes(ip)) {
       return next();
@@ -382,6 +443,12 @@ export function unblockIP(ip: string): void {
 export function getWAFStats() {
   return {
     blockedIPs: Array.from(blockedIPs),
+    authenticatedIPs: Array.from(authenticatedIPs.values()).map(auth => ({
+      ip: auth.ip,
+      userEmail: auth.userEmail,
+      lastAuthenticated: new Date(auth.lastAuthenticated).toISOString(),
+      expiresAt: new Date(auth.lastAuthenticated + AUTH_GRACE_PERIOD_MS).toISOString(),
+    })),
     rateLimitedIPs: Array.from(rateLimitStore.entries()).map(([ip, entry]) => ({
       ip,
       requests: entry.count,

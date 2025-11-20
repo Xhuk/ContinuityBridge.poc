@@ -7,6 +7,7 @@ import jwt from "jsonwebtoken";
 import { magicLinkService } from "../auth/magic-link-service";
 import { authRateLimit, magicLinkRateLimit, emailValidation, validateRequest } from "../middleware/security";
 import { findUserByEmail } from "../utils/email-utils.js";
+import { registerAuthenticatedIP } from "../middleware/waf.js";
 
 const router = Router();
 
@@ -215,6 +216,13 @@ router.get("/verify", async (req, res) => {
       sameSite: cookieOptions.sameSite,
       userId: result.user?.id,
     });
+    
+    // Register IP in WAF whitelist for 24-hour grace period
+    const clientIP = req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || 
+                     req.headers['x-real-ip']?.toString() || 
+                     req.socket.remoteAddress || 'unknown';
+    registerAuthenticatedIP(clientIP, result.user?.email);
+    console.log(`[Auth:${trackId}] IP registered in WAF whitelist`, { ip: clientIP });
 
     // Redirect to dashboard (or return JSON for SPA)
     if (req.headers.accept?.includes("application/json")) {
@@ -305,6 +313,13 @@ router.post("/password", authRateLimit, [emailValidation], validateRequest, asyn
     }
 
     res.cookie("session", sessionToken, cookieOptions);
+    
+    // Register IP in WAF whitelist for 24-hour grace period
+    const clientIP = req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || 
+                     req.headers['x-real-ip']?.toString() || 
+                     req.socket.remoteAddress || 'unknown';
+    registerAuthenticatedIP(clientIP, user.email);
+    console.log(`[Auth:Password] IP registered in WAF whitelist`, { ip: clientIP, email: user.email });
 
     res.json({
       success: true,
