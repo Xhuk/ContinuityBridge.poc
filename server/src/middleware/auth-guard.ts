@@ -5,6 +5,20 @@ const logger = baseLogger.child("AuthGuard");
 
 export function createAuthGuard() {
   return async function authGuard(req: Request, res: Response, next: NextFunction) {
+    // Skip auth guard for debug and public endpoints
+    const publicPaths = [
+      '/api/auth/debug',
+      '/api/auth/login/magic-link',
+      '/api/auth/login/verify',
+      '/api/auth/login/password',
+      '/api/auth/session',
+      '/api/enrollment',
+    ];
+    
+    if (publicPaths.some(path => req.path.startsWith(path))) {
+      return next();
+    }
+    
     // Check for session authentication (Passport.js or similar)
     if (typeof (req as any).isAuthenticated === "function" && (req as any).isAuthenticated()) {
       logger.debug("Request authenticated via session", {
