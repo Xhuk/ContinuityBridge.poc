@@ -4,6 +4,8 @@ import cors from 'cors';
 import { body, validationResult } from 'express-validator';
 import type { Request, Response, NextFunction } from 'express';
 import { logger } from '../core/logger.js';
+import { db } from '../../db.js';
+import { systemLogs } from '../../db';
 
 const securityLog = logger.child("SecurityMiddleware");
 
@@ -148,14 +150,14 @@ export const secretsVaultRateLimit = rateLimit({
   max: 3, // Only 3 attempts per 15 minutes
   message: 'Too many vault access attempts, please try again later',
   skipSuccessfulRequests: true,
-  handler: (req, res) => {
-    // Log security event
-    securityLog.warn('Secrets vault rate limit exceeded', {
-      ip: req.ip,
-      userAgent: req.get('User-Agent'),
-      path: req.path,
-      timestamp: new Date().toISOString(),
-    });
+  handler: async (req, res) => {
+  // Log security event
+  await securityAuditLog('Secrets vault rate limit exceeded', {
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+    path: req.path,
+    timestamp: new Date().toISOString(),
+  });
     
     res.status(429).json({
       error: 'Rate limit exceeded',
@@ -166,15 +168,41 @@ export const secretsVaultRateLimit = rateLimit({
 
 /**
  * Audit Logging for Security Events
+ * Logs to BOTH file (Winston) AND database (systemLogs table)
  */
-export const securityAuditLog = (event: string, details: Record<string, any>) => {
-  securityLog.info(`[Security Audit] ${event}`, {
+export const securityAuditLog = async (event: string, details: Record<string, any>) => {
+  const logData = {
     ...details,
     timestamp: new Date().toISOString(),
-  });
+  };
   
-  // TODO: Persist audit logs to database for compliance in production
-  // For now, logs are written to file via Winston
+  // Log to file via Winston
+  securityLog.info(`[Security Audit] ${event}`, logData);
+  
+  // Persist to database for compliance
+  try {
+    await db.insert(systemLogs).values({
+      level: 'info',
+      scope: 'superadmin',
+      service: 'security',
+      component: 'audit',
+      message: `[Security Audit] ${event}`,
+      metadata: logData,
+      userId: details.userId || null,
+      organizationId: details.organizationId || null,
+      requestId: details.requestId || null,
+      httpMethod: details.method || null,
+      httpPath: details.path || null,
+      httpStatus: details.status || null,
+      createdAt: new Date(),
+    });
+  } catch (error) {
+    // Don't fail the request if audit logging fails
+    securityLog.error('Failed to persist security audit log to database', {
+      error: (error as Error).message,
+      event,
+    });
+  }
 };
 
 /**

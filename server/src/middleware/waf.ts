@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { logger } from "../core/logger.js";
+import { checkRateLimit as valkeyRateLimit } from "../services/cache-service.js";
 
 /**
  * WAF (Web Application Firewall) Middleware
@@ -7,7 +8,7 @@ import { logger } from "../core/logger.js";
  * - Bot crawling and automated scanners
  * - Brute force attacks
  * - Suspicious patterns and injections
- * - Excessive requests (rate limiting)
+ * - Excessive requests (distributed rate limiting via Valkey)
  */
 
 interface RateLimitEntry {
@@ -176,9 +177,44 @@ function isProtectedEndpoint(req: Request): boolean {
 }
 
 /**
- * Rate limiting check
+ * Rate limiting check using Valkey (distributed)
  */
-function checkRateLimit(ip: string, config: WAFConfig): { allowed: boolean; retryAfter?: number } {
+async function checkDistributedRateLimit(ip: string, config: WAFConfig): Promise<{ allowed: boolean; retryAfter?: number }> {
+  try {
+    const windowSeconds = Math.floor(config.rateLimit.windowMs / 1000);
+    const result = await valkeyRateLimit(
+      `waf:${ip}`,
+      config.rateLimit.maxRequests,
+      windowSeconds
+    );
+
+    if (!result.allowed) {
+      logger.warn('WAF: Valkey rate limit exceeded', {
+        scope: 'superadmin',
+        ip,
+        current: result.current,
+        limit: config.rateLimit.maxRequests,
+      });
+
+      const retryAfter = Math.ceil(config.rateLimit.blockDurationMs / 1000);
+      return { allowed: false, retryAfter };
+    }
+
+    return { allowed: true };
+  } catch (error) {
+    // Fallback to in-memory if Valkey fails
+    logger.error('WAF: Valkey rate limit check failed, falling back to in-memory', {
+      scope: 'superadmin',
+      error: (error as Error).message,
+    });
+    return inMemoryRateLimit(ip, config);
+  }
+}
+
+/**
+ * In-memory rate limiting fallback (original implementation)
+ */
+function inMemoryRateLimit(ip: string, config: WAFConfig): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
   const entry = rateLimitStore.get(ip);
   
@@ -242,7 +278,7 @@ export function wafMiddleware(config: Partial<WAFConfig> = {}) {
     }
   }, 300000);
   
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const ip = getClientIP(req);
     const url = req.originalUrl || req.url;
     
@@ -303,8 +339,8 @@ export function wafMiddleware(config: Partial<WAFConfig> = {}) {
       return res.status(404).json({ error: 'Not Found' });
     }
     
-    // Rate limiting
-    const rateLimitResult = checkRateLimit(ip, finalConfig);
+    // Rate limiting (distributed via Valkey)
+    const rateLimitResult = await checkDistributedRateLimit(ip, finalConfig);
     if (!rateLimitResult.allowed) {
       res.setHeader('Retry-After', rateLimitResult.retryAfter?.toString() || '300');
       return res.status(429).json({
