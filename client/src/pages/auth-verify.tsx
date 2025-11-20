@@ -61,6 +61,12 @@ export default function AuthVerify() {
         if (data.success) {
           setStatus("success");
           
+          // Store JWT token in localStorage
+          if (data.sessionToken) {
+            localStorage.setItem('auth_token', data.sessionToken);
+            console.log("[AuthVerify] Token stored in localStorage");
+          }
+          
           // Detect device and redirect accordingly
           const isMobile = isMobileDevice();
           const redirectUrl = isMobile ? "/mobile" : "/";
@@ -68,11 +74,11 @@ export default function AuthVerify() {
           
           console.log("[AuthVerify] Redirecting to:", redirectUrl);
           
-          // Force full page reload to pick up session cookie
+          // Force full page reload to pick up token
           // Use replace() to avoid back button issues
           setTimeout(() => {
             window.location.replace(redirectUrl);
-          }, 1500); // Increased delay to ensure cookie is set
+          }, 1500); // Increased delay to ensure token is stored
         } else {
           setStatus("error");
           setErrorMessage(data.error || "Verification failed");

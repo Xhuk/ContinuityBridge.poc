@@ -34,10 +34,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      // Check session via cookie (HttpOnly, Secure)
-      // No need to send API key - session cookie is sent automatically
+      // Get JWT token from localStorage
+      const token = localStorage.getItem('auth_token');
+      
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Validate token with server
       const response = await fetch("/api/auth/session", {
-        credentials: "include", // Send HttpOnly cookies
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       });
 
       if (response.ok) {
@@ -45,9 +54,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.authenticated && data.user) {
           setUser(data.user);
         }
+      } else {
+        // Token invalid or expired, clear it
+        localStorage.removeItem('auth_token');
       }
     } catch (error) {
       console.error("Auth check failed:", error);
+      localStorage.removeItem('auth_token');
     } finally {
       setIsLoading(false);
     }
@@ -55,14 +68,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password?: string) => {
     // Login via magic link or password
-    // Session cookie will be set by server (HttpOnly, Secure)
     const endpoint = password ? "/api/auth/login/password" : "/api/auth/login/magic-link";
     
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
-      credentials: "include",
     });
 
     if (!response.ok) {
@@ -70,17 +81,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(error.error || "Login failed");
     }
 
+    const data = await response.json();
+    
+    // Store JWT token in localStorage
+    if (data.token) {
+      localStorage.setItem('auth_token', data.token);
+    }
+
     // Refresh auth state
     await checkAuth();
   };
 
   const logout = async () => {
-    // Call logout endpoint to clear session cookie
-    await fetch("/api/auth/logout", {
-      method: "POST",
-      credentials: "include",
-    });
+    // Clear token from localStorage
+    localStorage.removeItem('auth_token');
     setUser(null);
+    
+    // Optional: Call logout endpoint to invalidate token on server
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+      });
+    } catch (error) {
+      console.error("Logout API call failed:", error);
+    }
   };
 
   return (
