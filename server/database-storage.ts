@@ -34,7 +34,7 @@ import {
   type InsertSystemInstanceTestFile,
   type SystemInstanceAuth,
   type InsertSystemInstanceAuth,
-} from "./schema";
+} from "./db";
 import { eq, desc, and } from "drizzle-orm";
 import { IStorage } from "./storage";
 import type { FlowVersion } from "./src/versioning/flow-version-manager.js";

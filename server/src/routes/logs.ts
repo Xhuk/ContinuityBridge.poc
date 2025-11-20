@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../../db.js";
-import { systemLogs, logConfigurations } from "../../schema.js";
+import { systemLogs, logConfigurations } from "../../db";
 import { desc, eq, and, gte, lte, like, or } from "drizzle-orm";
 import { authenticateUser, requireSuperAdmin } from "../auth/rbac-middleware.js";
 import { randomUUID } from "crypto";

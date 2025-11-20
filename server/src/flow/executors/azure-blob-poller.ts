@@ -1,7 +1,7 @@
 import { NodeExecutor, ExecutionContext, NodeExecutionResult } from "./types";
 import { FlowNode } from "@shared/schema";
 import { db } from "../../../db";
-import { pollerStates } from "../../../schema";
+import { pollerStates } from "../../../db";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 

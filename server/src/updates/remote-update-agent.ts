@@ -303,7 +303,7 @@ export class RemoteUpdateAgent {
    */
   private async installFlowTemplate(id: string, content: string): Promise<void> {
     const { db } = await import("../../db.js");
-    const { flowDefinitions } = await import("../../schema.js");
+    const { flowDefinitions } = await import("../../db");
     
     const flowData = JSON.parse(content);
     

@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { db } from "../../db.js";
-import { flowDefinitions } from "../../schema.js";
+import { flowDefinitions } from "../../db";
 import { logger } from "../core/logger.js";
 import type { FlowOrchestrator } from "../flow/orchestrator.js";
 

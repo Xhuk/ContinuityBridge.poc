@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../../db.js";
-import { users } from "../../schema.js";
+import { users } from "../../db";
 import { eq } from "drizzle-orm";
 import { hashPassword } from "./auth-login.js";
 import { logger } from "../core/logger.js";

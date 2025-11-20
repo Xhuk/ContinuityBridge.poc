@@ -14,7 +14,7 @@ import { interfaceTemplateCatalog } from "../interfaces/template-catalog.js";
 import { nodeCatalog } from "../flow/node-catalog.js";
 import type { SystemInstanceTestFile } from "../../schema.js";
 import { db } from "../../db.js";
-import { secretsMasterKeys } from "../../schema.js";
+import { secretsMasterKeys } from "../../db";
 import { eq } from "drizzle-orm";
 import { secretsVaultRateLimit } from "../middleware/security.js";
 

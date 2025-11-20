@@ -1,6 +1,6 @@
 import { Router, type Request, Response } from "express";
 import { db } from "../../db.js";
-import { tenants, ecosystems, environments, users } from "../../schema.js";
+import { tenants, ecosystems, environments, users } from "../../db";
 import { eq, inArray } from "drizzle-orm";
 import { authenticateUser, requireRole } from "../auth/rbac-middleware.js";
 import { generateSessionToken } from "../auth/rbac-middleware.js";

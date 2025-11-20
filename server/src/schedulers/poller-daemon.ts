@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { db } from "../../db.js";
-import { pollerStates, flowDefinitions } from "../../schema.js";
+import { pollerStates, flowDefinitions } from "../../db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../core/logger.js";
 import type { FlowOrchestrator } from "../flow/orchestrator.js";
