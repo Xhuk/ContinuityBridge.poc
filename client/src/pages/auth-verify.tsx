@@ -20,6 +20,7 @@ export default function AuthVerify() {
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying");
   const [errorMessage, setErrorMessage] = useState("");
   const [redirectTarget, setRedirectTarget] = useState<"mobile" | "desktop">("desktop");
+  const [debugInfo, setDebugInfo] = useState<string>(""); // Debug info to display
 
   useEffect(() => {
     const verifyMagicLink = async () => {
@@ -75,6 +76,8 @@ export default function AuthVerify() {
                 tokenPreview: data.sessionToken.substring(0, 30) + '...',
               });
               
+              setDebugInfo(`Token length: ${data.sessionToken.length}`);
+              
               // TEMPORARY: Use plain localStorage to verify it works
               // Store with expiry
               const payload = {
@@ -88,13 +91,19 @@ export default function AuthVerify() {
               
               // Verify it was stored
               const storedToken = localStorage.getItem('auth_token');
+              const verified = !!storedToken;
               console.log("[AuthVerify] Verification - token in localStorage:", {
-                exists: !!storedToken,
+                exists: verified,
                 length: storedToken?.length,
               });
+              
+              setDebugInfo(`Token stored: ${verified ? 'YES' : 'NO'} (${storedToken?.length || 0} bytes)`);
             } catch (error) {
               console.error("[AuthVerify] ❌ Failed to store token:", error);
+              setDebugInfo(`ERROR: ${error}`);
             }
+          } else {
+            setDebugInfo('No sessionToken in response!');
           }
           
           // Detect device and redirect accordingly
@@ -155,9 +164,14 @@ export default function AuthVerify() {
           <>
             <div className="text-green-600 text-5xl mb-4">✓</div>
             <h2 className="text-xl font-semibold mb-2">Login Successful!</h2>
-            <p className="text-gray-600">
+            <p className="text-gray-600 mb-2">
               Redirecting to {redirectTarget === "mobile" ? "mobile interface" : "dashboard"}...
             </p>
+            {debugInfo && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-left">
+                <div className="font-mono text-xs">{debugInfo}</div>
+              </div>
+            )}
           </>
         )}
 
