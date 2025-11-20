@@ -35,7 +35,7 @@ import {
   type SystemInstanceAuth,
   type InsertSystemInstanceAuth,
 } from "./db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { IStorage } from "./storage";
 import type { FlowVersion } from "./src/versioning/flow-version-manager.js";
 
@@ -92,7 +92,11 @@ export class DatabaseStorage implements IStorage {
     return this.mapFlowFromDb(row);
   }
 
-  async getFlows(systemInstanceId?: string, organizationId?: string): Promise<SchemaFlowDefinition[]> {
+  async getFlows(
+    systemInstanceId?: string, 
+    organizationId?: string,
+    environment?: "dev" | "test" | "staging" | "prod"
+  ): Promise<SchemaFlowDefinition[]> {
     let query = (db.select() as any).from(flowDefinitions);
     
     // Apply filters
@@ -104,6 +108,11 @@ export class DatabaseStorage implements IStorage {
     
     if (organizationId) {
       conditions.push(eq(flowDefinitions.organizationId, organizationId));
+    }
+    
+    // Environment filtering via JSONB metadata
+    if (environment) {
+      conditions.push(sql`${flowDefinitions.metadata}->>'targetEnvironment' = ${environment}`);
     }
     
     if (conditions.length > 0) {

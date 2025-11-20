@@ -35,7 +35,11 @@ export interface IStorage {
   // Flow Definition Management
   createFlow(flow: InsertFlowDefinition): Promise<FlowDefinition>;
   getFlow(id: string): Promise<FlowDefinition | undefined>;
-  getFlows(systemInstanceId?: string): Promise<FlowDefinition[]>;
+  getFlows(
+    systemInstanceId?: string,
+    organizationId?: string,
+    environment?: "dev" | "test" | "staging" | "prod"
+  ): Promise<FlowDefinition[]>;
   updateFlow(id: string, flow: Partial<InsertFlowDefinition>): Promise<FlowDefinition | undefined>;
   deleteFlow(id: string): Promise<boolean>;
 
@@ -186,7 +190,11 @@ export class MemStorage implements IStorage {
     return this.flows.get(id);
   }
 
-  async getFlows(systemInstanceId?: string, organizationId?: string): Promise<FlowDefinition[]> {
+  async getFlows(
+    systemInstanceId?: string, 
+    organizationId?: string,
+    environment?: "dev" | "test" | "staging" | "prod"
+  ): Promise<FlowDefinition[]> {
     const allFlows = Array.from(this.flows.values());
     
     // Apply filters
@@ -198,6 +206,15 @@ export class MemStorage implements IStorage {
     
     if (organizationId) {
       filtered = filtered.filter(f => (f as any).organizationId === organizationId);
+    }
+    
+    // Environment filtering via metadata
+    if (environment) {
+      filtered = filtered.filter(f => {
+        const metadata = (f as any).metadata;
+        if (!metadata || typeof metadata !== 'object') return false;
+        return metadata.targetEnvironment === environment;
+      });
     }
     
     return filtered;

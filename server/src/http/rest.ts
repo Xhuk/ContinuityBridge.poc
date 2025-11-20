@@ -1058,11 +1058,12 @@ export function registerRESTRoutes(
       
       const systemInstanceId = req.query.systemInstanceId as string | undefined;
       
-      // Use version context if available (multi-tenant filtering)
+      // Use version context for multi-tenant filtering
       const versionContext = (req as any).versionContext;
       const organizationId = versionContext?.organizationId;
+      const environment = versionContext?.environment as "dev" | "test" | "staging" | "prod" | undefined;
       
-      const flows = await storage.getFlows(systemInstanceId, organizationId);
+      const flows = await storage.getFlows(systemInstanceId, organizationId, environment);
       res.json(flows);
     } catch (error: any) {
       log.error("Error listing flows", error);
