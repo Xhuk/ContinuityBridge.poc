@@ -11,9 +11,10 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
-import { AlertCircle, UserPlus, Mail, Trash2, Shield, Key, RefreshCw, Users as UsersIcon, CheckCircle, XCircle } from "lucide-react";
+import { AlertCircle, UserPlus, Mail, Trash2, Shield, Key, RefreshCw, Users as UsersIcon, CheckCircle, XCircle, Copy, Check } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface User {
@@ -35,12 +36,14 @@ interface CreateUserForm {
   role: "consultant" | "customer_admin" | "customer_user";
   organizationName?: string;
   environment: "dev" | "test" | "staging" | "prod";
+  bypassEmail?: boolean;
 }
 
 export default function UsersManagement() {
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const form = useForm<CreateUserForm>({
     defaultValues: {
@@ -48,6 +51,7 @@ export default function UsersManagement() {
       role: "customer_user",
       organizationName: currentUser?.role === "customer_admin" ? currentUser?.organizationName : "",
       environment: "prod",
+      bypassEmail: false,
     },
   });
 
@@ -72,11 +76,50 @@ export default function UsersManagement() {
         body: JSON.stringify(data),
       });
     },
-    onSuccess: () => {
-      toast({
-        title: "User created",
-        description: "Confirmation email sent to the user.",
-      });
+    onSuccess: (response: any, variables) => {
+      const bypassedEmail = variables.bypassEmail;
+      
+      if (bypassedEmail && response.apiKey) {
+        // Show API key in toast when email is bypassed
+        toast({
+          title: "User created successfully!",
+          description: (
+            <div className="space-y-2">
+              <p className="text-sm">Email sending bypassed. Copy the credentials below:</p>
+              <div className="p-2 bg-background rounded border">
+                <div className="flex items-center justify-between gap-2">
+                  <code className="text-xs font-mono break-all flex-1">{response.apiKey}</code>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      navigator.clipboard.writeText(response.apiKey);
+                      setCopiedKey(response.apiKey);
+                      setTimeout(() => setCopiedKey(null), 2000);
+                    }}
+                  >
+                    {copiedKey === response.apiKey ? (
+                      <Check className="h-3 w-3" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                💡 Use /onboarding page to generate magic link with this email
+              </p>
+            </div>
+          ),
+          duration: 10000,
+        });
+      } else {
+        toast({
+          title: "User created",
+          description: "Confirmation email sent to the user.",
+        });
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setCreateDialogOpen(false);
       form.reset();
@@ -409,6 +452,29 @@ export default function UsersManagement() {
                         API key format: cb_[env]_[key]
                       </FormDescription>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="bypassEmail"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Bypass Email Sending
+                        </FormLabel>
+                        <FormDescription>
+                          Skip email and show API key here (for testing)
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
                     </FormItem>
                   )}
                 />

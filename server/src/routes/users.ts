@@ -123,6 +123,7 @@ router.post("/", authenticateUser, async (req, res) => {
       environment = "dev", // Stage-specific: dev, test, staging, prod
       assignedCustomers, // Only for consultants
       maxCustomers, // Contract limit for consultants (number of end customers they can manage)
+      bypassEmail = false, // Skip email sending and return API key directly
     } = req.body;
 
     if (!email) {
@@ -216,19 +217,23 @@ router.post("/", authenticateUser, async (req, res) => {
 
     await db.insert(users).values(newUser).run();
 
-    // Send confirmation email (step 1)
-    const { resendService } = await import("../notifications/resend-service.js");
-    try {
-      await resendService.sendAccountConfirmationEmail(
-        email,
-        organizationName || organizationId,
-        role as UserRole,
-        confirmationToken
-      );
-      console.log(`📧 Confirmation email sent to ${email}`);
-    } catch (emailError: any) {
-      console.warn(`Failed to send confirmation email: ${emailError.message}`);
-      // Continue anyway - user created successfully
+    // Send confirmation email (step 1) - unless bypassed
+    if (!bypassEmail) {
+      const { resendService } = await import("../notifications/resend-service.js");
+      try {
+        await resendService.sendAccountConfirmationEmail(
+          email,
+          organizationName || organizationId,
+          role as UserRole,
+          confirmationToken
+        );
+        console.log(`📧 Confirmation email sent to ${email}`);
+      } catch (emailError: any) {
+        console.warn(`Failed to send confirmation email: ${emailError.message}`);
+        // Continue anyway - user created successfully
+      }
+    } else {
+      console.log(`⚠️  Email sending bypassed for ${email}`);
     }
 
     res.json({
@@ -240,9 +245,13 @@ router.post("/", authenticateUser, async (req, res) => {
         organizationId: newUser.organizationId,
         assignedCustomers: newUser.assignedCustomers,
         environment: stage,
-        emailConfirmed: false,
+        emailConfirmed: bypassEmail, // Auto-confirm if email is bypassed
       },
-      message: `User created for ${stage} environment. Confirmation email sent to ${email}.`,
+      // Return API key if email is bypassed
+      ...(bypassEmail && { apiKey }),
+      message: bypassEmail 
+        ? `User created for ${stage} environment. Email bypassed - use /onboarding to generate magic link.`
+        : `User created for ${stage} environment. Confirmation email sent to ${email}.`,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
