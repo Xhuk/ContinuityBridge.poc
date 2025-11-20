@@ -12,9 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
-import { AlertCircle, UserPlus, Mail, Trash2, Shield, Key, RefreshCw, Users as UsersIcon, CheckCircle, XCircle, Copy, Check } from "lucide-react";
+import { AlertCircle, UserPlus, Mail, Trash2, Shield, Key, RefreshCw, Users as UsersIcon, CheckCircle, XCircle, Copy, Check, Building2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface User {
@@ -510,71 +511,141 @@ export default function UsersManagement() {
         </Alert>
       )}
 
-      {/* Superadmin View: Grouped by Organization */}
+      {/* Superadmin View: Tabbed Organization */}
       {currentUser?.role === "superadmin" && organizationGroups && (
-        <div className="space-y-6">
-          {/* Founders */}
-          {organizationGroups.founders && organizationGroups.founders.length > 0 && (
+        <Tabs defaultValue="founders" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="founders" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Founder Team ({organizationGroups.founders?.length || 0})
+            </TabsTrigger>
+            <TabsTrigger value="consultants" className="flex items-center gap-2">
+              <UsersIcon className="h-4 w-4" />
+              Consultants ({organizationGroups.consultants?.length || 0})
+            </TabsTrigger>
+            <TabsTrigger value="customers" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Customers ({organizationGroups.projects?.length || 0} orgs)
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Founder Team Tab */}
+          <TabsContent value="founders" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-5 w-5 text-red-500" />
-                  Founders ({organizationGroups.founders.length})
+                  Founder Team
                 </CardTitle>
-                <CardDescription>Superadmin users with full access</CardDescription>
+                <CardDescription>
+                  Superadmin users with full system access
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Organization</TableHead>
-                      <TableHead>API Key</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Last Login</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {organizationGroups.founders.map(renderUserRow)}
-                  </TableBody>
-                </Table>
+                {organizationGroups.founders && organizationGroups.founders.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Organization</TableHead>
+                        <TableHead>API Key</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Last Login</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {organizationGroups.founders.map(renderUserRow)}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">No founders found</p>
+                )}
               </CardContent>
             </Card>
-          )}
+          </TabsContent>
 
-          {/* Projects/Organizations */}
-          {organizationGroups.projects && organizationGroups.projects.map((project: any) => (
-            <Card key={project.organizationName}>
+          {/* Consultants Tab */}
+          <TabsContent value="consultants" className="space-y-4">
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <UsersIcon className="h-5 w-5" />
-                  {project.organizationName} ({project.userCount})
+                  <UsersIcon className="h-5 w-5 text-blue-500" />
+                  Consultants
                 </CardTitle>
-                <CardDescription>Organization ID: {project.organizationId || "N/A"}</CardDescription>
+                <CardDescription>
+                  External consultants managing customer accounts
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Organization</TableHead>
-                      <TableHead>API Key</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Last Login</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {project.users.map(renderUserRow)}
-                  </TableBody>
-                </Table>
+                {organizationGroups.consultants && organizationGroups.consultants.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Organization</TableHead>
+                        <TableHead>API Key</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Last Login</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {organizationGroups.consultants.map(renderUserRow)}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">No consultants found</p>
+                )}
               </CardContent>
             </Card>
-          ))}
-        </div>
+          </TabsContent>
+
+          {/* Customers Tab */}
+          <TabsContent value="customers" className="space-y-4">
+            {organizationGroups.projects && organizationGroups.projects.length > 0 ? (
+              organizationGroups.projects.map((project: any) => (
+                <Card key={project.organizationName}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-green-500" />
+                      {project.organizationName} ({project.userCount})
+                    </CardTitle>
+                    <CardDescription>
+                      Organization ID: {project.organizationId || "N/A"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Organization</TableHead>
+                          <TableHead>API Key</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Last Login</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {project.users.map(renderUserRow)}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Card>
+                <CardContent className="py-8">
+                  <p className="text-center text-muted-foreground">No customer organizations found</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
       )}
 
       {/* Consultant and Customer Admin View: Flat List */}

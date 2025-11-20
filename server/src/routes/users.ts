@@ -44,12 +44,17 @@ router.get("/", authenticateUser, async (req, res) => {
       // Group users by organization
       const grouped: Record<string, any[]> = {};
       const founders: any[] = [];
+      const consultants: any[] = [];
 
       allUsers.forEach((user: any) => {
         // Founders (superadmins) go to a special group shown first
         if (user.role === "superadmin") {
           founders.push(user);
+        } else if (user.role === "consultant") {
+          // Consultants in separate group
+          consultants.push(user);
         } else {
+          // Customer admins and users grouped by organization
           const orgKey = user.organizationName || user.organizationId || "Unassigned";
           if (!grouped[orgKey]) {
             grouped[orgKey] = [];
@@ -58,9 +63,10 @@ router.get("/", authenticateUser, async (req, res) => {
         }
       });
 
-      // Return structured data: founders first, then projects
+      // Return structured data: founders first, then consultants, then customer organizations
       return res.json({
         founders,
+        consultants,
         projects: Object.keys(grouped).sort().map(orgName => ({
           organizationName: orgName,
           organizationId: grouped[orgName][0]?.organizationId,
@@ -173,10 +179,8 @@ router.post("/", authenticateUser, async (req, res) => {
     }
     // Superadmin has no restrictions
 
-    // Check if user already exists
-    const existing = await db.select().from(users)
-      .where(eq(users.email, email))
-      .get();
+    // Check if user already exists (with Gmail dot notation support)
+    const existing = await findUserByEmail(email);
 
     if (existing) {
       return res.status(409).json({ error: "User already exists" });
@@ -204,7 +208,7 @@ router.post("/", authenticateUser, async (req, res) => {
       lastLoginAt: null,
       emailConfirmed: false,  // Require email confirmation
       confirmationToken,
-      confirmationTokenExpires: confirmationTokenExpires.toISOString(),
+      confirmationTokenExpires,
       metadata: {
         ...(role === "consultant" ? {
           maxCustomers: maxCustomers || 1,
@@ -212,11 +216,11 @@ router.post("/", authenticateUser, async (req, res) => {
         } : {}),
         environment: stage, // Track which stage this user belongs to
       },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
-    await db.insert(users).values(newUser).run();
+    await (db.insert(users).values(newUser) as any);
 
     // Send confirmation email (step 1) - unless bypassed
     if (!bypassEmail) {
@@ -297,12 +301,11 @@ router.post("/confirm-email", async (req, res) => {
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     await (db.insert(magicLinks).values({
-      id: randomUUID(),
       token: magicLinkToken,
       email: user.email,
       used: false,
-      expiresAt: expiresAt.toISOString(),
-      createdAt: new Date().toISOString(),
+      expiresAt,
+      createdAt: new Date(),
     }) as any);
 
     // Mark email as confirmed and clear confirmation token
@@ -311,7 +314,7 @@ router.post("/confirm-email", async (req, res) => {
         emailConfirmed: true,
         confirmationToken: null as any,
         confirmationTokenExpires: null as any,
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date(),
       })
       .where(eq(users.id, user.id)) as any);
 
@@ -355,9 +358,10 @@ router.delete("/:id", authenticateUser, requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const user = await db.select().from(users)
-      .where(eq(users.id, id))
-      .get();
+    const userResult = await (db.select().from(users)
+      .where(eq(users.id, id)) as any);
+
+    const user = Array.isArray(userResult) ? userResult[0] : userResult;
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -368,7 +372,7 @@ router.delete("/:id", authenticateUser, requireSuperAdmin, async (req, res) => {
       return res.status(403).json({ error: "Cannot delete superadmin users" });
     }
 
-    await db.delete(users).where(eq(users.id, id)).run();
+    await (db.delete(users).where(eq(users.id, id)) as any);
 
     res.json({ success: true, message: "User deleted" });
   } catch (error: any) {
@@ -387,7 +391,7 @@ router.patch("/:id/enable", authenticateUser, requireSuperAdmin, async (req, res
     const { enabled } = req.body;
 
     await (db.update(users)
-      .set({ enabled, updatedAt: new Date().toISOString() })
+      .set({ enabled, updatedAt: new Date() })
       .where(eq(users.id, id)) as any);
 
     res.json({ success: true, enabled });
@@ -438,7 +442,7 @@ router.patch("/:id/promote-to-admin", authenticateUser, async (req, res) => {
     await (db.update(users)
       .set({ 
         role: "customer_admin" as any,
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date(),
         metadata: {
           ...(userRecord.metadata || {}),
           promotedAt: new Date().toISOString(),
@@ -527,7 +531,7 @@ router.post("/:id/regenerate-api-key", authenticateUser, async (req, res) => {
     await (db.update(users)
       .set({ 
         apiKey: newApiKey, 
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date(),
         metadata: {
           ...(userRecord.metadata || {}),
           environment: stage,
