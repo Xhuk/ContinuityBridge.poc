@@ -373,6 +373,7 @@ docs/drafts/
 !README.md
 !DEPLOYMENT.md
 !PRODUCTION_CHECKLIST.md
+!QA_TESTING_PLAN.md
 
 # Keep user documentation
 !docs/**/*.md
