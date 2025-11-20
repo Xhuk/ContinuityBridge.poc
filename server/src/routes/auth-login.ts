@@ -22,14 +22,38 @@ router.post("/magic-link", magicLinkRateLimit, [emailValidation], validateReques
       return res.status(400).json({ error: "Email is required" });
     }
 
+    // Normalize email for Gmail (remove dots before @)
+    const normalizedEmail = email.toLowerCase().trim();
+    const [localPart, domain] = normalizedEmail.split('@');
+    const searchEmail = domain === 'gmail.com' 
+      ? `${localPart.replace(/\./g, '')}@${domain}`
+      : normalizedEmail;
+
     console.log(`[Auth] Magic link requested for: ${email}`);
     console.log(`[Auth] DATABASE_URL configured: ${!!process.env.DATABASE_URL}`);
 
     // Check if user exists in database BEFORE generating link
     let userExists = false;
+    let foundEmail = email;
     try {
-      const userCheckResult = await (db.select().from(users).where(eq(users.email, email)) as any);
-      const userCheck = Array.isArray(userCheckResult) ? userCheckResult[0] : userCheckResult;
+      // Try exact match first
+      let userCheckResult = await (db.select().from(users).where(eq(users.email, normalizedEmail)) as any);
+      let userCheck = Array.isArray(userCheckResult) ? userCheckResult[0] : userCheckResult;
+      
+      // If Gmail and not found, try searching without dots
+      if (!userCheck && domain === 'gmail.com') {
+        // Search for Gmail variants (with/without dots)
+        const allUsers = await (db.select().from(users) as any);
+        userCheck = allUsers.find((u: any) => {
+          const [uLocal, uDomain] = (u.email || '').split('@');
+          if (uDomain !== 'gmail.com') return false;
+          return uLocal.replace(/\./g, '') === localPart.replace(/\./g, '');
+        });
+        if (userCheck) {
+          foundEmail = userCheck.email;
+        }
+      }
+      
       userExists = !!userCheck;
       console.log(`[Auth] User exists in Neon DB: ${userExists}`);
       if (userCheck) {
@@ -50,18 +74,18 @@ router.post("/magic-link", magicLinkRateLimit, [emailValidation], validateReques
       });
     }
 
-    // Generate magic link
+    // Generate magic link using the actual email from database
     const baseUrl = process.env.APP_URL || 
                     (process.env.APP_DOMAIN ? `https://${process.env.APP_DOMAIN}` : null) ||
                     `${req.protocol}://${req.get("host")}`;
-    const result = await magicLinkService.generateMagicLink(email, baseUrl);
+    const result = await magicLinkService.generateMagicLink(foundEmail, baseUrl);
 
-    console.log(`[Auth] ✅ Magic link generated successfully for ${email}`);
+    console.log(`[Auth] ✅ Magic link generated successfully for ${foundEmail}`);
 
     // For admin@continuitybridge.local, fetch the API key
     let apiKey: string | undefined;
-    if (email === "admin@continuitybridge.local") {
-      const userResult = await (db.select().from(users).where(eq(users.email, email)) as any);
+    if (foundEmail === "admin@continuitybridge.local") {
+      const userResult = await (db.select().from(users).where(eq(users.email, foundEmail)) as any);
       const user = Array.isArray(userResult) ? userResult[0] : userResult;
       if (user) {
         apiKey = user.apiKey;
@@ -73,9 +97,9 @@ router.post("/magic-link", magicLinkRateLimit, [emailValidation], validateReques
     
     let emailSent = false;
     try {
-      await resendService.sendMagicLinkEmail(email, result.magicLink, result.expiresAt);
+      await resendService.sendMagicLinkEmail(foundEmail, result.magicLink, result.expiresAt);
       emailSent = true;
-      console.log(`📧 Magic link sent to ${email} via Resend`);
+      console.log(`📧 Magic link sent to ${foundEmail} via Resend`);
       if (process.env.NODE_ENV === "development") {
         console.log(`🔗 Dev Link: ${result.magicLink}`);
       }
@@ -86,21 +110,21 @@ router.post("/magic-link", magicLinkRateLimit, [emailValidation], validateReques
       try {
         const { emailService } = await import("../notifications/index.js");
         const emailTemplate = magicLinkService.getEmailTemplate(
-          email,
+          foundEmail,
           result.magicLink,
           result.expiresAt
         );
         
         await emailService.sendEmail({
-          to: email,
+          to: foundEmail,
           subject: emailTemplate.subject,
           html: emailTemplate.html,
           text: emailTemplate.text,
         });
         emailSent = true;
-        console.log(`📧 Magic link sent to ${email} via customer SMTP`);
+        console.log(`📧 Magic link sent to ${foundEmail} via customer SMTP`);
       } catch (smtpError: any) {
-        console.warn(`⚠️  Email sending failed for ${email}:`, smtpError.message);
+        console.warn(`⚠️  Email sending failed for ${foundEmail}:`, smtpError.message);
         // Don't throw - continue and return magic link in dev mode
       }
     }
