@@ -116,4 +116,18 @@ export const {
   aiUsageTracking,
   aiPricingTiers,
   organizationBranding,
+  // Authentication & Authorization
+  secretsVault,
+  authAdapters,
+  tokenCache,
+  inboundAuthPolicies,
+  systemInstanceTestFiles,
+  systemInstanceAuth,
 } = pgSchema;
+
+// Export types
+export type { AuthAdapter, InsertAuthAdapter } from "./schema.pg.js";
+export type { TokenCache, InsertTokenCache } from "./schema.pg.js";
+export type { InboundAuthPolicy, InsertInboundAuthPolicy } from "./schema.pg.js";
+export type { SystemInstanceTestFile, InsertSystemInstanceTestFile } from "./schema.pg.js";
+export type { SystemInstanceAuth, InsertSystemInstanceAuth } from "./schema.pg.js";

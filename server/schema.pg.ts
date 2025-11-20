@@ -963,3 +963,124 @@ export const organizationBranding = pgTable("organization_branding", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// ============================================================================
+// AUTHENTICATION & AUTHORIZATION
+// ============================================================================
+
+// Secrets Vault (encrypted secrets storage)
+export const secretsVault = pgTable("secrets_vault", {
+  id: text("id").primaryKey(),
+  secretType: text("secret_type").notNull().$type<"oauth2" | "jwt" | "cookie" | "apikey" | "smtp" | "azure_blob" | "sftp" | "ftp" | "database" | "rabbitmq" | "kafka" | "custom">(),
+  name: text("name").notNull(),
+  description: text("description"),
+  encryptedData: text("encrypted_data").notNull(),
+  iv: text("iv").notNull(),
+  userId: text("user_id"),
+  organizationId: text("organization_id"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const authAdapters = pgTable("auth_adapters", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  type: text("type").notNull().$type<"oauth2" | "jwt" | "cookie">(),
+  direction: text("direction").notNull().$type<"inbound" | "outbound" | "bidirectional">(),
+  userId: text("user_id"),
+  secretId: text("secret_id").references(() => secretsVault.id, { onDelete: "set null" }),
+  config: jsonb("config").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type AuthAdapter = typeof authAdapters.$inferSelect;
+export type InsertAuthAdapter = typeof authAdapters.$inferInsert;
+
+export const tokenCache = pgTable("token_cache", {
+  id: text("id").primaryKey(),
+  adapterId: text("adapter_id").notNull().references(() => authAdapters.id, { onDelete: "cascade" }),
+  tokenType: text("token_type").notNull().$type<"access" | "refresh" | "session">(),
+  scope: text("scope"),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  sessionData: jsonb("session_data").$type<Record<string, unknown>>(),
+  expiresAt: timestamp("expires_at"),
+  lastUsedAt: timestamp("last_used_at"),
+  issuedAt: timestamp("issued_at").notNull(),
+  version: integer("version").notNull().default(1),
+  refreshInFlight: boolean("refresh_in_flight").notNull().default(false),
+  refreshStartedAt: timestamp("refresh_started_at"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type TokenCache = typeof tokenCache.$inferSelect;
+export type InsertTokenCache = typeof tokenCache.$inferInsert;
+
+export const inboundAuthPolicies = pgTable("inbound_auth_policies", {
+  id: text("id").primaryKey(),
+  routePattern: text("route_pattern").notNull().unique(),
+  httpMethod: text("http_method").$type<"GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "ALL">().default("ALL"),
+  adapterId: text("adapter_id").references(() => authAdapters.id, { onDelete: "set null" }),
+  enforcementMode: text("enforcement_mode").$type<"bypass" | "optional" | "required">().notNull().default("required"),
+  multiTenant: boolean("multi_tenant").notNull().default(false),
+  description: text("description"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type InboundAuthPolicy = typeof inboundAuthPolicies.$inferSelect;
+export type InsertInboundAuthPolicy = typeof inboundAuthPolicies.$inferInsert;
+
+export const systemInstanceTestFiles = pgTable("system_instance_test_files", {
+  id: text("id").primaryKey(),
+  systemInstanceId: text("system_instance_id").notNull().references(() => systemInstances.id, { onDelete: "cascade" }),
+  filename: text("filename").notNull(),
+  mediaType: text("media_type").notNull().$type<"application/xml" | "application/json" | "text/csv" | "text/plain">(),
+  storageKey: text("storage_key").notNull().unique(),
+  fileSize: integer("file_size").notNull(),
+  uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+  notes: jsonb("notes").$type<Array<{
+    iteration: number;
+    author: string;
+    authorRole: "superadmin" | "consultant";
+    timestamp: string;
+    content: string;
+  }>>(),
+  mlApproved: boolean("ml_approved").default(false),
+  mlApprovedBy: text("ml_approved_by"),
+  mlApprovedAt: timestamp("ml_approved_at"),
+  metadata: jsonb("metadata").$type<{
+    originalName?: string;
+    encoding?: string;
+    description?: string;
+  }>(),
+});
+
+export type SystemInstanceTestFile = typeof systemInstanceTestFiles.$inferSelect;
+export type InsertSystemInstanceTestFile = typeof systemInstanceTestFiles.$inferInsert;
+
+export const systemInstanceAuth = pgTable("system_instance_auth", {
+  id: text("id").primaryKey(),
+  systemInstanceId: text("system_instance_id").notNull().references(() => systemInstances.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  adapterType: text("adapter_type").notNull().$type<"oauth2" | "jwt" | "cookie" | "apikey">(),
+  direction: text("direction").notNull().$type<"inbound" | "outbound" | "bidirectional">(),
+  secretRef: text("secret_ref").references(() => secretsVault.id, { onDelete: "set null" }),
+  config: jsonb("config").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type SystemInstanceAuth = typeof systemInstanceAuth.$inferSelect;
+export type InsertSystemInstanceAuth = typeof systemInstanceAuth.$inferInsert;
+
