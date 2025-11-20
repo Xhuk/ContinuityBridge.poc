@@ -24,6 +24,7 @@ import Profile from "@/pages/profile";
 import Login from "@/pages/login";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
+import Onboarding from "@/pages/onboarding";
 
 // Heavy pages - lazy loaded
 const MappingGenerator = lazy(() => import("@/pages/MappingGenerator"));
@@ -84,6 +85,9 @@ function Router() {
     
     return (
       <Switch>
+        {/* Public onboarding page */}
+        <Route path="/onboarding" component={Onboarding} />
+        
         {/* Customer login endpoint */}
         <Route path="/admin" component={Login} />
         
