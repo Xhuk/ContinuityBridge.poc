@@ -721,7 +721,8 @@ export const dataSourceSchemas = pgTable("data_source_schemas", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   identifier: text("identifier").notNull().unique(),
-  organizationId: text("organization_id"),
+  // TODO: Add after migration
+  // organizationId: text("organization_id"),
   sourceType: text("source_type").notNull().$type<"upload" | "api" | "database" | "sftp" | "other">(),
   format: text("format").notNull().$type<"xml" | "json" | "csv" | "other">(),
   sampleData: text("sample_data"),
@@ -746,16 +747,19 @@ export const dataSourceSchemas = pgTable("data_source_schemas", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  orgIdIdx: index("data_source_schemas_org_id_idx").on(table.organizationId),
-}));
+});
+// TODO: Add after migration
+// }, (table) => ({
+//   orgIdIdx: index("data_source_schemas_org_id_idx").on(table.organizationId),
+// }));
 
 // Poller States Table (for tracking file/blob poller progress)
 export const pollerStates = pgTable("poller_states", {
   id: text("id").primaryKey(),
   flowId: text("flow_id").notNull().references(() => flowDefinitions.id, { onDelete: "set null" }), // Changed from cascade to preserve audit trail
   nodeId: text("node_id").notNull(),
-  organizationId: text("organization_id"), // Multi-tenant isolation
+  // TODO: Add after migration
+  // organizationId: text("organization_id"), // Multi-tenant isolation
   pollerType: text("poller_type").notNull().$type<"sftp" | "azure_blob" | "database">(),
   lastFile: text("last_file"),
   lastProcessedAt: timestamp("last_processed_at"),
@@ -763,9 +767,11 @@ export const pollerStates = pgTable("poller_states", {
   configSnapshot: jsonb("config_snapshot").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  orgIdIdx: index("poller_states_org_id_idx").on(table.organizationId),
-}));
+});
+// TODO: Add after migration
+// }, (table) => ({
+//   orgIdIdx: index("poller_states_org_id_idx").on(table.organizationId),
+// }));
 
 // Secrets Master Keys Table
 export const secretsMasterKeys = pgTable("secrets_master_keys", {
