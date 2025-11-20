@@ -176,10 +176,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const enrollmentRouter = (await import("./src/routes/enrollment.js")).default;
     app.use("/api/enrollment", enrollmentRouter);
     
-    // Register auth/login routes (public - magic link, password login, session)
+    // Register auth routes (public - magic link, password login, session)
     const authLoginRouter = (await import("./src/routes/auth-login.js")).default;
-    app.use("/api/auth/login", authLoginRouter);
-    log.info("Auth login routes registered (magic link, password, session)");
+    app.use("/api/auth", authLoginRouter);
+    log.info("Auth routes registered (magic link, password, session, debug)");
 
     // Register System Health routes (superadmin/consultant/customer_admin)
     const systemHealthRouter = (await import("./src/routes/system-health-routes.js")).default;
