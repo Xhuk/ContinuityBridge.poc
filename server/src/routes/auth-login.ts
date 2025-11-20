@@ -68,7 +68,8 @@ router.post("/magic-link", magicLinkRateLimit, [emailValidation], validateReques
     });
   } catch (error: any) {
     console.error("Magic link generation failed:", error);
-    res.status(500).json({ error: error.message });
+    const errorMessage = error?.message || error?.toString() || "Failed to generate magic link";
+    res.status(500).json({ error: errorMessage });
   }
 });
 
