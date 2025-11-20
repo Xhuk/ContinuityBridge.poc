@@ -79,7 +79,7 @@ export function validateEnvironment(): EnvValidationResult {
 
   // Validate specific formats
   if (process.env.ENCRYPTION_KEY && process.env.ENCRYPTION_KEY.length < 32) {
-    missing.push("ENCRYPTION_KEY (must be at least 32 characters, use: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\");
+    missing.push("ENCRYPTION_KEY (must be at least 32 characters)");
   }
 
   if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
