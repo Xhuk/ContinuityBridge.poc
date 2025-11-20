@@ -37,45 +37,51 @@ export class MagicLinkService {
     email: string,
     baseUrl?: string
   ): Promise<{ magicLink: string; token: string; expiresAt: string }> {
-    // Use configured domain or fallback to localhost
-    const appUrl = baseUrl || 
-                   process.env.APP_URL || 
-                   `https://${process.env.APP_DOMAIN}` || 
-                   "http://localhost:5000";
-    // Check if user exists
-    const userResult = await (db.select().from(users).where(eq(users.email, email)) as any);
-    const user = Array.isArray(userResult) ? userResult[0] : userResult;
+    try {
+      // Use configured domain or fallback to localhost
+      const appUrl = baseUrl || 
+                     process.env.APP_URL || 
+                     `https://${process.env.APP_DOMAIN}` || 
+                     "http://localhost:5000";
+      // Check if user exists
+      const userResult = await (db.select().from(users).where(eq(users.email, email)) as any);
+      const user = Array.isArray(userResult) ? userResult[0] : userResult;
 
-    if (!user) {
-      throw new Error("User not found. Contact your administrator to create an account.");
+      if (!user) {
+        throw new Error("User not found. Contact your administrator to create an account.");
+      }
+
+      if (!user.enabled) {
+        throw new Error("Account disabled. Contact your administrator.");
+      }
+
+      // Generate secure token
+      const token = randomUUID().replace(/-/g, "");
+      const expiresAt = new Date(Date.now() + this.tokenExpiryMinutes * 60 * 1000).toISOString();
+
+      // Store token
+      const magicLinkToken: MagicLinkToken = {
+        id: randomUUID(),
+        userId: user.id,
+        email: user.email,
+        token,
+        expiresAt,
+        createdAt: new Date().toISOString(),
+      };
+
+      this.tokens.set(token, magicLinkToken);
+
+      // Auto-cleanup expired tokens after 1 hour
+      setTimeout(() => this.tokens.delete(token), 60 * 60 * 1000);
+
+      const magicLink = `${appUrl}/auth/verify?token=${token}`;
+
+      return { magicLink, token, expiresAt };
+    } catch (error: any) {
+      // Ensure error message is always a string
+      const errorMessage = error?.message || error?.toString?.() || String(error) || "Failed to generate magic link";
+      throw new Error(errorMessage);
     }
-
-    if (!user.enabled) {
-      throw new Error("Account disabled. Contact your administrator.");
-    }
-
-    // Generate secure token
-    const token = randomUUID().replace(/-/g, "");
-    const expiresAt = new Date(Date.now() + this.tokenExpiryMinutes * 60 * 1000).toISOString();
-
-    // Store token
-    const magicLinkToken: MagicLinkToken = {
-      id: randomUUID(),
-      userId: user.id,
-      email: user.email,
-      token,
-      expiresAt,
-      createdAt: new Date().toISOString(),
-    };
-
-    this.tokens.set(token, magicLinkToken);
-
-    // Auto-cleanup expired tokens after 1 hour
-    setTimeout(() => this.tokens.delete(token), 60 * 60 * 1000);
-
-    const magicLink = `${appUrl}/auth/verify?token=${token}`;
-
-    return { magicLink, token, expiresAt };
   }
 
   /**
