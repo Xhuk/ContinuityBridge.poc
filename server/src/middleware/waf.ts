@@ -246,8 +246,8 @@ export function wafMiddleware(config: Partial<WAFConfig> = {}) {
     const ip = getClientIP(req);
     const url = req.originalUrl || req.url;
     
-    // ALWAYS allow static assets (CSS, JS, images, fonts, HTML)
-    if (url.startsWith('/assets/') || url.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|html)$/)) {
+    // ALWAYS allow static assets (CSS, JS, images, fonts)
+    if (url.startsWith('/assets/') || url.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map)$/)) {
       return next();
     }
     

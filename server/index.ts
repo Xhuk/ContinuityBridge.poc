@@ -35,8 +35,8 @@ app.use((req, res, next) => {
 
 // Apply CORS
 app.use((req, res, next) => {
-  // Skip CORS for health checks and static assets (including HTML)
-  if (isHealthCheck(req) || req.path.startsWith('/assets/') || req.path.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|html)$/)) {
+  // Skip CORS for health checks and static assets
+  if (isHealthCheck(req) || req.path.startsWith('/assets/') || req.path.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf)$/)) {
     return next();
   }
   return corsConfig(req, res, next);
