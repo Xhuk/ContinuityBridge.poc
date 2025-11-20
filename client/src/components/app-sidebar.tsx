@@ -1,4 +1,4 @@
-import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2, Activity, Gauge, Zap, ServerCog, DollarSign, BarChart3, HardDrive, PackageOpen, Code2 } from "lucide-react";
+import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2, Activity, Gauge, Zap, ServerCog, DollarSign, BarChart3, HardDrive, PackageOpen, Code2, UserPlus } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -158,6 +158,12 @@ const adminMenuItems = [
     url: "/admin/users",
     icon: Users,
     roles: ["superadmin", "consultant", "customer_admin"],
+  },
+  {
+    title: "User Management PWA",
+    url: "/founder/user-management",
+    icon: UserPlus,
+    roles: ["superadmin"],
   },
   {
     title: "Storage Management",

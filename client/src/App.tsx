@@ -46,6 +46,7 @@ const ClusterConfig = lazy(() => import("@/pages/settings/cluster-config"));
 const StorageManagement = lazy(() => import("@/pages/admin/storage-management"));
 const DeploymentManager = lazy(() => import("@/pages/consultant/deployment-manager"));
 const BridgeScriptEditor = lazy(() => import("@/pages/consultant/bridgescript-editor"));
+const UserManagementPWA = lazy(() => import("@/pages/founder/user-management-pwa"));
 
 // Loading component
 function PageLoader() {
@@ -149,6 +150,7 @@ function Router() {
                     <Route path="/admin/projects" component={Projects} />
                     <Route path="/admin/customers" component={Customers} />
                     <Route path="/admin/users" component={UsersManagement} />
+                    <Route path="/founder/user-management" component={UserManagementPWA} />
                     <Route path="/admin/ai-monitoring" component={AIMonitoring} />
                     <Route path="/admin/sow-requests" component={SOWRequests} />
                     <Route path="/admin/pricing-catalog" component={PricingCatalog} />
