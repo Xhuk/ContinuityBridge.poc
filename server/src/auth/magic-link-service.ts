@@ -43,7 +43,8 @@ export class MagicLinkService {
                    `https://${process.env.APP_DOMAIN}` || 
                    "http://localhost:5000";
     // Check if user exists
-    const user = await db.select().from(users).where(eq(users.email, email)).get();
+    const userResult = await (db.select().from(users).where(eq(users.email, email)) as any);
+    const user = Array.isArray(userResult) ? userResult[0] : userResult;
 
     if (!user) {
       throw new Error("User not found. Contact your administrator to create an account.");
@@ -107,19 +108,18 @@ export class MagicLinkService {
     magicLinkToken.usedAt = new Date().toISOString();
 
     // Get user
-    const user = await db.select().from(users)
-      .where(eq(users.id, magicLinkToken.userId))
-      .get();
+    const userResult = await (db.select().from(users)
+      .where(eq(users.id, magicLinkToken.userId)) as any);
+    const user = Array.isArray(userResult) ? userResult[0] : userResult;
 
     if (!user || !user.enabled) {
       return { valid: false, error: "User account not found or disabled" };
     }
 
     // Update last login
-    await db.update(users)
+    await (db.update(users)
       .set({ lastLoginAt: new Date().toISOString() })
-      .where(eq(users.id, user.id))
-      .run();
+      .where(eq(users.id, user.id)) as any);
 
     // Generate session token (JWT-like but simplified)
     const sessionToken = this.generateSessionToken(user);
