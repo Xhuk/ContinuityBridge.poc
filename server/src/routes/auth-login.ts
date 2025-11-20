@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { db } from "../../db";
-import { users } from "../../schema";
+import { users } from "../../db";
 import { eq } from "drizzle-orm";
 import * as crypto from "crypto";
 import jwt from "jsonwebtoken";

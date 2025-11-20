@@ -1,5 +1,5 @@
 import { db } from '../../db.js';
-import { systemLogs, logConfigurations } from '../../schema.js';
+import { systemLogs, logConfigurations } from '../../db';
 import { lte, eq, and } from 'drizzle-orm';
 import { logger } from './logger.js';
 

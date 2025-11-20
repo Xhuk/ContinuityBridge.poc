@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { db } from "../../db";
-import { users } from "../../schema";
+import { users } from "../../db";
 import { eq } from "drizzle-orm";
 
 /**

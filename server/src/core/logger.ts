@@ -1,7 +1,7 @@
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
 import { db } from '../../db.js';
-import { systemLogs, logConfigurations } from '../../schema.js';
+import { systemLogs, logConfigurations } from '../../db';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
