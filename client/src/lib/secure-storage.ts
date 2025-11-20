@@ -191,34 +191,66 @@ class SecureStorage {
    * Retrieve and validate token
    */
   async getToken(): Promise<string | null> {
+    console.log("[SecureStorage] Getting token from localStorage...");
     const encrypted = localStorage.getItem('_at');
+    
     if (!encrypted) {
+      console.log("[SecureStorage] No encrypted token found in localStorage");
       return null;
     }
 
+    console.log("[SecureStorage] Encrypted token found, decrypting...", {
+      encryptedLength: encrypted.length,
+      encryptedPreview: encrypted.substring(0, 30) + '...',
+    });
+
     try {
       const decrypted = await this.decrypt(encrypted);
+      
+      console.log("[SecureStorage] Decryption result:", {
+        success: !!decrypted,
+        decryptedLength: decrypted?.length,
+      });
+      
       if (!decrypted) {
+        console.log("[SecureStorage] Decryption failed - clearing token");
         this.clearToken();
         return null;
       }
 
       const payload = JSON.parse(decrypted);
+      
+      console.log("[SecureStorage] Payload parsed:", {
+        hasToken: !!payload.token,
+        timestamp: payload.timestamp,
+        age: Date.now() - payload.timestamp,
+        expiresIn: payload.expiresIn,
+        expired: Date.now() - payload.timestamp > payload.expiresIn,
+      });
 
       // Check expiration
       if (Date.now() - payload.timestamp > payload.expiresIn) {
+        console.log("[SecureStorage] Token expired - clearing");
         this.clearToken();
         return null;
       }
 
       // Validate fingerprint (basic device binding)
       const currentFingerprint = await this.generateFingerprint();
+      
+      console.log("[SecureStorage] Fingerprint validation:", {
+        stored: payload.fingerprint?.substring(0, 16) + '...',
+        current: currentFingerprint?.substring(0, 16) + '...',
+        match: payload.fingerprint === currentFingerprint,
+      });
+      
       if (payload.fingerprint !== currentFingerprint) {
-        console.warn('Token fingerprint mismatch - possible token theft');
+        console.warn('[SecureStorage] Token fingerprint mismatch - possible token theft');
         this.clearToken();
         return null;
       }
 
+      console.log("[SecureStorage] ✅ Token retrieved successfully!");
       return payload.token;
     } catch (error) {
       console.error('Failed to retrieve token:', error);

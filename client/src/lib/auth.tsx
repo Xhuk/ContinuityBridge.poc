@@ -34,35 +34,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const checkAuth = async () => {
+    console.log("[Auth] Starting auth check", {
+      timestamp: new Date().toISOString(),
+      currentPath: window.location.pathname,
+    });
+    
     try {
       // Get JWT token from secure storage (async now)
+      console.log("[Auth] Reading token from secure storage...");
       const token = await secureStorage.getToken();
       
+      console.log("[Auth] Token retrieval result:", {
+        hasToken: !!token,
+        tokenLength: token?.length,
+        tokenPreview: token?.substring(0, 20) + '...',
+      });
+      
       if (!token) {
+        console.log("[Auth] No token found - user not authenticated");
         setIsLoading(false);
         return;
       }
 
       // Validate token with server
+      console.log("[Auth] Validating token with server...");
       const response = await fetch("/api/auth/session", {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
+      console.log("[Auth] Session validation response:", {
+        status: response.status,
+        ok: response.ok,
+      });
+
       if (response.ok) {
         const data = await response.json();
+        console.log("[Auth] Session data received:", {
+          authenticated: data.authenticated,
+          hasUser: !!data.user,
+          userEmail: data.user?.email,
+          userRole: data.user?.role,
+        });
+        
         if (data.authenticated && data.user) {
           setUser(data.user);
+          console.log("[Auth] ✅ User authenticated successfully!", {
+            email: data.user.email,
+            role: data.user.role,
+          });
         }
       } else {
         // Token invalid or expired, clear it
+        console.log("[Auth] Token invalid or expired - clearing storage");
         secureStorage.clearToken();
       }
     } catch (error) {
-      console.error("Auth check failed:", error);
+      console.error("[Auth] Auth check failed with error:", error);
       secureStorage.clearToken();
     } finally {
+      console.log("[Auth] Auth check complete - setting isLoading = false");
       setIsLoading(false);
     }
   };
