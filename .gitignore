@@ -389,9 +389,3 @@ mcp_config.json
 # Debug scripts with API credentials
 scripts/debug-render-logs.js
 scripts/generate-magic-link.ts
-scripts/create-admin-user.ts
-scripts/test-neon-query.ts
-scripts/complete-production-setup.ts
-scripts/verify-user-status.ts
-scripts/add-organization-id-columns.ts
-scripts/add-poller-state-columns.ts
