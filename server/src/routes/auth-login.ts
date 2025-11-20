@@ -281,26 +281,49 @@ router.post("/logout", (req, res) => {
  */
 router.get("/session", async (req, res) => {
   try {
+    console.log("[Auth:Session] Session check attempt", {
+      cookies: req.cookies ? Object.keys(req.cookies) : [],
+      hasCookieHeader: !!req.headers.cookie,
+      hasAuthHeader: !!req.headers.authorization,
+      ip: req.ip,
+    });
+
     const sessionToken = req.cookies?.session || req.headers.authorization?.replace("Bearer ", "");
 
     if (!sessionToken) {
+      console.log("[Auth:Session] No session token found");
       return res.status(401).json({ authenticated: false });
     }
+
+    console.log("[Auth:Session] Session token found, decoding...");
 
     // Decode session token
     const decoded = decodeSessionToken(sessionToken);
 
     if (!decoded) {
+      console.log("[Auth:Session] Token decode failed");
       return res.status(401).json({ authenticated: false, error: "Invalid or expired session" });
     }
+
+    console.log("[Auth:Session] Token decoded successfully", {
+      userId: decoded.id,
+      role: decoded.role,
+    });
 
     // Get fresh user data
     const userResult = await (db.select().from(users).where(eq(users.id, decoded.id)) as any);
     const user = Array.isArray(userResult) ? userResult[0] : userResult;
 
     if (!user || !user.enabled) {
+      console.log("[Auth:Session] User not found or disabled", { userId: decoded.id });
       return res.status(401).json({ authenticated: false, error: "User not found or disabled" });
     }
+
+    console.log("[Auth:Session] Session validated successfully", {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
 
     res.json({
       authenticated: true,
@@ -320,6 +343,7 @@ router.get("/session", async (req, res) => {
       },
     });
   } catch (error: any) {
+    console.error("[Auth:Session] Error:", error.message);
     res.status(500).json({ error: error.message });
   }
 });
