@@ -108,8 +108,8 @@ export function serveStatic(app: Express) {
   
   // Serve static files with explicit error handling
   app.use((req, res, next) => {
-    // Only handle requests for static assets
-    if (req.path.startsWith('/assets/') || req.path.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf)$/)) {
+    // Only handle requests for static assets and HTML files
+    if (req.path.startsWith('/assets/') || req.path.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|html)$/)) {
       express.static(distPath, {
         setHeaders: (res, filePath) => {
           // Ensure correct MIME types
@@ -117,6 +117,8 @@ export function serveStatic(app: Express) {
             res.setHeader('Content-Type', 'text/css');
           } else if (filePath.endsWith('.js')) {
             res.setHeader('Content-Type', 'application/javascript');
+          } else if (filePath.endsWith('.html')) {
+            res.setHeader('Content-Type', 'text/html');
           }
         }
       })(req, res, next);

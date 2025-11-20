@@ -387,3 +387,4 @@ mcp_config.json
 
 # Debug scripts with API credentials
 scripts/debug-render-logs.js
+scripts/generate-magic-link.ts
