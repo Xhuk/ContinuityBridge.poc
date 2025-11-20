@@ -14,10 +14,11 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 export default function Landing() {
   const [, setLocation] = useLocation();
   const { login, isAuthenticated } = useAuth();
-  const [apiKey, setApiKey] = useState("");
+  const [email, setEmail] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
 
   // Security: Prevent search engine indexing
   useEffect(() => {
@@ -103,10 +104,10 @@ export default function Landing() {
     setIsLoading(true);
 
     try {
-      await login(apiKey);
-      // Auth provider will redirect on success
+      await login(email);
+      setMagicLinkSent(true);
     } catch (err) {
-      setError("Invalid API key");
+      setError("Failed to send magic link");
     } finally {
       setIsLoading(false);
     }
@@ -240,54 +241,72 @@ export default function Landing() {
               <CardHeader>
                 <h3 className="text-lg font-semibold text-gray-900">Authentication Required</h3>
                 <p className="text-sm text-gray-600 mt-1">
-                  Enter your API key to access the platform
+                  {magicLinkSent
+                    ? "Check your email for the magic link"
+                    : "Enter your email to receive a magic link"}
                 </p>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div>
-                    <Input
-                      type="password"
-                      placeholder="API Key (cb_...)"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      className="w-full"
-                      disabled={isLoading}
-                      autoFocus
-                    />
-                  </div>
-                  
-                  {error && (
-                    <p className="text-sm text-red-600">{error}</p>
-                  )}
-                  
-                  <Button 
-                    type="submit" 
-                    className="w-full"
-                    disabled={isLoading || !apiKey}
-                  >
-                    {isLoading ? "Authenticating..." : "Sign In"}
-                  </Button>
-
-                  <div className="pt-2 border-t border-gray-200">
-                    <p className="text-xs text-gray-500 text-center mb-2">
-                      API keys start with 'cb_' prefix
+                {magicLinkSent ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-green-600">
+                      Magic link sent to {email}. Check your inbox.
                     </p>
                     <Button
-                      type="button"
                       variant="outline"
-                      className="w-full text-sm"
+                      className="w-full"
                       onClick={() => {
-                        // Customer deployments: /admin
-                        // Founder/Consultant platform: /sys/auth/bridge
-                        const isCustomerDeployment = import.meta.env.VITE_DEPLOYMENT_TYPE === 'customer';
-                        setLocation(isCustomerDeployment ? '/admin' : '/sys/auth/bridge');
+                        setMagicLinkSent(false);
+                        setEmail("");
                       }}
                     >
-                      Go to Login Page
+                      Send Another Link
                     </Button>
                   </div>
-                </form>
+                ) : (
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <div>
+                      <Input
+                        type="email"
+                        placeholder="you@company.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full"
+                        disabled={isLoading}
+                        autoFocus
+                      />
+                    </div>
+                    
+                    {error && (
+                      <p className="text-sm text-red-600">{error}</p>
+                    )}
+                    
+                    <Button 
+                      type="submit" 
+                      className="w-full"
+                      disabled={isLoading || !email}
+                    >
+                      {isLoading ? "Sending..." : "Send Magic Link"}
+                    </Button>
+
+                    <div className="pt-2 border-t border-gray-200">
+                      <p className="text-xs text-gray-500 text-center mb-2">
+                        Secure passwordless authentication
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full text-sm"
+                        onClick={() => {
+                          const isCustomerDeployment = import.meta.env.VITE_DEPLOYMENT_TYPE === 'customer';
+                          setLocation(isCustomerDeployment ? '/admin' : '/sys/auth/bridge');
+                        }}
+                      >
+                        Go to Login Page
+                      </Button>
+                    </div>
+                  </form>
+                )}
               </CardContent>
             </Card>
           )}

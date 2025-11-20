@@ -32,9 +32,9 @@ export default function Profile() {
   const { data: userDetails } = useQuery({
     queryKey: ["/api/users/me"],
     queryFn: async () => {
-      const apiKey = localStorage.getItem("apiKey");
+      // Session cookie is sent automatically via credentials: "include"
       const response = await fetch("/api/users/me", {
-        headers: { "X-API-Key": apiKey || "" },
+        credentials: "include",
       });
       if (!response.ok) throw new Error("Failed to fetch user details");
       return response.json();

@@ -6,14 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Key, Loader2, Shield, Users } from "lucide-react";
+import { Key, Loader2, Shield, Mail } from "lucide-react";
 
 export default function Login() {
   const { login } = useAuth();
   const [, setLocation] = useLocation();
-  const [apiKey, setApiKey] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [useMagicLink, setUseMagicLink] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,11 +24,15 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      await login(apiKey);
-      // Successful login - auth context will redirect
-      setLocation("/");
+      if (useMagicLink) {
+        await login(email);
+        setMagicLinkSent(true);
+      } else {
+        await login(email, password);
+        setLocation("/");
+      }
     } catch (err: any) {
-      setError(err.message || "Invalid API key. Please check and try again.");
+      setError(err.message || "Login failed. Please check your credentials.");
     } finally {
       setIsLoading(false);
     }
@@ -45,90 +52,123 @@ export default function Login() {
           <p className="text-gray-600 mt-2">Integration Platform</p>
         </div>
 
-        {/* Login Card */}
-        <Card className="shadow-xl border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              Login with API Key
-            </CardTitle>
-            <CardDescription>
-              Enter your API key to access your account
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="apiKey">API Key</Label>
-                <Input
-                  id="apiKey"
-                  type="password"
-                  placeholder="cb_prod_xxxxxxxxxx..."
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  disabled={isLoading}
-                  className="font-mono"
-                  autoFocus
-                />
-                <p className="text-xs text-muted-foreground">
-                  Your API key was sent to your email
-                </p>
-              </div>
-
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
+        {magicLinkSent ? (
+          <Card className="shadow-xl border-gray-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Check Your Email
+              </CardTitle>
+              <CardDescription>
+                We've sent a magic link to {email}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <AlertDescription>
+                  Click the link in your email to sign in. The link expires in 15 minutes.
+                </AlertDescription>
+              </Alert>
               <Button
-                type="submit"
-                className="w-full gap-2"
-                disabled={isLoading || !apiKey.trim()}
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  setMagicLinkSent(false);
+                  setEmail("");
+                }}
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Authenticating...
-                  </>
-                ) : (
-                  <>
-                    <Key className="h-4 w-4" />
-                    Login
-                  </>
-                )}
+                Send Another Link
               </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Info Cards */}
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          <Card className="border-blue-200 bg-blue-50/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Shield className="h-4 w-4 text-blue-600" />
-                <p className="text-sm font-semibold text-blue-900">Founders</p>
-              </div>
-              <p className="text-xs text-blue-700">Full system access</p>
             </CardContent>
           </Card>
+        ) : (
+          <Card className="shadow-xl border-gray-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                Sign In
+              </CardTitle>
+              <CardDescription>
+                {useMagicLink
+                  ? "Enter your email to receive a magic link"
+                  : "Enter your email and password"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={isLoading}
+                    autoFocus
+                  />
+                </div>
 
-          <Card className="border-green-200 bg-green-50/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Users className="h-4 w-4 text-green-600" />
-                <p className="text-sm font-semibold text-green-900">Consultants</p>
-              </div>
-              <p className="text-xs text-green-700">Multi-customer access</p>
+                {!useMagicLink && (
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+                )}
+
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                <Button
+                  type="submit"
+                  className="w-full gap-2"
+                  disabled={isLoading || !email.trim()}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {useMagicLink ? "Sending..." : "Signing in..."}
+                    </>
+                  ) : (
+                    <>
+                      <Key className="h-4 w-4" />
+                      {useMagicLink ? "Send Magic Link" : "Sign In"}
+                    </>
+                  )}
+                </Button>
+
+                <div className="text-center text-sm">
+                  <button
+                    type="button"
+                    className="text-blue-600 hover:underline"
+                    onClick={() => setUseMagicLink(!useMagicLink)}
+                    disabled={isLoading}
+                  >
+                    {useMagicLink
+                      ? "Use password instead"
+                      : "Use magic link instead"}
+                  </button>
+                </div>
+              </form>
             </CardContent>
           </Card>
-        </div>
+        )}
 
         {/* Footer */}
         <div className="mt-8 text-center">
           <p className="text-xs text-gray-500">
-            Don't have an API key?{" "}
+            Need help?{" "}
             <a href="mailto:support@networkvoid.xyz" className="text-blue-600 hover:underline">
               Contact support
             </a>

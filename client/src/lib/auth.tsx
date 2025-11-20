@@ -17,8 +17,8 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (apiKey: string) => Promise<void>;
-  logout: () => void;
+  login: (email: string, password?: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,24 +34,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      const apiKey = localStorage.getItem("apiKey");
-      if (!apiKey) {
-        setIsLoading(false);
-        return;
-      }
-
-      const response = await fetch("/api/users/me", {
-        headers: {
-          "X-API-Key": apiKey,
-        },
+      // Check session via cookie (HttpOnly, Secure)
+      // No need to send API key - session cookie is sent automatically
+      const response = await fetch("/api/auth/session", {
+        credentials: "include", // Send HttpOnly cookies
       });
 
       if (response.ok) {
         const data = await response.json();
-        setUser(data.user);
-      } else {
-        // Invalid API key, clear it
-        localStorage.removeItem("apiKey");
+        if (data.authenticated && data.user) {
+          setUser(data.user);
+        }
       }
     } catch (error) {
       console.error("Auth check failed:", error);
@@ -60,13 +53,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (apiKey: string) => {
-    localStorage.setItem("apiKey", apiKey);
+  const login = async (email: string, password?: string) => {
+    // Login via magic link or password
+    // Session cookie will be set by server (HttpOnly, Secure)
+    const endpoint = password ? "/api/auth/login/password" : "/api/auth/login/magic-link";
+    
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Login failed");
+    }
+
+    // Refresh auth state
     await checkAuth();
   };
 
-  const logout = () => {
-    localStorage.removeItem("apiKey");
+  const logout = async () => {
+    // Call logout endpoint to clear session cookie
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
     setUser(null);
   };
 
