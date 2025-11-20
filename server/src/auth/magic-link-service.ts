@@ -4,6 +4,7 @@ import { users } from "../../db";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { findUserByEmail } from "../utils/email-utils.js";
+import jwt from "jsonwebtoken";
 
 /**
  * Magic Link Authentication Service
@@ -164,21 +165,28 @@ export class MagicLinkService {
   }
 
   /**
-   * Generate session token (simplified JWT)
+   * Generate session token (proper JWT)
    */
   private generateSessionToken(user: any): string {
+    const jwtSecret = process.env.JWT_SECRET;
+
+    if (!jwtSecret) {
+      throw new Error("JWT_SECRET not configured - cannot generate session tokens");
+    }
+
     const payload = {
       id: user.id,
       email: user.email,
       role: user.role,
       organizationId: user.organizationId,
-      iat: Date.now(),
-      exp: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
     };
 
-    // In production, use proper JWT library (jsonwebtoken)
-    // For now, base64 encode (INSECURE - REPLACE IN PROD!)
-    return Buffer.from(JSON.stringify(payload)).toString("base64");
+    // Generate JWT with 7-day expiration
+    return jwt.sign(payload, jwtSecret, {
+      expiresIn: "7d",
+      issuer: "continuitybridge",
+      audience: "continuitybridge-app",
+    });
   }
 
   /**
