@@ -761,8 +761,11 @@ export const pollerStates = pgTable("poller_states", {
   // TODO: Add after migration
   // organizationId: text("organization_id"), // Multi-tenant isolation
   pollerType: text("poller_type").notNull().$type<"sftp" | "azure_blob" | "database">(),
+  enabled: boolean("enabled").notNull().default(true),
   lastFile: text("last_file"),
   lastProcessedAt: timestamp("last_processed_at"),
+  lastError: text("last_error"),
+  lastErrorAt: timestamp("last_error_at"),
   fileChecksums: jsonb("file_checksums").$type<Array<{ filename: string; checksum: string; processedAt: string }>>(),
   configSnapshot: jsonb("config_snapshot").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),

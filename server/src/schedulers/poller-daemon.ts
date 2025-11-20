@@ -98,8 +98,8 @@ export class PollerDaemon {
           await (db.update(pollerStates) as any)
             .set({
               lastError: error.message,
-              lastErrorAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
+              lastErrorAt: new Date(),
+              updatedAt: new Date(),
             })
             .where(eq(pollerStates.id, poller.id));
         }
@@ -177,10 +177,10 @@ export class PollerDaemon {
       if (flowRun.status === "completed") {
         await (db.update(pollerStates) as any)
           .set({
-            lastProcessedAt: new Date().toISOString(),
+            lastProcessedAt: new Date(),
             lastError: null,
             lastErrorAt: null,
-            updatedAt: new Date().toISOString(),
+            updatedAt: new Date(),
           })
           .where(eq(pollerStates.id, poller.id));
       }
@@ -195,8 +195,8 @@ export class PollerDaemon {
         // Still update lastProcessedAt
         await (db.update(pollerStates) as any)
           .set({
-            lastProcessedAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            lastProcessedAt: new Date(),
+            updatedAt: new Date(),
           })
           .where(eq(pollerStates.id, poller.id));
       } else {

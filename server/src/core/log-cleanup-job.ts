@@ -154,7 +154,7 @@ export class LogCleanupJob {
 
       // Build query conditions
       const conditions: any[] = [
-        lte(systemLogs.createdAt, cutoffISO)
+        lte(systemLogs.createdAt, cutoffDate)
       ];
 
       if (scope === 'superadmin') {
@@ -196,7 +196,7 @@ export class LogCleanupJob {
     } catch (error: any) {
       log.error(`Failed to cleanup ${scope} logs`, error, {
         scope,
-        organizationId,
+        organizationId: organizationId || undefined,
         retentionDays,
       });
       return 0;

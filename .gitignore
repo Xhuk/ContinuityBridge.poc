@@ -394,3 +394,4 @@ scripts/test-neon-query.ts
 scripts/complete-production-setup.ts
 scripts/verify-user-status.ts
 scripts/add-organization-id-columns.ts
+scripts/add-poller-state-columns.ts
