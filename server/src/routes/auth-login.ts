@@ -11,6 +11,54 @@ import { findUserByEmail } from "../utils/email-utils.js";
 const router = Router();
 
 /**
+ * GET /api/auth/debug
+ * Debug endpoint to check auth status
+ * Returns auth state without auth requirement
+ */
+router.get("/debug", async (req, res) => {
+  try {
+    // Check for token in Authorization header or cookie
+    const token = req.headers.authorization?.replace("Bearer ", "") || req.cookies?.session;
+    
+    const debugInfo: any = {
+      timestamp: new Date().toISOString(),
+      hasAuthHeader: !!req.headers.authorization,
+      hasCookie: !!req.cookies?.session,
+      hasToken: !!token,
+      cookies: req.cookies ? Object.keys(req.cookies) : [],
+      headers: {
+        authorization: req.headers.authorization ? 'Bearer ***' : undefined,
+        cookie: req.headers.cookie ? 'present' : undefined,
+      },
+    };
+
+    if (token) {
+      try {
+        const jwtSecret = process.env.JWT_SECRET;
+        if (jwtSecret) {
+          const decoded = jwt.verify(token, jwtSecret) as any;
+          debugInfo.tokenValid = true;
+          debugInfo.user = {
+            id: decoded.id,
+            email: decoded.email,
+            role: decoded.role,
+          };
+        } else {
+          debugInfo.error = 'JWT_SECRET not configured';
+        }
+      } catch (error: any) {
+        debugInfo.tokenValid = false;
+        debugInfo.tokenError = error.message;
+      }
+    }
+
+    res.json(debugInfo);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /api/auth/login/magic-link
  * Request magic link (passwordless login)
  * 🔒 Rate limited: 3 requests per minute (production)
