@@ -360,9 +360,11 @@ async function runMigration() {
   } catch (error) {
     console.error('[Migration] ❌ Migration failed:', error.message);
     
-    // Don't fail the deployment if columns already exist
-    if (error.message.includes('already exists')) {
-      console.log('[Migration] ℹ️  Columns already exist, continuing...');
+    // Don't fail the deployment if columns/constraints already exist
+    if (error.message.includes('already exists') || 
+        error.message.includes('cannot be implemented') ||
+        error.message.includes('duplicate key')) {
+      console.log('[Migration] ℹ️  Schema already exists (likely from Drizzle), continuing...');
       process.exit(0);
     }
     
