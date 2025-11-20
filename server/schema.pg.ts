@@ -1,4 +1,4 @@
-import { pgTable, text, integer, boolean, timestamp, jsonb, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, timestamp, jsonb, uuid, index, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 // Users Table (for RBAC - superadmin vs contractors)
@@ -26,7 +26,10 @@ export const users = pgTable("users", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  emailCheck: check("users_email_check", sql`${table.email} ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'`),
+  maxCustomersCheck: check("users_max_customers_check", sql`${table.maxCustomers} IS NULL OR ${table.maxCustomers} > 0`),
+}));
 
 // System Logs Table
 export const systemLogs = pgTable("system_logs", {
@@ -104,6 +107,7 @@ export const magicLinks = pgTable("magic_links", {
   usedAt: timestamp("used_at"),
   ipAddress: text("ip_address"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // SMTP Settings Table
@@ -137,7 +141,11 @@ export const smtpSettings = pgTable("smtp_settings", {
   
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  fromEmailCheck: check("smtp_settings_from_email_check", 
+    sql`${table.fromAddress} ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'`),
+  portCheck: check("smtp_settings_port_check", sql`${table.port} > 0 AND ${table.port} <= 65535`),
+}));
 
 // WAF (Web Application Firewall) Configuration Table
 export const wafConfig = pgTable("waf_config", {
@@ -159,7 +167,10 @@ export const wafConfig = pgTable("waf_config", {
   
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  rateLimitCheck: check("waf_config_rate_limit_check", 
+    sql`${table.rateLimitMaxRequests} > 0 AND ${table.rateLimitWindowMs} > 0`),
+}));
 
 // Pricing Catalog Table (Founder-configurable pricing tiers)
 export const pricingCatalog = pgTable("pricing_catalog", {
@@ -219,7 +230,12 @@ export const pricingCatalog = pgTable("pricing_catalog", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  pricesPositiveCheck: check("pricing_catalog_prices_positive", 
+    sql`${table.annualPrice} >= 0 AND ${table.monthlyPrice} >= 0 AND ${table.extraInterfacePrice} >= 0 AND ${table.extraSystemPrice} >= 0`),
+  limitsPositiveCheck: check("pricing_catalog_limits_positive", 
+    sql`${table.maxInterfaces} > 0 AND ${table.maxSystems} > 0 AND ${table.maxFlows} > 0 AND ${table.maxUsers} > 0 AND ${table.maxExecutionsPerMonth} > 0`),
+}));
 
 // Customer License/Contract Configuration
 export const customerLicense = pgTable("customer_license", {
@@ -325,7 +341,12 @@ export const customerLicense = pgTable("customer_license", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   createdBy: text("created_by"),
-});
+}, (table) => ({
+  contactEmailCheck: check("customer_license_contact_email_check", 
+    sql`${table.deploymentContactEmail} IS NULL OR ${table.deploymentContactEmail} ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'`),
+  techEmailCheck: check("customer_license_tech_email_check", 
+    sql`${table.technicalContactEmail} IS NULL OR ${table.technicalContactEmail} ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'`),
+}));
 
 // Deployment Packages Table (for tracking generated builds)
 export const deploymentPackages = pgTable("deployment_packages", {
@@ -485,6 +506,7 @@ export const qaTestResults = pgTable("qa_test_results", {
   
   // Session reference
   sessionId: text("session_id").notNull(),
+  organizationId: text("organization_id"), // Multi-tenant isolation
   
   // Test identification
   testName: text("test_name").notNull(),
@@ -621,7 +643,9 @@ export const flowDefinitions = pgTable("flow_definitions", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  orgIdIdx: index("flow_definitions_org_id_idx").on(table.organizationId),
+}));
 
 // Flow Runs Table
 export const flowRuns = pgTable("flow_runs", {
@@ -629,6 +653,7 @@ export const flowRuns = pgTable("flow_runs", {
   flowId: text("flow_id").notNull().references(() => flowDefinitions.id, { onDelete: "cascade" }),
   flowName: text("flow_name").notNull(),
   flowVersion: text("flow_version").notNull(),
+  organizationId: text("organization_id"), // Multi-tenant isolation
   traceId: text("trace_id").notNull(),
   status: text("status").notNull(),
   startedAt: timestamp("started_at").notNull(),
@@ -641,7 +666,11 @@ export const flowRuns = pgTable("flow_runs", {
   nodeExecutions: jsonb("node_executions"),
   error: text("error"),
   errorNode: text("error_node"),
-});
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdIdx: index("flow_runs_org_id_idx").on(table.organizationId),
+  flowIdIdx: index("flow_runs_flow_id_idx").on(table.flowId),
+}));
 
 // Interfaces Table
 export const interfaces = pgTable("interfaces", {
@@ -663,7 +692,9 @@ export const interfaces = pgTable("interfaces", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  orgIdIdx: index("interfaces_org_id_idx").on(table.organizationId),
+}));
 
 // Integration Events Table
 export const integrationEvents = pgTable("integration_events", {
@@ -679,6 +710,7 @@ export const integrationEvents = pgTable("integration_events", {
   latencyMs: integer("latency_ms"),
   error: text("error"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Data Source Schemas Table (for API/XML/JSON/CSV schema management)
@@ -711,13 +743,16 @@ export const dataSourceSchemas = pgTable("data_source_schemas", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  orgIdIdx: index("data_source_schemas_org_id_idx").on(table.organizationId),
+}));
 
 // Poller States Table (for tracking file/blob poller progress)
 export const pollerStates = pgTable("poller_states", {
   id: text("id").primaryKey(),
-  flowId: text("flow_id").notNull().references(() => flowDefinitions.id, { onDelete: "cascade" }),
+  flowId: text("flow_id").notNull().references(() => flowDefinitions.id, { onDelete: "set null" }), // Changed from cascade to preserve audit trail
   nodeId: text("node_id").notNull(),
+  organizationId: text("organization_id"), // Multi-tenant isolation
   pollerType: text("poller_type").notNull().$type<"sftp" | "azure_blob" | "database">(),
   lastFile: text("last_file"),
   lastProcessedAt: timestamp("last_processed_at"),
@@ -725,7 +760,9 @@ export const pollerStates = pgTable("poller_states", {
   configSnapshot: jsonb("config_snapshot").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  orgIdIdx: index("poller_states_org_id_idx").on(table.organizationId),
+}));
 
 // Secrets Master Keys Table
 export const secretsMasterKeys = pgTable("secrets_master_keys", {
@@ -1036,7 +1073,7 @@ export type InsertAuthAdapter = typeof authAdapters.$inferInsert;
 
 export const tokenCache = pgTable("token_cache", {
   id: text("id").primaryKey(),
-  adapterId: text("adapter_id").notNull().references(() => authAdapters.id, { onDelete: "cascade" }),
+  adapterId: text("adapter_id").notNull().references(() => authAdapters.id, { onDelete: "restrict" }), // Changed from cascade to prevent accidental deletion
   tokenType: text("token_type").notNull().$type<"access" | "refresh" | "session">(),
   scope: text("scope"),
   accessToken: text("access_token"),
@@ -1075,6 +1112,7 @@ export type InsertInboundAuthPolicy = typeof inboundAuthPolicies.$inferInsert;
 export const systemInstanceTestFiles = pgTable("system_instance_test_files", {
   id: text("id").primaryKey(),
   systemInstanceId: text("system_instance_id").notNull().references(() => systemInstances.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id"), // Multi-tenant isolation
   filename: text("filename").notNull(),
   mediaType: text("media_type").notNull().$type<"application/xml" | "application/json" | "text/csv" | "text/plain">(),
   storageKey: text("storage_key").notNull().unique(),

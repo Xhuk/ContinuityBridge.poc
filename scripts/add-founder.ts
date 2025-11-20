@@ -98,10 +98,11 @@ async function addFounder() {
     console.log(`   Role: Superadmin (Founder)`);
     console.log(`   Title: ${founderRoleTitle}`);
     console.log(`   Team: Founders`);
-    console.log(`\n🔑 API Key (save securely):`);
-    console.log(`   ${apiKey}`);
+    console.log(`\n🔑 API Key:`);
+    console.log(`   [REDACTED - Stored securely in database]`);
+    console.log(`   ⚠️  For security: Query database directly when needed`);
     console.log(`\n📧 Next Steps:`);
-    console.log(`   1. Share the API key with founder securely`);
+    console.log(`   1. Retrieve API key from database via secure admin tools`);
     console.log(`   2. Founder can authenticate using X-API-Key header`);
     console.log(`   3. Access all superadmin features (export, license, user mgmt)`);
     console.log(`\n`);

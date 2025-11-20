@@ -33,7 +33,7 @@ async function createAdminUser() {
 
     if (existingUsers.rows.length > 0) {
       console.log(`✅ Admin user already exists: ${adminEmail}`);
-      console.log(`🔑 Existing API Key: ${existingUsers.rows[0].api_key}`);
+      console.log(`🔑 API Key: [REDACTED - Query database securely]`);
       return;
     }
 
@@ -81,7 +81,8 @@ async function createAdminUser() {
 
     console.log("✅ Admin user created successfully!");
     console.log(`📧 Email: ${adminEmail}`);
-    console.log(`🔑 API Key: ${apiKey}`);
+    console.log(`🔑 API Key: [REDACTED - Stored in database]`);
+    console.log(`   ⚠️  For security: Query database securely when needed`);
     console.log(`🎭 Role: superadmin`);
     console.log(`\n💡 Use /onboarding page to generate magic link for login`);
   } catch (error: any) {
