@@ -71,6 +71,8 @@ import qaTrackingRoutes from "../routes/qa-tracking.js";
 import pricingCatalogRoutes from "../routes/pricing-catalog.js";
 import storageStatsRoutes from "../routes/storage-stats.js";
 import founderUserManagementRoutes from "../routes/founder-user-management.js";
+import customerDatabaseRoutes from "../routes/customer-database.js";
+import pricingChangeHandlerRoutes from "../routes/pricing-change-handler.js";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import type { DynamicWebhookRouter } from "./dynamic-webhook-router.js";
 
@@ -168,6 +170,12 @@ export function registerRESTRoutes(
   
   // Register Founder User Management PWA routes (Superadmin)
   app.use("/api/founder/user-management", authenticateUser, founderUserManagementRoutes);
+  
+  // Register Customer Database Management routes (Superadmin, Consultant)
+  app.use("/api/customer-databases", authenticateUser, customerDatabaseRoutes);
+  
+  // Register Pricing Change Handler routes (Superadmin)
+  app.use("/api/pricing-changes", authenticateUser, pricingChangeHandlerRoutes);
   
   // ============================================================================
   // NODE CATALOG ENDPOINTS
