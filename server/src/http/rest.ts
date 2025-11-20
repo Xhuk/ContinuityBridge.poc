@@ -67,6 +67,10 @@ import clusterConfigRoutes from "../routes/cluster-config.js";
 import testSpriteRoutes from "../routes/testsprite-integration.js";
 import gdprRoutes from "../routes/gdpr.js";
 import wikiRoutes from "../routes/wiki.js";
+import qaTrackingRoutes from "../routes/qa-tracking.js";
+import pricingCatalogRoutes from "../routes/pricing-catalog.js";
+import storageStatsRoutes from "../routes/storage-stats.js";
+import founderUserManagementRoutes from "../routes/founder-user-management.js";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import type { DynamicWebhookRouter } from "./dynamic-webhook-router.js";
 
@@ -152,6 +156,18 @@ export function registerRESTRoutes(
   
   // Register Wiki/Documentation routes (Role-based user guides)
   app.use("/api/wiki", authenticateUser, wikiRoutes);
+  
+  // Register QA Tracking routes (Superadmin, Consultant)
+  app.use("/api/admin/qa-tracking", authenticateUser, qaTrackingRoutes);
+  
+  // Register Pricing Catalog routes (Superadmin)
+  app.use("/api/admin/pricing-catalog", authenticateUser, pricingCatalogRoutes);
+  
+  // Register Storage Management routes (Superadmin)
+  app.use("/api/admin/storage", authenticateUser, storageStatsRoutes);
+  
+  // Register Founder User Management PWA routes (Superadmin)
+  app.use("/api/founder/user-management", authenticateUser, founderUserManagementRoutes);
   
   // ============================================================================
   // NODE CATALOG ENDPOINTS
