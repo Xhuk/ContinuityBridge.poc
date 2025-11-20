@@ -70,8 +70,18 @@ function Router() {
     "--sidebar-width-icon": "3rem",
   };
 
+  // Log route access for debugging
+  console.log("[App] Router render", {
+    currentPath: window.location.pathname,
+    isLoading,
+    isAuthenticated: !!user,
+    userRole: user?.role,
+    userEmail: user?.email,
+  });
+
   // Show loading state while checking authentication
   if (isLoading) {
+    console.log("[App] Showing loading state - auth check in progress");
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
         <div className="text-gray-600">Loading...</div>
@@ -81,6 +91,9 @@ function Router() {
 
   // Show secure landing page (fake 404) if not authenticated
   if (!user) {
+    console.log("[App] User not authenticated - showing public routes", {
+      currentPath: window.location.pathname,
+    });
     // Determine login path based on deployment type
     // Customer deployments (prod): /admin
     // Founder/Consultant platform: /sys/auth/bridge (obscure)
@@ -110,8 +123,19 @@ function Router() {
   const needsTenantSelection = user.role === "consultant" && !user.selectedTenant;
 
   if (needsTenantSelection) {
+    console.log("[App] Consultant needs tenant selection", {
+      userId: user.id,
+      email: user.email,
+    });
     return <TenantSelector />;
   }
+
+  console.log("[App] User authenticated - rendering main app", {
+    currentPath: window.location.pathname,
+    userId: user.id,
+    role: user.role,
+    email: user.email,
+  });
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>

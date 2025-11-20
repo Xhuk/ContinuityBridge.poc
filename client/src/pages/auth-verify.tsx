@@ -57,7 +57,12 @@ export default function AuthVerify() {
         }
 
         const data = await response.json();
-        console.log("[AuthVerify] Verification successful, user:", data.user?.email);
+        console.log("[AuthVerify] Verification successful", {
+          user: data.user?.email,
+          role: data.user?.role,
+          hasToken: !!data.sessionToken,
+          serverRedirectTarget: data.redirectTo,
+        });
         
         if (data.success) {
           setStatus("success");
@@ -73,12 +78,29 @@ export default function AuthVerify() {
           const redirectUrl = isMobile ? "/mobile" : "/";
           setRedirectTarget(isMobile ? "mobile" : "desktop");
           
-          console.log("[AuthVerify] Redirecting to:", redirectUrl);
+          console.log("[AuthVerify] Preparing redirect", {
+            detectedDevice: isMobile ? 'mobile' : 'desktop',
+            targetUrl: redirectUrl,
+            currentUrl: window.location.href,
+            willRedirectIn: '1500ms',
+          });
           
           // Force full page reload to pick up token
           // Use replace() to avoid back button issues
           setTimeout(() => {
+            console.log("[AuthVerify] Executing redirect NOW", {
+              from: window.location.href,
+              to: redirectUrl,
+            });
             window.location.replace(redirectUrl);
+            
+            // Log if redirect didn't happen (shouldn't reach here)
+            setTimeout(() => {
+              console.error("[AuthVerify] ⚠️ Still on auth page after redirect! Check browser console.", {
+                currentUrl: window.location.href,
+                expectedUrl: redirectUrl,
+              });
+            }, 500);
           }, 1500); // Increased delay to ensure token is stored
         } else {
           setStatus("error");

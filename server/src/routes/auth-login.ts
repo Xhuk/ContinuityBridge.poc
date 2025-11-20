@@ -170,16 +170,25 @@ router.get("/verify", async (req, res) => {
 
     // Redirect to dashboard (or return JSON for SPA)
     if (req.headers.accept?.includes("application/json")) {
-      console.log(`[Auth:${trackId}] Responding with JSON success`);
+      const isMobile = req.headers['user-agent']?.toLowerCase().includes('mobile');
+      const redirectTarget = isMobile ? '/mobile' : '/';
+      
+      console.log(`[Auth:${trackId}] Responding with JSON success`, {
+        redirectTarget,
+        isMobile,
+        userAgent: req.headers['user-agent']?.substring(0, 50),
+      });
+      
       res.json({
         success: true,
         user: result.user,
         sessionToken: result.sessionToken,
         message: "Login successful!",
+        redirectTo: redirectTarget,
       });
     } else {
       // Redirect to dashboard
-      console.log(`[Auth:${trackId}] Redirecting to dashboard`);
+      console.log(`[Auth:${trackId}] Redirecting to dashboard (HTTP redirect)`);
       res.redirect("/");
     }
   } catch (error: any) {
