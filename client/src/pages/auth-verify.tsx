@@ -1,10 +1,24 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 
+// Detect if user is on mobile device
+const isMobileDevice = () => {
+  const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+  
+  // Check for mobile patterns
+  const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
+  
+  // Check screen size as additional indicator
+  const isSmallScreen = window.innerWidth <= 768;
+  
+  return mobileRegex.test(userAgent.toLowerCase()) || isSmallScreen;
+};
+
 export default function AuthVerify() {
   const [, setLocation] = useLocation();
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying");
   const [errorMessage, setErrorMessage] = useState("");
+  const [redirectTarget, setRedirectTarget] = useState<"mobile" | "desktop">("desktop");
 
   useEffect(() => {
     const verifyMagicLink = async () => {
@@ -39,9 +53,15 @@ export default function AuthVerify() {
         
         if (data.success) {
           setStatus("success");
+          
+          // Detect device and redirect accordingly
+          const isMobile = isMobileDevice();
+          const redirectUrl = isMobile ? "/mobile" : "/";
+          setRedirectTarget(isMobile ? "mobile" : "desktop");
+          
           // Wait a moment to show success message, then redirect
           setTimeout(() => {
-            window.location.href = "/"; // Force full page reload to pick up session
+            window.location.href = redirectUrl; // Force full page reload to pick up session
           }, 1000);
         } else {
           setStatus("error");
@@ -71,7 +91,9 @@ export default function AuthVerify() {
           <>
             <div className="text-green-600 text-5xl mb-4">✓</div>
             <h2 className="text-xl font-semibold mb-2">Login Successful!</h2>
-            <p className="text-gray-600">Redirecting to dashboard...</p>
+            <p className="text-gray-600">
+              Redirecting to {redirectTarget === "mobile" ? "mobile interface" : "dashboard"}...
+            </p>
           </>
         )}
 
