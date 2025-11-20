@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import * as crypto from "crypto";
 import { authenticateUser, requireSuperAdmin, UserRole } from "../auth/rbac-middleware";
 import { requireConsultant } from "../auth/rbac-middleware";
+import { findUserByEmail, emailExists } from "../utils/email-utils.js";
 
 const router = Router();
 
@@ -605,9 +606,8 @@ router.post("/transfer-ownership", authenticateUser, async (req, res) => {
       });
     }
 
-    // Check if target email already exists
-    const existingUserResult = await (db.select().from(users).where(eq(users.email, newEmail)) as any);
-    const existingUser = Array.isArray(existingUserResult) ? existingUserResult[0] : existingUserResult;
+    // Check if target email already exists (with Gmail dot notation support)
+    const existingUser = await findUserByEmail(newEmail);
     
     if (existingUser) {
       return res.status(409).json({ error: "Email address already in use" });

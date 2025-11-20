@@ -3,6 +3,7 @@ import { db } from "../../db";
 import { users } from "../../db";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
+import { findUserByEmail } from "../utils/email-utils.js";
 
 /**
  * Magic Link Authentication Service
@@ -47,8 +48,7 @@ export class MagicLinkService {
                      `https://${process.env.APP_DOMAIN}` || 
                      "http://localhost:5000";
       // Check if user exists
-      const userResult = await (db.select().from(users).where(eq(users.email, email)) as any);
-      const user = Array.isArray(userResult) ? userResult[0] : userResult;
+      const user = await findUserByEmail(email);
 
       if (!user) {
         throw new Error("User not found. Contact your administrator to create an account.");
