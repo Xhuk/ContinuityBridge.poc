@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { lazy, Suspense } from "react";
 import type { QueueConfig } from "@shared/schema";
+import { ContextIndicator } from "@/components/context-indicator";
 
 // Core pages (always loaded)
 import Dashboard from "@/pages/dashboard";
@@ -117,8 +118,11 @@ function Router() {
       <div className="flex h-screen w-full">
         <AppSidebar queueBackend={queueConfig?.backend} />
         <div className="flex flex-col flex-1 overflow-hidden">
-          <header className="flex items-center justify-between p-2 border-b border-border">
+          <header className="flex items-center justify-between p-2 border-b border-border gap-4">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
+            {(user?.role === "consultant" || user?.role === "superadmin") && user.selectedTenant && (
+              <ContextIndicator />
+            )}
           </header>
           <main className="flex-1 overflow-auto">
             <Suspense fallback={<PageLoader />}>
