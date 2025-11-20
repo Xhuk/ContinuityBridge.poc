@@ -1165,3 +1165,140 @@ export const systemInstanceAuth = pgTable("system_instance_auth", {
 export type SystemInstanceAuth = typeof systemInstanceAuth.$inferSelect;
 export type InsertSystemInstanceAuth = typeof systemInstanceAuth.$inferInsert;
 
+// ============================================================================
+// TRANSFORMATION TEMPLATES
+// ============================================================================
+
+export const transformationTemplates = pgTable("transformation_templates", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  organizationId: text("organization_id"), // Multi-tenant filtering
+  sourceSystem: text("source_system").notNull(),
+  targetSystem: text("target_system").notNull(),
+  sourceFormat: text("source_format").notNull().$type<"json" | "xml" | "csv">(),
+  targetFormat: text("target_format").notNull().$type<"json" | "xml" | "csv">(),
+  transformationType: text("transformation_type").notNull().$type<"jq" | "xslt" | "javascript">(),
+  transformExpression: text("transform_expression").notNull(),
+  category: text("category").notNull().$type<"order" | "inventory" | "shipment" | "product" | "customer">(),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  sampleInput: jsonb("sample_input"),
+  sampleOutput: jsonb("sample_output"),
+  enabled: boolean("enabled").notNull().default(true),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdIdx: index("transformation_templates_org_id_idx").on(table.organizationId),
+}));
+
+export type TransformationTemplate = typeof transformationTemplates.$inferSelect;
+export type InsertTransformationTemplate = typeof transformationTemplates.$inferInsert;
+
+// ============================================================================
+// WEBHOOK CONFIGURATIONS
+// ============================================================================
+
+export const webhookConfigurations = pgTable("webhook_configurations", {
+  id: text("id").primaryKey(),
+  slug: text("slug").notNull(),
+  flowId: text("flow_id").notNull().references(() => flowDefinitions.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id"), // Multi-tenant isolation
+  method: text("method").notNull().$type<"GET" | "POST" | "PUT" | "PATCH" | "DELETE">().default("POST"),
+  enabled: boolean("enabled").notNull().default(true),
+  registeredAt: timestamp("registered_at").notNull().defaultNow(),
+  lastTriggeredAt: timestamp("last_triggered_at"),
+  triggerCount: integer("trigger_count").notNull().default(0),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdIdx: index("webhook_configurations_org_id_idx").on(table.organizationId),
+  slugOrgIdx: index("webhook_configurations_slug_org_idx").on(table.slug, table.organizationId),
+}));
+
+export type WebhookConfiguration = typeof webhookConfigurations.$inferSelect;
+export type InsertWebhookConfiguration = typeof webhookConfigurations.$inferInsert;
+
+// ============================================================================
+// ROUTING RULES
+// ============================================================================
+
+export const routingRules = pgTable("routing_rules", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  organizationId: text("organization_id"), // Multi-tenant filtering
+  sourceInterfaceId: text("source_interface_id").references(() => interfaces.id, { onDelete: "cascade" }),
+  targets: jsonb("targets").notNull().$type<Array<{
+    targetInterfaceId: string;
+    transformationId?: string;
+    passthrough?: boolean;
+    conditions?: Array<{
+      field: string;
+      operator: string;
+      value: unknown;
+    }>;
+    priority?: number;
+    enabled?: boolean;
+  }>>(),
+  globalConditions: jsonb("global_conditions").default([]).$type<Array<{
+    field: string;
+    operator: string;
+    value: unknown;
+  }>>(),
+  enabled: boolean("enabled").notNull().default(true),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdIdx: index("routing_rules_org_id_idx").on(table.organizationId),
+}));
+
+export type RoutingRule = typeof routingRules.$inferSelect;
+export type InsertRoutingRule = typeof routingRules.$inferInsert;
+
+// ============================================================================
+// QA TASKS
+// ============================================================================
+
+export const qaTasks = pgTable("qa_tasks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  taskType: text("task_type").notNull().$type<"regression" | "smoke" | "integration" | "performance" | "security">(),
+  priority: text("priority").notNull().$type<"low" | "medium" | "high" | "critical">().default("medium"),
+  status: text("status").notNull().$type<"pending" | "in_progress" | "blocked" | "completed" | "failed">().default("pending"),
+  assignedTo: text("assigned_to"),
+  assignedToEmail: text("assigned_to_email"),
+  relatedFlowId: text("related_flow_id").references(() => flowDefinitions.id, { onDelete: "set null" }),
+  relatedInterfaceId: text("related_interface_id").references(() => interfaces.id, { onDelete: "set null" }),
+  testCases: jsonb("test_cases").$type<Array<{
+    id: string;
+    name: string;
+    steps: string[];
+    expectedResult: string;
+    actualResult?: string;
+    status?: "pass" | "fail" | "skip";
+  }>>(),
+  dueDate: timestamp("due_date"),
+  completedAt: timestamp("completed_at"),
+  completedBy: text("completed_by"),
+  completedByEmail: text("completed_by_email"),
+  notes: text("notes"),
+  attachments: jsonb("attachments").$type<string[]>(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdBy: text("created_by").notNull(),
+  createdByEmail: text("created_by_email").notNull(),
+}, (table) => ({
+  orgIdIdx: index("qa_tasks_org_id_idx").on(table.organizationId),
+}));
+
+export type QaTask = typeof qaTasks.$inferSelect;
+export type InsertQaTask = typeof qaTasks.$inferInsert;
+

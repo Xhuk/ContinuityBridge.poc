@@ -124,6 +124,11 @@ export const {
   inboundAuthPolicies,
   systemInstanceTestFiles,
   systemInstanceAuth,
+  // Multi-tenant extension tables
+  transformationTemplates,
+  webhookConfigurations,
+  routingRules,
+  qaTasks,
 } = pgSchema;
 
 // Export types
@@ -132,3 +137,7 @@ export type { TokenCache, InsertTokenCache } from "./schema.pg.js";
 export type { InboundAuthPolicy, InsertInboundAuthPolicy } from "./schema.pg.js";
 export type { SystemInstanceTestFile, InsertSystemInstanceTestFile } from "./schema.pg.js";
 export type { SystemInstanceAuth, InsertSystemInstanceAuth } from "./schema.pg.js";
+export type { TransformationTemplate, InsertTransformationTemplate } from "./schema.pg.js";
+export type { WebhookConfiguration, InsertWebhookConfiguration } from "./schema.pg.js";
+export type { RoutingRule, InsertRoutingRule } from "./schema.pg.js";
+export type { QaTask, InsertQaTask } from "./schema.pg.js";
