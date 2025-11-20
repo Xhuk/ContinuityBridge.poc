@@ -19,42 +19,46 @@ async function testNeonQuery() {
   const sql = neon(databaseUrl);
 
   try {
-    // Test 1: Query specific user
-    const testEmail = "jesus.cruzado@gmail.com";
-    console.log(`\n1️⃣ Querying user: ${testEmail}`);
-    console.log("━".repeat(60));
-
-    const userResult = await sql`
-      SELECT 
-        id,
-        email,
-        role,
-        enabled,
-        email_confirmed,
-        organization_id,
-        organization_name,
-        api_key,
-        last_login_at,
-        created_at
-      FROM users 
-      WHERE email = ${testEmail}
-    `;
-
-    if (userResult.length > 0) {
-      const user = userResult[0];
-      console.log("\n✅ User Found:");
-      console.log(`   ID:              ${user.id}`);
-      console.log(`   Email:           ${user.email}`);
-      console.log(`   Role:            ${user.role}`);
-      console.log(`   Enabled:         ${user.enabled}`);
-      console.log(`   Email Confirmed: ${user.email_confirmed}`);
-      console.log(`   Organization:    ${user.organization_name || 'N/A'}`);
-      console.log(`   API Key:         ${user.api_key?.substring(0, 20)}...`);
-      console.log(`   Last Login:      ${user.last_login_at || 'Never'}`);
-      console.log(`   Created:         ${user.created_at}`);
+    // Test 1: Query specific user (from environment variable)
+    const testEmail = process.env.TEST_EMAIL;
+    
+    if (!testEmail) {
+      console.log("\n⚠️  TEST_EMAIL not provided. Skipping user-specific query.");
+      console.log("   Usage: TEST_EMAIL=user@example.com npx tsx scripts/test-neon-query.ts\n");
     } else {
-      console.log(`\n⚠️  User NOT found: ${testEmail}`);
-      console.log(`   The user does not exist in the database.`);
+      console.log(`\n1️⃣ Querying user: ${testEmail}`);
+      console.log("━".repeat(60));
+
+      const userResult = await sql`
+        SELECT 
+          id,
+          email,
+          role,
+          enabled,
+          email_confirmed,
+          organization_id,
+          organization_name,
+          last_login_at,
+          created_at
+        FROM users 
+        WHERE email = ${testEmail}
+      `;
+
+      if (userResult.length > 0) {
+        const user = userResult[0];
+        console.log("\n✅ User Found:");
+        console.log(`   ID:              ${user.id}`);
+        console.log(`   Email:           ${user.email}`);
+        console.log(`   Role:            ${user.role}`);
+        console.log(`   Enabled:         ${user.enabled}`);
+        console.log(`   Email Confirmed: ${user.email_confirmed}`);
+        console.log(`   Organization:    ${user.organization_name || 'N/A'}`);
+        console.log(`   Last Login:      ${user.last_login_at || 'Never'}`);
+        console.log(`   Created:         ${user.created_at}`);
+      } else {
+        console.log(`\n⚠️  User NOT found: ${testEmail}`);
+        console.log(`   The user does not exist in the database.`);
+      }
     }
 
     // Test 2: List all users
