@@ -1,24 +1,13 @@
-import { drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3';
 import { drizzle as drizzleNeon } from 'drizzle-orm/neon-serverless';
 import { Pool, neonConfig } from '@neondatabase/serverless';
-import Database from 'better-sqlite3';
 import ws from "ws";
-import path from "path";
-import { fileURLToPath } from "url";
-import * as sqliteSchema from "./schema.js";
+import * as pgSchema from "./schema.pg.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Determine database type from environment
-const dbType = process.env.DB_TYPE || "sqlite"; // Default to SQLite for portability
 const isProd = process.env.NODE_ENV === "production";
 
-// SQLite setup (portable, offline-capable)
-let sqliteDb: ReturnType<typeof drizzleSqlite> | null = null;
-let postgresDb: ReturnType<typeof drizzleNeon> | null = null;
-let sqliteClient: Database.Database | null = null;
+// PostgreSQL Connection Pool
 let postgresPool: Pool | null = null;
+let postgresDb: ReturnType<typeof drizzleNeon> | null = null;
 
 /**
  * Database Connection with Retry Logic
@@ -54,66 +43,37 @@ async function connectWithRetry(maxRetries = 5, delayMs = 2000): Promise<void> {
   }
 }
 
-if (dbType === "sqlite") {
-  const dbPath = process.env.SQLITE_PATH || path.join(__dirname, "..", "data", "continuity.db");
-  
-  try {
-    sqliteClient = new Database(dbPath);
-    sqliteDb = drizzleSqlite(sqliteClient, { schema: sqliteSchema });
-    console.log(`[Database] ✅ Using SQLite: ${dbPath}`);
-    
-    // Enable WAL mode for better concurrency
-    sqliteClient.pragma('journal_mode = WAL');
-    sqliteClient.pragma('synchronous = NORMAL');
-    
-  } catch (error: any) {
-    console.error("[Database] ❌ Failed to initialize SQLite:", error.message);
-    if (isProd) {
-      process.exit(1);
-    }
-    throw error;
+// Initialize PostgreSQL connection
+neonConfig.webSocketConstructor = ws;
+
+if (!process.env.DATABASE_URL) {
+  console.error("[Database] ❌ DATABASE_URL must be set for PostgreSQL database");
+  if (isProd) {
+    process.exit(1);
   }
-  
-} else if (dbType === "postgres") {
-  neonConfig.webSocketConstructor = ws;
-  
-  if (!process.env.DATABASE_URL) {
-    console.error("[Database] ❌ DATABASE_URL must be set when using postgres database");
-    if (isProd) {
-      process.exit(1);
-    }
-    throw new Error("DATABASE_URL must be set when using postgres database");
-  }
-  
-  // Create connection pool with production-grade settings
-  postgresPool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    max: parseInt(process.env.DB_POOL_MAX || "20", 10),
-    min: parseInt(process.env.DB_POOL_MIN || "2", 10),
-    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || "30000", 10),
-    connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || "10000", 10),
-  });
-  
-  // Don't pass schema to avoid SQLite/PostgreSQL type conflicts
-  // Schema is only used for relations and type inference, not required for queries
-  postgresDb = drizzleNeon({ client: postgresPool });
-  
-  console.log(`[Database] ✅ PostgreSQL pool created (Neon serverless)`);
-  console.log(`[Database] 📋 Using schema: public (default)`);
-  console.log(`[Database] 🔗 Connection pooling: ${process.env.DB_POOL_MAX || 20} max connections`);
+  throw new Error("DATABASE_URL must be set for PostgreSQL database");
 }
 
-export const db = (sqliteDb || postgresDb)!;
-export const databaseType = dbType as "sqlite" | "postgres";
-export const sqlite = sqliteClient;
+// Create connection pool with production-grade settings
+postgresPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: parseInt(process.env.DB_POOL_MAX || "20", 10),
+  min: parseInt(process.env.DB_POOL_MIN || "2", 10),
+  idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || "30000", 10),
+  connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || "10000", 10),
+});
 
-// Export ALL table definitions based on database type
-// When using PostgreSQL, import from schema.pg.ts to ensure proper JSONB handling
-// When using SQLite, import from schema.ts for TEXT JSON handling
-const schemaModule = dbType === "postgres" 
-  ? await import("./schema.pg.js")
-  : sqliteSchema;
+// Initialize Drizzle with PostgreSQL pool
+postgresDb = drizzleNeon({ client: postgresPool });
 
+console.log(`[Database] ✅ PostgreSQL pool created (Neon serverless)`);
+console.log(`[Database] 📋 Using schema: public (default)`);
+console.log(`[Database] 🔗 Connection pooling: ${process.env.DB_POOL_MAX || 20} max connections`);
+
+export const db = postgresDb!;
+export const databaseType = "postgres" as const;
+
+// Export all PostgreSQL table definitions
 export const {
   users,
   systemLogs,
@@ -138,4 +98,4 @@ export const {
   flowRuns,
   interfaces,
   integrationEvents,
-} = schemaModule;
+} = pgSchema;

@@ -337,12 +337,6 @@ async function runMigration() {
     process.exit(0);
   }
 
-  // Skip if using SQLite
-  if (DATABASE_URL.includes('sqlite') || DATABASE_URL.startsWith('file:')) {
-    console.log('[Migration] ⏭️  Skipping SQL migration (SQLite detected)');
-    process.exit(0);
-  }
-
   try {
     console.log('[Migration] 🔧 Running PostgreSQL migrations...');
     

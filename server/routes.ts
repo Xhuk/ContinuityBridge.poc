@@ -8,7 +8,7 @@ import { initializeQueue } from "./src/serverQueue.js";
 import { Worker, setWorkerInstance } from "./src/workers/worker.js";
 import { logger } from "./src/core/logger.js";
 import { DatabaseStorage } from "./database-storage.js";
-import { ensureTables, seedDefaultHierarchy } from "./migrate.js";
+// PostgreSQL-only setup - no migration needed (handled by drizzle-kit push)
 import { secretsService } from "./src/secrets/secrets-service.js";
 import { TokenLifecycleService } from "./src/auth/token-lifecycle-service.js";
 import { initializeOutboundTokenProvider } from "./src/auth/auth-service-factory.js";
@@ -66,11 +66,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
     
-    // Initialize database tables
-    await ensureTables();
-    
-    // Seed default hierarchy (Account → Tenant → Ecosystem → Environment → System Instance)
-    await seedDefaultHierarchy();
+    // PostgreSQL database tables are managed by Drizzle migrations
+    // See: scripts/run-sql-migration.js and drizzle.config.ts
     
     // Create database storage instance
     const storage = new DatabaseStorage();
