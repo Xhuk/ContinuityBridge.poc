@@ -2,7 +2,7 @@
   "name": "ContinuityBridge User Management",
   "short_name": "CB Users",
   "description": "Manage Founders, Consultants, and Customer Users",
-  "start_url": "/founder/user-management",
+  "start_url": "/mobile",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#6366f1",
