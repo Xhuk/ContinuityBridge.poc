@@ -1,4 +1,4 @@
-import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2, Activity, Gauge, Zap, ServerCog, DollarSign, BarChart3, HardDrive, PackageOpen, Code2, UserPlus } from "lucide-react";
+import { Home, List, Settings as SettingsIcon, Upload, Database, Network, Workflow, Cog, Sparkles, FileText, Shield, FolderKanban, User, LogOut, Users, Book, TestTube2, Activity, Gauge, Zap, ServerCog, DollarSign, BarChart3, HardDrive, PackageOpen, Code2, UserPlus, Smartphone } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -84,6 +84,12 @@ const adminMenuItems = [
     title: "Wiki",
     url: "/wiki",
     icon: Book,
+    roles: ["superadmin", "sales", "consultant", "customer_admin", "customer_user"],
+  },
+  {
+    title: "Mobile Interface",
+    url: "/mobile",
+    icon: Smartphone,
     roles: ["superadmin", "sales", "consultant", "customer_admin", "customer_user"],
   },
   {
