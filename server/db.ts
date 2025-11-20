@@ -107,9 +107,35 @@ export const db = (sqliteDb || postgresDb)!;
 export const databaseType = dbType as "sqlite" | "postgres";
 export const sqlite = sqliteClient;
 
-// Export table definitions from PostgreSQL schema when using postgres
-// This ensures runtime code uses the correct schema types
-export const { users, systemLogs, logConfigurations, magicLinks, smtpSettings, wafConfig, customerLicense, pricingCatalog, pricingChangeNotifications, qaTestSessions, qaTestResults } = 
-  dbType === "postgres" 
-    ? await import("./schema.pg.js")
-    : sqliteSchema;
+// Export ALL table definitions based on database type
+// When using PostgreSQL, import from schema.pg.ts to ensure proper JSONB handling
+// When using SQLite, import from schema.ts for TEXT JSON handling
+const schemaModule = dbType === "postgres" 
+  ? await import("./schema.pg.js")
+  : sqliteSchema;
+
+export const {
+  users,
+  systemLogs,
+  logConfigurations,
+  magicLinks,
+  smtpSettings,
+  wafConfig,
+  customerLicense,
+  pricingCatalog,
+  pricingChangeNotifications,
+  qaTestSessions,
+  qaTestResults,
+  deploymentPackages,
+  // Hierarchy tables
+  accounts,
+  tenants,
+  ecosystems,
+  environments,
+  systemInstances,
+  // Flow tables
+  flowDefinitions,
+  flowRuns,
+  interfaces,
+  integrationEvents,
+} = schemaModule;
