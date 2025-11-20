@@ -51,8 +51,15 @@ export class InterfaceManager {
     return interfaceConfigs.get(id);
   }
 
-  getAllInterfaces(): InterfaceConfig[] {
-    return Array.from(interfaceConfigs.values());
+  getAllInterfaces(organizationId?: string): InterfaceConfig[] {
+    const allInterfaces = Array.from(interfaceConfigs.values());
+    
+    // Filter by organization if provided
+    if (organizationId) {
+      return allInterfaces.filter(iface => (iface as any).organizationId === organizationId);
+    }
+    
+    return allInterfaces;
   }
 
   updateInterface(id: string, updates: Partial<InsertInterfaceConfig>): InterfaceConfig | null {
@@ -348,14 +355,28 @@ export class InterfaceManager {
   // Query Helpers
   // ============================================================================
 
-  getInterfacesByType(type: string): InterfaceConfig[] {
-    return Array.from(interfaceConfigs.values()).filter(i => i.type === type);
+  getInterfacesByType(type: string, organizationId?: string): InterfaceConfig[] {
+    let interfaces = Array.from(interfaceConfigs.values()).filter(i => i.type === type);
+    
+    // Filter by organization if provided
+    if (organizationId) {
+      interfaces = interfaces.filter(i => (i as any).organizationId === organizationId);
+    }
+    
+    return interfaces;
   }
 
-  getInterfacesByDirection(direction: string): InterfaceConfig[] {
-    return Array.from(interfaceConfigs.values()).filter(i => 
+  getInterfacesByDirection(direction: string, organizationId?: string): InterfaceConfig[] {
+    let interfaces = Array.from(interfaceConfigs.values()).filter(i => 
       i.direction === direction || i.direction === "bidirectional"
     );
+    
+    // Filter by organization if provided
+    if (organizationId) {
+      interfaces = interfaces.filter(i => (i as any).organizationId === organizationId);
+    }
+    
+    return interfaces;
   }
 
   getEnabledInterfaces(): InterfaceConfig[] {

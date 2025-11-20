@@ -93,8 +93,10 @@ router.get("/collection", authenticateUser, async (req: Request, res: Response) 
       });
     }
 
-    // Get all interfaces
-    const interfaces = interfaceManager.getAllInterfaces();
+    // Get all interfaces (filtered by version context if available)
+    const versionContext = (req as any).versionContext;
+    const organizationId = versionContext?.organizationId;
+    const interfaces = interfaceManager.getAllInterfaces(organizationId);
     
     // Get all flows from database
     const flows = await (db.select() as any)
@@ -164,8 +166,10 @@ router.post("/collection/regenerate", authenticateUser, async (req: Request, res
       environment,
     });
 
-    // Get all interfaces
-    const interfaces = interfaceManager.getAllInterfaces();
+    // Get all interfaces (filtered by version context if available)
+    const versionContext = (req as any).versionContext;
+    const organizationId = versionContext?.organizationId;
+    const interfaces = interfaceManager.getAllInterfaces(organizationId);
     
     // Get all flows
     const flows = await (db.select() as any)
@@ -218,7 +222,9 @@ router.post("/collection/regenerate", authenticateUser, async (req: Request, res
  */
 router.get("/stats", authenticateUser, async (req: Request, res: Response) => {
   try {
-    const interfaces = interfaceManager.getAllInterfaces();
+    const versionContext = (req as any).versionContext;
+    const organizationId = versionContext?.organizationId;
+    const interfaces = interfaceManager.getAllInterfaces(organizationId);
     const flows = await (db.select() as any)
       .from(flowDefinitions)
       .all();

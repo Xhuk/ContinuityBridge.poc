@@ -694,13 +694,17 @@ export function registerRESTRoutes(
       const userRole = (req as any).user?.role;
       const userOrgId = (req as any).user?.organizationId;
       
+      // Use version context for multi-tenant filtering
+      const versionContext = (req as any).versionContext;
+      const organizationId = versionContext?.organizationId;
+      
       let interfaces;
       if (type) {
-        interfaces = interfaceManager.getInterfacesByType(type as string);
+        interfaces = interfaceManager.getInterfacesByType(type as string, organizationId);
       } else if (direction) {
-        interfaces = interfaceManager.getInterfacesByDirection(direction as string);
+        interfaces = interfaceManager.getInterfacesByDirection(direction as string, organizationId);
       } else {
-        interfaces = interfaceManager.getAllInterfaces();
+        interfaces = interfaceManager.getAllInterfaces(organizationId);
       }
       
       // TRIAL FILTERING: For trial users, only show demo/mock interfaces
