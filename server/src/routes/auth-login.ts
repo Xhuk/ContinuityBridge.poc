@@ -22,11 +22,41 @@ router.post("/magic-link", magicLinkRateLimit, [emailValidation], validateReques
       return res.status(400).json({ error: "Email is required" });
     }
 
+    console.log(`[Auth] Magic link requested for: ${email}`);
+    console.log(`[Auth] DATABASE_URL configured: ${!!process.env.DATABASE_URL}`);
+
+    // Check if user exists in database BEFORE generating link
+    let userExists = false;
+    try {
+      const userCheckResult = await (db.select().from(users).where(eq(users.email, email)) as any);
+      const userCheck = Array.isArray(userCheckResult) ? userCheckResult[0] : userCheckResult;
+      userExists = !!userCheck;
+      console.log(`[Auth] User exists in Neon DB: ${userExists}`);
+      if (userCheck) {
+        console.log(`[Auth] User details - enabled: ${userCheck.enabled}, role: ${userCheck.role}`);
+      }
+    } catch (dbError: any) {
+      console.error(`[Auth] ❌ Database query failed:`, dbError.message);
+      return res.status(500).json({ 
+        error: "Database connection error. Please contact support.",
+        details: process.env.NODE_ENV === "development" ? dbError.message : undefined
+      });
+    }
+
+    if (!userExists) {
+      console.warn(`[Auth] ⚠️  User not found in database: ${email}`);
+      return res.status(404).json({ 
+        error: "User not found. Contact your administrator to create an account."
+      });
+    }
+
     // Generate magic link
     const baseUrl = process.env.APP_URL || 
                     (process.env.APP_DOMAIN ? `https://${process.env.APP_DOMAIN}` : null) ||
                     `${req.protocol}://${req.get("host")}`;
     const result = await magicLinkService.generateMagicLink(email, baseUrl);
+
+    console.log(`[Auth] ✅ Magic link generated successfully for ${email}`);
 
     // For admin@continuitybridge.local, fetch the API key
     let apiKey: string | undefined;
@@ -153,7 +183,8 @@ router.post("/password", authRateLimit, [emailValidation], validateRequest, asyn
     }
 
     // Get user
-    const user = await db.select().from(users).where(eq(users.email, email)).get();
+    const userResult = await (db.select().from(users).where(eq(users.email, email)) as any);
+    const user = Array.isArray(userResult) ? userResult[0] : userResult;
 
     if (!user) {
       return res.status(401).json({ error: "Invalid email or password" });
@@ -177,10 +208,9 @@ router.post("/password", authRateLimit, [emailValidation], validateRequest, asyn
     }
 
     // Update last login
-    await db.update(users)
-      .set({ lastLoginAt: new Date().toISOString() })
-      .where(eq(users.id, user.id))
-      .run();
+    await (db.update(users)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(users.id, user.id)) as any);
 
     // Generate session token
     const sessionToken = generateSessionToken(user);
@@ -239,7 +269,8 @@ router.get("/session", async (req, res) => {
     }
 
     // Get fresh user data
-    const user = await db.select().from(users).where(eq(users.id, decoded.id)).get();
+    const userResult = await (db.select().from(users).where(eq(users.id, decoded.id)) as any);
+    const user = Array.isArray(userResult) ? userResult[0] : userResult;
 
     if (!user || !user.enabled) {
       return res.status(401).json({ authenticated: false, error: "User not found or disabled" });
