@@ -148,7 +148,7 @@ router.get("/verify", async (req, res) => {
     const cookieOptions: any = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // 'none' required for cross-site cookies with Cloudflare
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: "/",
     };
@@ -164,6 +164,7 @@ router.get("/verify", async (req, res) => {
       domain: cookieOptions.domain || 'default',
       secure: cookieOptions.secure,
       httpOnly: cookieOptions.httpOnly,
+      sameSite: cookieOptions.sameSite,
       userId: result.user?.id,
     });
 
@@ -236,7 +237,7 @@ router.post("/password", authRateLimit, [emailValidation], validateRequest, asyn
     const cookieOptions: any = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // 'none' required for cross-site cookies with Cloudflare
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: "/",
     };
