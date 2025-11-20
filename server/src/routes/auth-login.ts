@@ -41,38 +41,48 @@ router.post("/magic-link", magicLinkRateLimit, [emailValidation], validateReques
     // Send email via Resend (for superadmin tasks)
     const { resendService } = await import("../notifications/resend-service.js");
     
+    let emailSent = false;
     try {
       await resendService.sendMagicLinkEmail(email, result.magicLink, result.expiresAt);
-      
+      emailSent = true;
       console.log(`📧 Magic link sent to ${email} via Resend`);
       if (process.env.NODE_ENV === "development") {
         console.log(`🔗 Dev Link: ${result.magicLink}`);
       }
     } catch (error: any) {
-      console.error("Resend failed, falling back to customer SMTP:", error);
+      console.error("Resend failed, trying customer SMTP:", error);
       
       // Fallback to customer SMTP if Resend fails
-      const { emailService } = await import("../notifications/index.js");
-      const emailTemplate = magicLinkService.getEmailTemplate(
-        email,
-        result.magicLink,
-        result.expiresAt
-      );
-      
-      await emailService.sendEmail({
-        to: email,
-        subject: emailTemplate.subject,
-        html: emailTemplate.html,
-        text: emailTemplate.text,
-      });
+      try {
+        const { emailService } = await import("../notifications/index.js");
+        const emailTemplate = magicLinkService.getEmailTemplate(
+          email,
+          result.magicLink,
+          result.expiresAt
+        );
+        
+        await emailService.sendEmail({
+          to: email,
+          subject: emailTemplate.subject,
+          html: emailTemplate.html,
+          text: emailTemplate.text,
+        });
+        emailSent = true;
+        console.log(`📧 Magic link sent to ${email} via customer SMTP`);
+      } catch (smtpError: any) {
+        console.warn(`⚠️  Email sending failed for ${email}:`, smtpError.message);
+        // Don't throw - continue and return magic link in dev mode
+      }
     }
 
     res.json({
       success: true,
-      message: `Magic link sent to ${email}. Check your inbox!`,
+      message: emailSent 
+        ? `Magic link sent to ${email}. Check your inbox!`
+        : `Magic link generated for ${email}. Email delivery unavailable - use link below.`,
       expiresIn: "15 minutes",
-      // In development, also return link for testing
-      ...(process.env.NODE_ENV === "development" && {
+      // In development or if email failed, return link for testing
+      ...((process.env.NODE_ENV === "development" || !emailSent) && {
         devMagicLink: result.magicLink,
       }),
       // For admin@continuitybridge.local, return API key
