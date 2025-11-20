@@ -114,25 +114,35 @@ router.post("/magic-link", magicLinkRateLimit, [emailValidation], validateReques
  * Verify magic link token
  */
 router.get("/verify", async (req, res) => {
+  const trackId = `ML-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
   try {
     const { token } = req.query;
 
-    console.log("[Auth] Magic link verification attempt");
+    console.log(`[Auth:${trackId}] Magic link verification attempt`, {
+      ip: req.ip,
+      userAgent: req.get('user-agent')?.substring(0, 50),
+      timestamp: new Date().toISOString(),
+    });
 
     if (!token || typeof token !== "string") {
-      console.error("[Auth] Invalid token format");
+      console.error(`[Auth:${trackId}] Invalid token format`);
       return res.status(400).json({ error: "Invalid token" });
     }
 
-    console.log("[Auth] Verifying token with service...");
+    console.log(`[Auth:${trackId}] Verifying token with service...`);
     const result = await magicLinkService.verifyMagicLink(token);
 
     if (!result.valid) {
-      console.error("[Auth] Token verification failed:", result.error);
+      console.error(`[Auth:${trackId}] Token verification failed:`, result.error);
       return res.status(401).json({ error: result.error });
     }
 
-    console.log("[Auth] Token verified successfully for user:", result.user?.email);
+    console.log(`[Auth:${trackId}] Token verified successfully`, {
+      userId: result.user?.id,
+      email: result.user?.email,
+      role: result.user?.role,
+    });
 
     // Set session cookie
     const cookieOptions: any = {
@@ -150,10 +160,16 @@ router.get("/verify", async (req, res) => {
 
     res.cookie("session", result.sessionToken, cookieOptions);
 
-    console.log("[Auth] Session cookie set, responding with success", { domain: cookieOptions.domain });
+    console.log(`[Auth:${trackId}] Session cookie set`, {
+      domain: cookieOptions.domain || 'default',
+      secure: cookieOptions.secure,
+      httpOnly: cookieOptions.httpOnly,
+      userId: result.user?.id,
+    });
 
     // Redirect to dashboard (or return JSON for SPA)
     if (req.headers.accept?.includes("application/json")) {
+      console.log(`[Auth:${trackId}] Responding with JSON success`);
       res.json({
         success: true,
         user: result.user,
@@ -162,10 +178,11 @@ router.get("/verify", async (req, res) => {
       });
     } else {
       // Redirect to dashboard
+      console.log(`[Auth:${trackId}] Redirecting to dashboard`);
       res.redirect("/");
     }
   } catch (error: any) {
-    console.error("[Auth] Magic link verification error:", error);
+    console.error(`[Auth:${trackId}] Magic link verification error:`, error.message);
     res.status(500).json({ error: error.message });
   }
 });
