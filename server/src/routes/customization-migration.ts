@@ -26,7 +26,7 @@ import {
   configurationVersions,
   integrationNotes,
   users
-} from "../../schema.js";
+} from "../../db";
 import { eq, and, sql } from "drizzle-orm";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import { logger } from "../core/logger.js";

@@ -5,7 +5,7 @@ import { SecretsService } from "../secrets/secrets-service";
 import { OAuth2Adapter } from "./adapters/oauth2-adapter";
 import { JWTAdapter } from "./adapters/jwt-adapter";
 import { CookieAdapter } from "./adapters/cookie-adapter";
-import type { InboundAuthPolicy } from "../../schema";
+import type { InboundAuthPolicy } from "../../db";
 import { logger } from "../core/logger";
 import { match as pathMatch } from "path-to-regexp";
 

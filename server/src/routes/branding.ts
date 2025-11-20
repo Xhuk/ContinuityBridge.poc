@@ -10,7 +10,7 @@
 
 import { Router, Request, Response } from "express";
 import { db } from "../../db.js";
-import { organizationBranding } from "../../schema.js";
+import { organizationBranding } from "../../db";
 import { eq } from "drizzle-orm";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import { logger } from "../core/logger.js";
@@ -428,7 +428,7 @@ export default router;
 
 import { Router, Request, Response } from "express";
 import { db } from "../../db.js";
-import { organizationBranding } from "../../schema.js";
+import { organizationBranding } from "../../db";
 import { eq } from "drizzle-orm";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import { logger } from "../core/logger.js";

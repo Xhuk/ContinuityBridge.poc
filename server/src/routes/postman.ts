@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { postmanGenerator } from "../export/postman-generator.js";
 import { interfaceManager } from "../interfaces/manager.js";
 import { db } from "../../db.js";
-import { flowDefinitions } from "../../schema.js";
+import { flowDefinitions } from "../../db";
 import { authenticateUser } from "../auth/rbac-middleware.js";
 import { logger } from "../core/logger.js";
 

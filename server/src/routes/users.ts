@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../../db";
-import { users } from "../../schema";
+import { users } from "../../db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import * as crypto from "crypto";

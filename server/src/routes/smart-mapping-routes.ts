@@ -14,7 +14,7 @@ import { smartMappingGenerator } from "../ai/smart-mapping-generator.js";
 import type { SystemPayloadSample } from "../ai/smart-mapping-generator.js";
 import { logger } from "../core/logger.js";
 import { db } from "../../db.js";
-import { aiUsageTracking } from "../../schema.js";
+import { aiUsageTracking } from "../../db";
 import { calculateTokenCost } from "../config/ai-billing.js";
 import fs from "fs/promises";
 import path from "path";

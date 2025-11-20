@@ -20,7 +20,7 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import type { IStorage } from "../../storage";
-import type { SystemInstanceAuth } from "../../schema";
+import type { SystemInstanceAuth } from "../../db";
 
 // ============================================================================
 // Zod Validation Schemas

@@ -679,3 +679,33 @@ export const integrationEvents = pgTable("integration_events", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
 });
 
+// Poller States Table (for tracking file/blob poller progress)
+export const pollerStates = pgTable("poller_states", {
+  id: text("id").primaryKey(),
+  flowId: text("flow_id").notNull().references(() => flowDefinitions.id, { onDelete: "cascade" }),
+  nodeId: text("node_id").notNull(),
+  pollerType: text("poller_type").notNull().$type<"sftp" | "azure_blob" | "database">(),
+  lastFile: text("last_file"),
+  lastProcessedAt: timestamp("last_processed_at"),
+  fileChecksums: jsonb("file_checksums").$type<Array<{ filename: string; checksum: string; processedAt: string }>>(),
+  configSnapshot: jsonb("config_snapshot").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Secrets Master Keys Table
+export const secretsMasterKeys = pgTable("secrets_master_keys", {
+  id: text("id").primaryKey(),
+  passwordHash: text("password_hash").notNull(),
+  salt: text("salt").notNull(),
+  argonMemory: integer("argon_memory").notNull().default(65536),
+  argonIterations: integer("argon_iterations").notNull().default(3),
+  argonParallelism: integer("argon_parallelism").notNull().default(4),
+  recoveryCodeHash: text("recovery_code_hash"),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  lockedUntil: timestamp("locked_until"),
+  lastUnlocked: timestamp("last_unlocked"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+

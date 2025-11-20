@@ -1,7 +1,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import { db } from "../../db";
-import { flowDefinitions } from "../../schema";
+import { flowDefinitions } from "../../db";
 
 /**
  * Manifest Manager - Tracks active assets and contractor work for export

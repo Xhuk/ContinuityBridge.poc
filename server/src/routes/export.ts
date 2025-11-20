@@ -4,7 +4,7 @@ import { ManifestManager } from "../export/manifest-manager";
 import { LicenseManager } from "../export/license-manager";
 import { GitHubBackupService } from "../services/github-backup.js";
 import { db } from "../../db";
-import { flowDefinitions } from "../../schema";
+import { flowDefinitions } from "../../db";
 import { eq } from "drizzle-orm";
 import { authenticateUser, requireSuperAdmin, requireConsultant } from "../auth/rbac-middleware";
 import * as fs from "fs/promises";

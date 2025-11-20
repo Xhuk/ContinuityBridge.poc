@@ -1,5 +1,5 @@
 import { db } from "../../../db.js";
-import { pollerStates } from "../../../schema.js";
+import { pollerStates } from "../../../db";
 import { eq } from "drizzle-orm";
 import type { ExecutionContext, ExecutionResult } from "../orchestrator.js";
 

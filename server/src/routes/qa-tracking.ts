@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../../db.js";
-import { users } from "../../schema.js";
+import { users } from "../../db";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { requireSuperAdmin, authenticateUser } from "../auth/rbac-middleware.js";
 import { randomUUID } from "crypto";

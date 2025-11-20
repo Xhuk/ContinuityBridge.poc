@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
-import type { SmtpSettings } from '../../schema';
+import type { SmtpSettings } from '../../db';
 import { decryptPassword } from './crypto';
 
 export interface EmailOptions {

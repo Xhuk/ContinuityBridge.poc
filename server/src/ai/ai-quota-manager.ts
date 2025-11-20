@@ -1,5 +1,5 @@
 import { db } from "../../db.js";
-import { aiQuotaSettings, aiUsageTracking } from "../../schema.js";
+import { aiQuotaSettings, aiUsageTracking } from "../../db";
 import { eq, and, gte } from "drizzle-orm";
 import { logger } from "../core/logger.js";
 

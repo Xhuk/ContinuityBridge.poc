@@ -98,4 +98,7 @@ export const {
   flowRuns,
   interfaces,
   integrationEvents,
+  // Poller and secrets tables
+  pollerStates,
+  secretsMasterKeys,
 } = pgSchema;

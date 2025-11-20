@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { ManifestManager } from "./manifest-manager";
 import { LicenseManager } from "./license-manager";
 import { db } from "../../db";
-import { flowDefinitions } from "../../schema";
+import { flowDefinitions } from "../../db";
 import { eq } from "drizzle-orm";
 
 /**

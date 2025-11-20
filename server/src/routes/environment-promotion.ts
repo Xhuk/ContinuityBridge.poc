@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { db } from "../../db";
-import { configurationVersions } from "../../schema";
+import { configurationVersions } from "../../db";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { authenticateUser } from "../auth/rbac-middleware";

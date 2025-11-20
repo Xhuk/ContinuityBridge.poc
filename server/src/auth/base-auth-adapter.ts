@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import type { AuthAdapter } from "../../schema";
+import type { AuthAdapter } from "../../db";
 import type { IStorage } from "../../storage";
 import { TokenLifecycleService } from "./token-lifecycle-service";
 import { SecretsService } from "../secrets/secrets-service";

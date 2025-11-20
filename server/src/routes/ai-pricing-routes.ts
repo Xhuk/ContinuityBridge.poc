@@ -9,7 +9,7 @@
 
 import { Router, Request, Response } from "express";
 import { db } from "../../db.js";
-import { aiPricingTiers, aiUsageTracking } from "../../schema.js";
+import { aiPricingTiers, aiUsageTracking } from "../../db";
 import { eq, sql, desc } from "drizzle-orm";
 import { logger } from "../core/logger.js";
 

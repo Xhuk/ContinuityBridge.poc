@@ -6,7 +6,7 @@
 import { getCache } from "../cache/valkey-cache.js";
 import { logger } from "../core/logger.js";
 import { db } from "../../db.js";
-import { customerLicense, users, organizations } from "../../schema.js";
+import { customerLicense, users, organizations } from "../../db";
 import { eq } from "drizzle-orm";
 
 const log = logger.child("CacheService");

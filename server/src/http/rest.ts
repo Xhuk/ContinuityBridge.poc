@@ -12,7 +12,7 @@ import { getDataSourceManager } from "../datasources/manager.js";
 import { interfaceManager } from "../interfaces/manager.js";
 import { interfaceTemplateCatalog } from "../interfaces/template-catalog.js";
 import { nodeCatalog } from "../flow/node-catalog.js";
-import type { SystemInstanceTestFile } from "../../schema.js";
+import type { SystemInstanceTestFile } from "../../db";
 import { db } from "../../db.js";
 import { secretsMasterKeys } from "../../db";
 import { eq } from "drizzle-orm";
