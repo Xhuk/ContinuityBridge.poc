@@ -6,7 +6,7 @@
 import { getCache } from "../cache/valkey-cache.js";
 import { logger } from "../core/logger.js";
 import { db } from "../../db.js";
-import { customerLicense, users, organizations } from "../../db";
+import { customerLicense, users } from "../../db";
 import { eq } from "drizzle-orm";
 
 const log = logger.child("CacheService");
@@ -105,24 +105,25 @@ export async function getCachedUserByEmail(email: string): Promise<any | null> {
 
 /**
  * Organization lookup with caching
+ * NOTE: Disabled - organizations table not yet implemented
  */
-export async function getCachedOrganization(orgId: string): Promise<any | null> {
-  const cacheKey = `org:${orgId}`;
-  
-  return cacheAside(
-    cacheKey,
-    async () => {
-      const [org] = await db
-        .select()
-        .from(organizations)
-        .where(eq(organizations.id, orgId))
-        .limit(1);
-
-      return org || null;
-    },
-    1800 // Cache for 30 minutes
-  );
-}
+// export async function getCachedOrganization(orgId: string): Promise<any | null> {
+//   const cacheKey = `org:${orgId}`;
+//   
+//   return cacheAside(
+//     cacheKey,
+//     async () => {
+//       const [org] = await db
+//         .select()
+//         .from(organizations)
+//         .where(eq(organizations.id, orgId))
+//         .limit(1);
+//
+//       return org || null;
+//     },
+//     1800 // Cache for 30 minutes
+//   );
+// }
 
 /**
  * Invalidate user cache
@@ -145,11 +146,12 @@ export async function invalidateLicenseCache(licenseKey: string): Promise<void> 
 
 /**
  * Invalidate organization cache
+ * NOTE: Disabled - organizations table not yet implemented
  */
-export async function invalidateOrgCache(orgId: string): Promise<void> {
-  await cache.del(`org:${orgId}`);
-  log.debug("Organization cache invalidated", { orgId });
-}
+// export async function invalidateOrgCache(orgId: string): Promise<void> {
+//   await cache.del(`org:${orgId}`);
+//   log.debug("Organization cache invalidated", { orgId });
+// }
 
 /**
  * Rate limiting using cache
