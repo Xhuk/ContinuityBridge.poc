@@ -135,14 +135,22 @@ router.get("/verify", async (req, res) => {
     console.log("[Auth] Token verified successfully for user:", result.user?.email);
 
     // Set session cookie
-    res.cookie("session", result.sessionToken, {
+    const cookieOptions: any = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+      path: "/",
+    };
 
-    console.log("[Auth] Session cookie set, responding with success");
+    // In production, set domain for cross-subdomain cookie sharing
+    if (process.env.NODE_ENV === "production" && process.env.APP_DOMAIN) {
+      cookieOptions.domain = process.env.APP_DOMAIN;
+    }
+
+    res.cookie("session", result.sessionToken, cookieOptions);
+
+    console.log("[Auth] Session cookie set, responding with success", { domain: cookieOptions.domain });
 
     // Redirect to dashboard (or return JSON for SPA)
     if (req.headers.accept?.includes("application/json")) {
@@ -208,12 +216,20 @@ router.post("/password", authRateLimit, [emailValidation], validateRequest, asyn
     const sessionToken = generateSessionToken(user);
 
     // Set session cookie
-    res.cookie("session", sessionToken, {
+    const cookieOptions: any = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+      path: "/",
+    };
+
+    // In production, set domain for cross-subdomain cookie sharing
+    if (process.env.NODE_ENV === "production" && process.env.APP_DOMAIN) {
+      cookieOptions.domain = process.env.APP_DOMAIN;
+    }
+
+    res.cookie("session", sessionToken, cookieOptions);
 
     res.json({
       success: true,
