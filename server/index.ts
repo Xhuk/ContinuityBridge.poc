@@ -45,6 +45,9 @@ app.use((req, res, next) => {
   return corsConfig(req, res, next);
 });
 
+// Trust proxy (required for rate limiting behind reverse proxies like Render)
+app.set('trust proxy', 1);
+
 // Cookie parser (for session management)
 app.use(cookieParser());
 

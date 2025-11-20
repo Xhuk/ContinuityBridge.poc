@@ -260,7 +260,7 @@ class Logger {
     try {
       const logEntry = {
         id: randomUUID(),
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(),
         level,
         scope,
         service: this.prefix,
@@ -280,7 +280,7 @@ class Logger {
         httpPath: context?.httpPath || null,
         httpStatus: context?.httpStatus || null,
         durationMs: context?.durationMs || null,
-        createdAt: new Date().toISOString(),
+        createdAt: new Date(),
       };
 
       // Non-blocking insert
