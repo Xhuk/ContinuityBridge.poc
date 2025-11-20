@@ -15,6 +15,7 @@ import { initializeOutboundTokenProvider } from "./src/auth/auth-service-factory
 import { BackgroundTokenRefreshJob } from "./src/auth/background-token-refresh.js";
 import { createInboundAuthMiddleware } from "./src/auth/inbound-auth-middleware.js";
 import { createAuthGuard } from "./src/middleware/auth-guard.js";
+import { versionContextMiddleware } from "./src/middleware/version-context.js";
 import { getSchedulerDaemon } from "./src/schedulers/scheduler-daemon.js";
 import { getPollerDaemon } from "./src/schedulers/poller-daemon.js";
 import { getDeploymentBuildScheduler } from "./src/schedulers/deployment-build-scheduler.js";
@@ -108,6 +109,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Note: Policies with enforcement="bypass" allow public access
     // TODO: In production, apply selectively to specific route groups for better performance
     app.use(inboundAuthMiddleware);
+
+    // Apply version context middleware globally (after auth, before routes)
+    // This middleware extracts organizationId + environment from authenticated user session
+    // and attaches req.versionContext for use in database queries
+    app.use(versionContextMiddleware);
+    log.info("Version context middleware registered (multi-tenant version isolation)");
 
     // Create flow orchestrator (shared across pipeline and REST routes)
     const orchestrator = new FlowOrchestrator(storage);
