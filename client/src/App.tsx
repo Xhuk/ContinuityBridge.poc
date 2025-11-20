@@ -143,6 +143,10 @@ function Router() {
                 <Route path="/settings" component={Settings} />
                 <Route path="/profile" component={Profile} />
                 <Route path="/wiki" component={Wiki} />
+                
+                {/* Mobile PWA interface - available to all authenticated users */}
+                <Route path="/mobile" component={UserManagementPWA} />
+                
                 {(user?.role === "superadmin" || user?.role === "consultant" || user?.role === "customer_admin") && (
                   <>
                     <Route path="/admin/system-health" component={SystemHealth} />
@@ -159,7 +163,6 @@ function Router() {
                     <Route path="/admin/customers" component={Customers} />
                     <Route path="/admin/users" component={UsersManagement} />
                     <Route path="/founder/user-management" component={UserManagementPWA} />
-                    <Route path="/mobile" component={UserManagementPWA} />
                     <Route path="/admin/ai-monitoring" component={AIMonitoring} />
                     <Route path="/admin/sow-requests" component={SOWRequests} />
                     <Route path="/admin/pricing-catalog" component={PricingCatalog} />
