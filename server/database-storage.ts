@@ -92,11 +92,22 @@ export class DatabaseStorage implements IStorage {
     return this.mapFlowFromDb(row);
   }
 
-  async getFlows(systemInstanceId?: string): Promise<SchemaFlowDefinition[]> {
+  async getFlows(systemInstanceId?: string, organizationId?: string): Promise<SchemaFlowDefinition[]> {
     let query = (db.select() as any).from(flowDefinitions);
     
+    // Apply filters
+    const conditions: any[] = [];
+    
     if (systemInstanceId) {
-      query = query.where(eq(flowDefinitions.systemInstanceId, systemInstanceId));
+      conditions.push(eq(flowDefinitions.systemInstanceId, systemInstanceId));
+    }
+    
+    if (organizationId) {
+      conditions.push(eq(flowDefinitions.organizationId, organizationId));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(conditions.length === 1 ? conditions[0] : and(...conditions));
     }
     
     const results = await query.orderBy(desc(flowDefinitions.createdAt));

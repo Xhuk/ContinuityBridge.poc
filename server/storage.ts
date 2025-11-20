@@ -186,12 +186,21 @@ export class MemStorage implements IStorage {
     return this.flows.get(id);
   }
 
-  async getFlows(systemInstanceId?: string): Promise<FlowDefinition[]> {
+  async getFlows(systemInstanceId?: string, organizationId?: string): Promise<FlowDefinition[]> {
     const allFlows = Array.from(this.flows.values());
+    
+    // Apply filters
+    let filtered = allFlows;
+    
     if (systemInstanceId) {
-      return allFlows.filter(f => f.systemInstanceId === systemInstanceId);
+      filtered = filtered.filter(f => f.systemInstanceId === systemInstanceId);
     }
-    return allFlows;
+    
+    if (organizationId) {
+      filtered = filtered.filter(f => (f as any).organizationId === organizationId);
+    }
+    
+    return filtered;
   }
 
   async updateFlow(

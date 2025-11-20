@@ -1047,12 +1047,18 @@ export function registerRESTRoutes(
 
   // GET /api/flows - List all flows (optionally filtered by systemInstanceId)
   app.get("/api/flows", async (req, res) => {
-    try {
+    try {  
       if (!storage) {
         return res.status(501).json({ error: "Flow storage is not initialized" });
       }
+      
       const systemInstanceId = req.query.systemInstanceId as string | undefined;
-      const flows = await storage.getFlows(systemInstanceId);
+      
+      // Use version context if available (multi-tenant filtering)
+      const versionContext = (req as any).versionContext;
+      const organizationId = versionContext?.organizationId;
+      
+      const flows = await storage.getFlows(systemInstanceId, organizationId);
       res.json(flows);
     } catch (error: any) {
       log.error("Error listing flows", error);
