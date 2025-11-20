@@ -6,12 +6,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Mail, CheckCircle2, XCircle } from "lucide-react";
 
 export default function Onboarding() {
-  const [email, setEmail] = useState("admin@continuitybridge.local");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
     success: boolean;
     message: string;
     magicLink?: string;
+    apiKey?: string;
   } | null>(null);
 
   const handleGenerateMagicLink = async (e: React.FormEvent) => {
@@ -36,6 +37,7 @@ export default function Onboarding() {
         success: true,
         message: data.message,
         magicLink: data.devMagicLink,
+        apiKey: email === "admin@continuitybridge.local" ? data.apiKey : undefined,
       });
     } catch (error: any) {
       setResult({
@@ -99,6 +101,29 @@ export default function Onboarding() {
               <AlertDescription>
                 <div className="space-y-2">
                   <p className="font-semibold">{result.message}</p>
+                  
+                  {result.apiKey && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        🔑 Your API Key (save this securely):
+                      </p>
+                      <div className="p-3 bg-background rounded-md border">
+                        <code className="text-xs text-blue-600 break-all font-mono">
+                          {result.apiKey}
+                        </code>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          navigator.clipboard.writeText(result.apiKey!);
+                        }}
+                      >
+                        Copy API Key
+                      </Button>
+                    </div>
+                  )}
                   
                   {result.magicLink && (
                     <div className="mt-3 space-y-2">

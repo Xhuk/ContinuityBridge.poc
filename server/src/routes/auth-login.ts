@@ -28,6 +28,16 @@ router.post("/magic-link", magicLinkRateLimit, [emailValidation], validateReques
                     `${req.protocol}://${req.get("host")}`;
     const result = await magicLinkService.generateMagicLink(email, baseUrl);
 
+    // For admin@continuitybridge.local, fetch the API key
+    let apiKey: string | undefined;
+    if (email === "admin@continuitybridge.local") {
+      const userResult = await (db.select().from(users).where(eq(users.email, email)) as any);
+      const user = Array.isArray(userResult) ? userResult[0] : userResult;
+      if (user) {
+        apiKey = user.apiKey;
+      }
+    }
+
     // Send email via Resend (for superadmin tasks)
     const { resendService } = await import("../notifications/resend-service.js");
     
@@ -65,6 +75,8 @@ router.post("/magic-link", magicLinkRateLimit, [emailValidation], validateReques
       ...(process.env.NODE_ENV === "development" && {
         devMagicLink: result.magicLink,
       }),
+      // For admin@continuitybridge.local, return API key
+      ...(apiKey && { apiKey }),
     });
   } catch (error: any) {
     console.error("Magic link generation failed:", error);
