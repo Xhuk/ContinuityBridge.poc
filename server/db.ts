@@ -98,6 +98,7 @@ export const {
   flowRuns,
   interfaces,
   integrationEvents,
+  dataSourceSchemas,
   // Poller and secrets tables
   pollerStates,
   secretsMasterKeys,

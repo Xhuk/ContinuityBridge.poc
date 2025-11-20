@@ -611,6 +611,7 @@ export const flowDefinitions = pgTable("flow_definitions", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
+  organizationId: text("organization_id"), // Multi-tenant filtering
   systemInstanceId: text("system_instance_id").references(() => systemInstances.id, { onDelete: "set null" }),
   nodes: jsonb("nodes").notNull(),
   edges: jsonb("edges").notNull(),
@@ -647,6 +648,7 @@ export const interfaces = pgTable("interfaces", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
+  organizationId: text("organization_id"), // Multi-tenant filtering
   type: text("type").notNull(),
   direction: text("direction").notNull(),
   protocol: text("protocol").notNull(),
@@ -677,6 +679,38 @@ export const integrationEvents = pgTable("integration_events", {
   latencyMs: integer("latency_ms"),
   error: text("error"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+});
+
+// Data Source Schemas Table (for API/XML/JSON/CSV schema management)
+export const dataSourceSchemas = pgTable("data_source_schemas", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  identifier: text("identifier").notNull().unique(),
+  organizationId: text("organization_id"),
+  sourceType: text("source_type").notNull().$type<"upload" | "api" | "database" | "sftp" | "other">(),
+  format: text("format").notNull().$type<"xml" | "json" | "csv" | "other">(),
+  sampleData: text("sample_data"),
+  schema: jsonb("schema").$type<{
+    fields: Array<{
+      name: string;
+      path: string;
+      type: string;
+      required?: boolean;
+      nested?: boolean;
+    }>;
+    relationships?: Array<{
+      targetSchemaId: string;
+      type: "one-to-one" | "one-to-many" | "many-to-one" | "many-to-many";
+      foreignKey?: string;
+      description?: string;
+    }>;
+  }>().notNull(),
+  systemInstanceId: text("system_instance_id").references(() => systemInstances.id, { onDelete: "set null" }),
+  enabled: boolean("enabled").notNull().default(true),
+  tags: jsonb("tags").$type<string[]>(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // Poller States Table (for tracking file/blob poller progress)
