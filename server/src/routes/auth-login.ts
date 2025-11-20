@@ -117,15 +117,22 @@ router.get("/verify", async (req, res) => {
   try {
     const { token } = req.query;
 
+    console.log("[Auth] Magic link verification attempt");
+
     if (!token || typeof token !== "string") {
+      console.error("[Auth] Invalid token format");
       return res.status(400).json({ error: "Invalid token" });
     }
 
+    console.log("[Auth] Verifying token with service...");
     const result = await magicLinkService.verifyMagicLink(token);
 
     if (!result.valid) {
+      console.error("[Auth] Token verification failed:", result.error);
       return res.status(401).json({ error: result.error });
     }
+
+    console.log("[Auth] Token verified successfully for user:", result.user?.email);
 
     // Set session cookie
     res.cookie("session", result.sessionToken, {
@@ -134,6 +141,8 @@ router.get("/verify", async (req, res) => {
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
+
+    console.log("[Auth] Session cookie set, responding with success");
 
     // Redirect to dashboard (or return JSON for SPA)
     if (req.headers.accept?.includes("application/json")) {
@@ -148,7 +157,7 @@ router.get("/verify", async (req, res) => {
       res.redirect("/");
     }
   } catch (error: any) {
-    console.error("Magic link verification failed:", error);
+    console.error("[Auth] Magic link verification error:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -267,6 +276,8 @@ router.get("/session", async (req, res) => {
         role: user.role,
         organizationId: user.organizationId,
         organizationName: user.organizationName,
+        assignedCustomers: decoded.assignedCustomers,
+        selectedTenant: decoded.selectedTenant,
       },
       permissions: {
         canExport: user.role === "superadmin",

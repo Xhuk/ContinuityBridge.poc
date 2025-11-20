@@ -4,6 +4,9 @@ import { tenants, ecosystems, environments, users } from "../../db";
 import { eq, inArray } from "drizzle-orm";
 import { authenticateUser, requireRole } from "../auth/rbac-middleware.js";
 import { generateSessionToken } from "../auth/rbac-middleware.js";
+import { logger } from "../core/logger.js";
+
+const log = logger.child("ConsultantRoutes");
 
 const router = Router();
 
@@ -86,6 +89,25 @@ router.post("/select-tenant", authenticateUser, requireRole("consultant"), async
     if (!assignedTenantIds.includes(tenantId)) {
       return res.status(403).json({ error: "You don't have access to this tenant" });
     }
+
+    // Capture previous tenant selection for audit log
+    const previousTenant = req.user!.selectedTenant;
+    const previousTenantId = previousTenant?.tenantId || null;
+    const previousEnvironment = previousTenant?.environment || null;
+
+    // Audit log: Tenant switch
+    log.info("Consultant tenant switch", {
+      userId: req.user!.id,
+      userEmail: req.user!.email,
+      from: previousTenantId ? `${previousTenantId}/${previousEnvironment}` : "none",
+      to: `${tenantId}/${environment}`,
+      previousTenantId,
+      previousEnvironment,
+      newTenantId: tenantId,
+      newEnvironment: environment,
+      ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+      userAgent: req.headers['user-agent'],
+    });
 
     // Generate new session token with tenant selection
     const newToken = generateSessionToken({

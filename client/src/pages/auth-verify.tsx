@@ -27,6 +27,8 @@ export default function AuthVerify() {
         const params = new URLSearchParams(window.location.search);
         const token = params.get("token");
 
+        console.log("[AuthVerify] Starting verification with token:", token?.substring(0, 8) + "...");
+
         if (!token) {
           setStatus("error");
           setErrorMessage("Invalid magic link - no token provided");
@@ -34,6 +36,7 @@ export default function AuthVerify() {
         }
 
         // Call API to verify token
+        console.log("[AuthVerify] Calling verification API...");
         const response = await fetch(`/api/auth/login/verify?token=${token}`, {
           method: "GET",
           headers: {
@@ -42,14 +45,18 @@ export default function AuthVerify() {
           credentials: "include", // Important for cookies
         });
 
+        console.log("[AuthVerify] Verification response status:", response.status);
+
         if (!response.ok) {
           const error = await response.json();
+          console.error("[AuthVerify] Verification failed:", error);
           setStatus("error");
           setErrorMessage(error.error || "Magic link verification failed");
           return;
         }
 
         const data = await response.json();
+        console.log("[AuthVerify] Verification successful, user:", data.user?.email);
         
         if (data.success) {
           setStatus("success");
@@ -59,15 +66,19 @@ export default function AuthVerify() {
           const redirectUrl = isMobile ? "/mobile" : "/";
           setRedirectTarget(isMobile ? "mobile" : "desktop");
           
-          // Wait a moment to show success message, then redirect
+          console.log("[AuthVerify] Redirecting to:", redirectUrl);
+          
+          // Force full page reload to pick up session cookie
+          // Use replace() to avoid back button issues
           setTimeout(() => {
-            window.location.href = redirectUrl; // Force full page reload to pick up session
-          }, 1000);
+            window.location.replace(redirectUrl);
+          }, 1500); // Increased delay to ensure cookie is set
         } else {
           setStatus("error");
           setErrorMessage(data.error || "Verification failed");
         }
       } catch (error: any) {
+        console.error("[AuthVerify] Network error:", error);
         setStatus("error");
         setErrorMessage(error.message || "Network error during verification");
       }

@@ -120,7 +120,11 @@ function Router() {
         <div className="flex flex-col flex-1 overflow-hidden">
           <header className="flex items-center justify-between p-2 border-b border-border gap-4">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
-            {(user?.role === "consultant" || user?.role === "superadmin") && user.selectedTenant && (
+            {/* Show context indicator only for consultants and superadmins who have selected a tenant */}
+            {user?.role === "consultant" && user.selectedTenant && (
+              <ContextIndicator />
+            )}
+            {user?.role === "superadmin" && user.selectedTenant && (
               <ContextIndicator />
             )}
           </header>
