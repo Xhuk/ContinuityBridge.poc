@@ -80,7 +80,8 @@ export function createAuthGuard() {
       
       // PRODUCTION: Validate JWT token
       try {
-        const jwt = await import("jsonwebtoken");
+        const jwtModule = await import("jsonwebtoken");
+        const jwt = jwtModule.default || jwtModule;
         const jwtSecret = process.env.JWT_SECRET || process.env.ENCRYPTION_KEY;
         
         if (!jwtSecret) {
