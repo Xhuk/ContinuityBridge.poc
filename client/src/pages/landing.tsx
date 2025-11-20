@@ -46,33 +46,34 @@ export default function Landing() {
   }, [isAuthenticated, setLocation]);
 
   // Security: Prevent context menu and dev tools hints
+  // TEMPORARY: Disabled for debugging
   useEffect(() => {
-    const preventContextMenu = (e: MouseEvent) => {
-      if (!showAuth) {
-        e.preventDefault();
-      }
-    };
+    // const preventContextMenu = (e: MouseEvent) => {
+    //   if (!showAuth) {
+    //     e.preventDefault();
+    //   }
+    // };
 
-    const preventKeyboardShortcuts = (e: KeyboardEvent) => {
-      // Prevent F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
-      if (
-        e.key === 'F12' ||
-        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) ||
-        (e.ctrlKey && e.key === 'u')
-      ) {
-        if (!showAuth) {
-          e.preventDefault();
-        }
-      }
-    };
+    // const preventKeyboardShortcuts = (e: KeyboardEvent) => {
+    //   // Prevent F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
+    //   if (
+    //     e.key === 'F12' ||
+    //     (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) ||
+    //     (e.ctrlKey && e.key === 'u')
+    //   ) {
+    //     if (!showAuth) {
+    //       e.preventDefault();
+    //     }
+    //   }
+    // };
 
-    document.addEventListener('contextmenu', preventContextMenu);
-    document.addEventListener('keydown', preventKeyboardShortcuts);
+    // document.addEventListener('contextmenu', preventContextMenu);
+    // document.addEventListener('keydown', preventKeyboardShortcuts);
 
-    return () => {
-      document.removeEventListener('contextmenu', preventContextMenu);
-      document.removeEventListener('keydown', preventKeyboardShortcuts);
-    };
+    // return () => {
+    //   document.removeEventListener('contextmenu', preventContextMenu);
+    //   document.removeEventListener('keydown', preventKeyboardShortcuts);
+    // };
   }, [showAuth]);
 
   // Secret knock: Triple-click on the 404 text to reveal auth
