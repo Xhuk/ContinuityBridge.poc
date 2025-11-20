@@ -7,6 +7,9 @@ import { wafMiddleware } from "./src/middleware/waf.js";
 import { checkFirstRun, displayReadinessBanner } from "./src/setup/first-run.js";
 import { validateAndLogEnvironment } from "./src/core/env-validator.js";
 
+// Validate environment variables before starting server
+validateAndLogEnvironment();
+
 const app = express();
 
 // Apply security headers (Helmet)

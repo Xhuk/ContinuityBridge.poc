@@ -25,13 +25,14 @@ const isProd = process.env.NODE_ENV === 'production';
 
 /**
  * Enhanced Helmet - Security headers with comprehensive protection
+ * CSP hardened for production (no unsafe-inline)
  */
 export const securityHeaders = helmet({
   contentSecurityPolicy: isProd ? {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      scriptSrc: ["'self'"], // Removed 'unsafe-inline' - use nonces
+      styleSrc: ["'self'", "https://fonts.googleapis.com"], // Removed 'unsafe-inline'
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
@@ -40,7 +41,7 @@ export const securityHeaders = helmet({
       frameSrc: ["'none'"],
       upgradeInsecureRequests: [],
     },
-  } : false,
+  } : false, // Disable CSP in development for easier debugging
   hsts: isProd ? {
     maxAge: 31536000,
     includeSubDomains: true,
