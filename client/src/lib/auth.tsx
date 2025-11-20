@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { secureStorage } from "./secure-storage";
 
 interface AuthUser {
   id: string;
@@ -34,8 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      // Get JWT token from localStorage
-      const token = localStorage.getItem('auth_token');
+      // Get JWT token from secure storage
+      const token = secureStorage.getToken();
       
       if (!token) {
         setIsLoading(false);
@@ -56,11 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else {
         // Token invalid or expired, clear it
-        localStorage.removeItem('auth_token');
+        secureStorage.clearToken();
       }
     } catch (error) {
       console.error("Auth check failed:", error);
-      localStorage.removeItem('auth_token');
+      secureStorage.clearToken();
     } finally {
       setIsLoading(false);
     }
@@ -83,9 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const data = await response.json();
     
-    // Store JWT token in localStorage
+    // Store JWT token in secure storage (encrypted)
     if (data.token) {
-      localStorage.setItem('auth_token', data.token);
+      secureStorage.setToken(data.token);
     }
 
     // Refresh auth state
@@ -93,20 +94,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    // Clear token from localStorage
-    localStorage.removeItem('auth_token');
+    // Get token before clearing
+    const token = secureStorage.getToken();
+    
+    // Clear token from secure storage
+    secureStorage.clearToken();
     setUser(null);
     
     // Optional: Call logout endpoint to invalidate token on server
-    try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-      });
-    } catch (error) {
-      console.error("Logout API call failed:", error);
+    if (token) {
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+      } catch (error) {
+        console.error("Logout API call failed:", error);
+      }
     }
   };
 

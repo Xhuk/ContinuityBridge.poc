@@ -31,17 +31,28 @@ export const securityHeaders = helmet({
   contentSecurityPolicy: isProd ? {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"], // Removed 'unsafe-inline' - use nonces
-      styleSrc: ["'self'", "https://fonts.googleapis.com"], // Removed 'unsafe-inline'
+      scriptSrc: ["'self'"], // No 'unsafe-inline' - XSS protection
+      styleSrc: ["'self'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       frameSrc: ["'none'"],
+      baseUri: ["'self'"], // Prevent <base> tag injection
+      formAction: ["'self'"], // Prevent form submission to external sites
       upgradeInsecureRequests: [],
     },
-  } : false, // Disable CSP in development for easier debugging
+  } : {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Dev only
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "ws:", "wss:"], // WebSocket for HMR
+      fontSrc: ["'self'"],
+    },
+  },
   hsts: isProd ? {
     maxAge: 31536000,
     includeSubDomains: true,
@@ -56,9 +67,9 @@ export const securityHeaders = helmet({
   referrerPolicy: {
     policy: 'strict-origin-when-cross-origin',
   },
-  crossOriginEmbedderPolicy: true,
-  crossOriginOpenerPolicy: true,
-  crossOriginResourcePolicy: true,
+  crossOriginEmbedderPolicy: isProd,
+  crossOriginOpenerPolicy: isProd,
+  crossOriginResourcePolicy: isProd,
   originAgentCluster: true,
   dnsPrefetchControl: true,
   ieNoOpen: true,
@@ -252,7 +263,8 @@ export const apiKeyValidation = body('apiKey')
   .withMessage('Invalid API key format');
 
 /**
- * Request Sanitization
+ * Request Sanitization - XSS Protection
+ * Sanitizes all user input to prevent XSS attacks
  */
 export const sanitizeRequest = (req: Request, res: Response, next: NextFunction) => {
   // Remove null bytes
@@ -260,10 +272,58 @@ export const sanitizeRequest = (req: Request, res: Response, next: NextFunction)
     req.body = JSON.parse(JSON.stringify(req.body).replace(/\0/g, ''));
   }
 
-  // Limit request size (already done by express.json({ limit: '10mb' }))
-  
+  // Sanitize all string values in request body
+  if (req.body && typeof req.body === 'object') {
+    req.body = sanitizeObject(req.body);
+  }
+
+  // Sanitize query parameters
+  if (req.query && typeof req.query === 'object') {
+    req.query = sanitizeObject(req.query);
+  }
+
   next();
 };
+
+/**
+ * Recursively sanitize object values to prevent XSS
+ */
+function sanitizeObject(obj: any): any {
+  if (typeof obj !== 'object' || obj === null) {
+    return sanitizeValue(obj);
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeObject);
+  }
+
+  const sanitized: any = {};
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      sanitized[key] = sanitizeObject(obj[key]);
+    }
+  }
+  return sanitized;
+}
+
+/**
+ * Sanitize individual values
+ * Escapes HTML special characters to prevent XSS
+ */
+function sanitizeValue(value: any): any {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  // Escape HTML special characters
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+}
 
 /**
  * Production-only middleware wrapper

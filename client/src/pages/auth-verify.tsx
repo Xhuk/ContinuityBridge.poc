@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { secureStorage } from "@/lib/secure-storage";
 
 // Detect if user is on mobile device
 const isMobileDevice = () => {
@@ -61,10 +62,10 @@ export default function AuthVerify() {
         if (data.success) {
           setStatus("success");
           
-          // Store JWT token in localStorage
+          // Store JWT token in secure storage (encrypted)
           if (data.sessionToken) {
-            localStorage.setItem('auth_token', data.sessionToken);
-            console.log("[AuthVerify] Token stored in localStorage");
+            secureStorage.setToken(data.sessionToken);
+            console.log("[AuthVerify] Token stored in secure storage (encrypted)");
           }
           
           // Detect device and redirect accordingly
