@@ -62,10 +62,10 @@ export default function AuthVerify() {
         if (data.success) {
           setStatus("success");
           
-          // Store JWT token in secure storage (encrypted)
+          // Store JWT token in secure storage (AES-GCM encrypted + fingerprinted)
           if (data.sessionToken) {
-            secureStorage.setToken(data.sessionToken);
-            console.log("[AuthVerify] Token stored in secure storage (encrypted)");
+            await secureStorage.setToken(data.sessionToken);
+            console.log("[AuthVerify] Token stored with AES-GCM encryption + device fingerprint");
           }
           
           // Detect device and redirect accordingly

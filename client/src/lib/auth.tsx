@@ -35,8 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      // Get JWT token from secure storage
-      const token = secureStorage.getToken();
+      // Get JWT token from secure storage (async now)
+      const token = await secureStorage.getToken();
       
       if (!token) {
         setIsLoading(false);
@@ -84,9 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const data = await response.json();
     
-    // Store JWT token in secure storage (encrypted)
+    // Store JWT token in secure storage (encrypted with AES-GCM)
     if (data.token) {
-      secureStorage.setToken(data.token);
+      await secureStorage.setToken(data.token);
     }
 
     // Refresh auth state
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     // Get token before clearing
-    const token = secureStorage.getToken();
+    const token = await secureStorage.getToken();
     
     // Clear token from secure storage
     secureStorage.clearToken();
