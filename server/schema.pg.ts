@@ -119,12 +119,12 @@ export const smtpSettings = pgTable("smtp_settings", {
   port: integer("port").notNull().default(587),
   secure: boolean("secure").notNull().default(false),
   
-  // Authentication (DEPRECATED - use secretRef instead)
+  // Authentication
   username: text("username"),
-  password: text("password"), // DEPRECATED: Use secretsVault via secretRef
+  password: text("password"),
   
-  // Encrypted credentials reference (RECOMMENDED)
-  secretRef: text("secret_ref").references(() => secretsVault.id, { onDelete: "set null" }),
+  // TODO: Add secretRef after migration
+  // secretRef: text("secret_ref").references(() => secretsVault.id, { onDelete: "set null" }),
   
   // Email Settings
   fromAddress: text("from_address").notNull(),
