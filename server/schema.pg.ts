@@ -527,3 +527,155 @@ export type QATestSession = typeof qaTestSessions.$inferSelect;
 export type InsertQATestSession = typeof qaTestSessions.$inferInsert;
 export type QATestResult = typeof qaTestResults.$inferSelect;
 export type InsertQATestResult = typeof qaTestResults.$inferInsert;
+
+// ============================================================================
+// HIERARCHY TABLES (Account → Tenant → Ecosystem → Environment → Instance)
+// ============================================================================
+
+// Accounts Table (Monetization layer)
+export const accounts = pgTable("accounts", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  licenseTier: text("license_tier").notNull().default("free"),
+  maxTenants: integer("max_tenants").notNull().default(1),
+  maxEcosystems: integer("max_ecosystems").notNull().default(5),
+  maxInstances: integer("max_instances").notNull().default(10),
+  enabled: boolean("enabled").notNull().default(true),
+  expiresAt: timestamp("expires_at"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Tenants Table (Organization/Client)
+export const tenants = pgTable("tenants", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  displayName: text("display_name").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Ecosystems Table (Business domain)
+export const ecosystems = pgTable("ecosystems", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  type: text("type").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  tags: jsonb("tags").$type<string[]>(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Environments Table (DEV/PROD/STAGING)
+export const environments = pgTable("environments", {
+  id: text("id").primaryKey(),
+  ecosystemId: text("ecosystem_id").notNull().references(() => ecosystems.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  enabled: boolean("enabled").notNull().default(true),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// System Instances Table (Billable endpoint)
+export const systemInstances = pgTable("system_instances", {
+  id: text("id").primaryKey(),
+  environmentId: text("environment_id").notNull().references(() => environments.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  endpoint: text("endpoint"),
+  enabled: boolean("enabled").notNull().default(true),
+  tags: jsonb("tags").$type<string[]>(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// ============================================================================
+// FLOW TABLES
+// ============================================================================
+
+// Flow Definitions Table
+export const flowDefinitions = pgTable("flow_definitions", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  systemInstanceId: text("system_instance_id").references(() => systemInstances.id, { onDelete: "set null" }),
+  nodes: jsonb("nodes").notNull(),
+  edges: jsonb("edges").notNull(),
+  version: text("version").notNull().default("1.0.0"),
+  enabled: boolean("enabled").notNull().default(true),
+  tags: jsonb("tags").$type<string[]>(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Flow Runs Table
+export const flowRuns = pgTable("flow_runs", {
+  id: text("id").primaryKey(),
+  flowId: text("flow_id").notNull().references(() => flowDefinitions.id, { onDelete: "cascade" }),
+  flowName: text("flow_name").notNull(),
+  flowVersion: text("flow_version").notNull(),
+  traceId: text("trace_id").notNull(),
+  status: text("status").notNull(),
+  startedAt: timestamp("started_at").notNull(),
+  completedAt: timestamp("completed_at"),
+  durationMs: integer("duration_ms"),
+  inputData: jsonb("input_data"),
+  outputData: jsonb("output_data"),
+  triggeredBy: text("triggered_by").notNull(),
+  executedNodes: jsonb("executed_nodes"),
+  nodeExecutions: jsonb("node_executions"),
+  error: text("error"),
+  errorNode: text("error_node"),
+});
+
+// Interfaces Table
+export const interfaces = pgTable("interfaces", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  type: text("type").notNull(),
+  direction: text("direction").notNull(),
+  protocol: text("protocol").notNull(),
+  endpoint: text("endpoint"),
+  authType: text("auth_type"),
+  httpConfig: jsonb("http_config"),
+  oauth2Config: jsonb("oauth2_config"),
+  formats: jsonb("formats"),
+  defaultFormat: text("default_format"),
+  enabled: boolean("enabled").notNull().default(true),
+  tags: jsonb("tags").$type<string[]>(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Integration Events Table
+export const integrationEvents = pgTable("integration_events", {
+  id: text("id").primaryKey(),
+  traceId: text("trace_id").notNull(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  sourceInterfaceId: text("source_interface_id").references(() => interfaces.id),
+  targetInterfaceId: text("target_interface_id").references(() => interfaces.id),
+  eventType: text("event_type").notNull(),
+  status: text("status").notNull(),
+  payload: jsonb("payload"),
+  transformedPayload: jsonb("transformed_payload"),
+  latencyMs: integer("latency_ms"),
+  error: text("error"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+});
+
