@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { db } from "../../db";
 import { users } from "../../db";
 import { eq } from "drizzle-orm";
+import bcrypt from "bcrypt";
 
 /**
  * Magic Link Authentication Service
@@ -10,10 +11,11 @@ import { eq } from "drizzle-orm";
  * 1. User enters email → system sends magic link
  * 2. User clicks link → auto-login with session token
  * 
- * Benefits:
- * - No password to remember
+ * SECURITY:
+ * - Tokens hashed with bcrypt before storage (prevents token theft from memory)
+ * - Tokens expire in 15 minutes
+ * - Single-use only (marked as used after verification)
  * - Email ownership verification
- * - Secure (tokens expire in 15 minutes)
  */
 
 export interface MagicLinkToken {
@@ -27,6 +29,7 @@ export interface MagicLinkToken {
 }
 
 export class MagicLinkService {
+  // Store hashed tokens (prevents token theft from memory dumps)
   private tokens: Map<string, MagicLinkToken> = new Map();
   private tokenExpiryMinutes = 15;
 
@@ -55,26 +58,29 @@ export class MagicLinkService {
         throw new Error("Account disabled. Contact your administrator.");
       }
 
-      // Generate secure token
+      // Generate secure token (plaintext for email link)
       const token = randomUUID().replace(/-/g, "");
       const expiresAt = new Date(Date.now() + this.tokenExpiryMinutes * 60 * 1000).toISOString();
 
-      // Store token
+      // Hash token before storing (bcrypt with 10 rounds)
+      const hashedToken = await bcrypt.hash(token, 10);
+
+      // Store HASHED token (not plaintext)
       const magicLinkToken: MagicLinkToken = {
         id: randomUUID(),
         userId: user.id,
         email: user.email,
-        token,
+        token: hashedToken, // Store hash, not plaintext
         expiresAt,
         createdAt: new Date().toISOString(),
       };
 
-      this.tokens.set(token, magicLinkToken);
+      this.tokens.set(hashedToken, magicLinkToken);
 
       // Auto-cleanup expired tokens after 1 hour
-      setTimeout(() => this.tokens.delete(token), 60 * 60 * 1000);
+      setTimeout(() => this.tokens.delete(hashedToken), 60 * 60 * 1000);
 
-      const magicLink = `${appUrl}/auth/verify?token=${token}`;
+      const magicLink = `${appUrl}/auth/verify?token=${token}`; // Send PLAINTEXT in email
 
       return { magicLink, token, expiresAt };
     } catch (error: any) {
@@ -86,6 +92,7 @@ export class MagicLinkService {
 
   /**
    * Verify magic link token and create session
+   * Uses bcrypt.compare for timing-safe verification
    */
   async verifyMagicLink(token: string): Promise<{
     valid: boolean;
@@ -93,29 +100,40 @@ export class MagicLinkService {
     sessionToken?: string;
     error?: string;
   }> {
-    const magicLinkToken = this.tokens.get(token);
+    // Find matching hashed token using bcrypt.compare (timing-safe)
+    let matchedToken: MagicLinkToken | null = null;
+    let matchedHash: string | null = null;
 
-    if (!magicLinkToken) {
+    for (const [hashedToken, tokenData] of this.tokens.entries()) {
+      const isMatch = await bcrypt.compare(token, hashedToken);
+      if (isMatch) {
+        matchedToken = tokenData;
+        matchedHash = hashedToken;
+        break;
+      }
+    }
+
+    if (!matchedToken || !matchedHash) {
       return { valid: false, error: "Invalid or expired magic link" };
     }
 
     // Check if already used
-    if (magicLinkToken.usedAt) {
+    if (matchedToken.usedAt) {
       return { valid: false, error: "Magic link already used" };
     }
 
     // Check expiry
-    if (new Date() > new Date(magicLinkToken.expiresAt)) {
-      this.tokens.delete(token);
+    if (new Date() > new Date(matchedToken.expiresAt)) {
+      this.tokens.delete(matchedHash);
       return { valid: false, error: "Magic link expired (valid for 15 minutes)" };
     }
 
     // Mark as used
-    magicLinkToken.usedAt = new Date().toISOString();
+    matchedToken.usedAt = new Date().toISOString();
 
     // Get user
     const userResult = await (db.select().from(users)
-      .where(eq(users.id, magicLinkToken.userId)) as any);
+      .where(eq(users.id, matchedToken.userId)) as any);
     const user = Array.isArray(userResult) ? userResult[0] : userResult;
 
     if (!user || !user.enabled) {
@@ -124,14 +142,14 @@ export class MagicLinkService {
 
     // Update last login
     await (db.update(users)
-      .set({ lastLoginAt: new Date().toISOString() })
+      .set({ lastLoginAt: new Date() })
       .where(eq(users.id, user.id)) as any);
 
     // Generate session token (JWT-like but simplified)
     const sessionToken = this.generateSessionToken(user);
 
     // Cleanup used token after 5 minutes
-    setTimeout(() => this.tokens.delete(token), 5 * 60 * 1000);
+    setTimeout(() => this.tokens.delete(matchedHash!), 5 * 60 * 1000);
 
     return {
       valid: true,
