@@ -584,4 +584,93 @@ router.get("/me", authenticateUser, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/users/transfer-ownership
+ * Transfer ownership from admin@continuitybridge.local to a new email
+ * Only allowed for the default admin account
+ */
+router.post("/transfer-ownership", authenticateUser, async (req, res) => {
+  try {
+    const { newEmail } = req.body;
+
+    // Validate request
+    if (!newEmail || !newEmail.includes("@")) {
+      return res.status(400).json({ error: "Valid email address is required" });
+    }
+
+    // Only allow admin@continuitybridge.local to transfer
+    if (req.user?.email !== "admin@continuitybridge.local" || req.user?.role !== "superadmin") {
+      return res.status(403).json({ 
+        error: "Only the default admin account can transfer ownership" 
+      });
+    }
+
+    // Check if target email already exists
+    const existingUserResult = await (db.select().from(users).where(eq(users.email, newEmail)) as any);
+    const existingUser = Array.isArray(existingUserResult) ? existingUserResult[0] : existingUserResult;
+    
+    if (existingUser) {
+      return res.status(409).json({ error: "Email address already in use" });
+    }
+
+    // Create new superadmin with the desired email
+    const newApiKey = `cb_prod_${randomUUID().replace(/-/g, "")}`;
+    const newUserId = randomUUID();
+
+    const newUser = {
+      id: newUserId,
+      email: newEmail,
+      role: "superadmin" as UserRole,
+      apiKey: newApiKey,
+      organizationId: req.user.organizationId,
+      organizationName: req.user.organizationName,
+      assignedCustomers: null,
+      maxCustomers: null,
+      passwordHash: null, // Magic link only
+      enabled: true,
+      emailConfirmed: true, // Auto-confirm
+      confirmationToken: null,
+      confirmationTokenExpires: null,
+      lastLoginAt: null,
+      metadata: {
+        transferredFrom: "admin@continuitybridge.local",
+        transferredAt: new Date().toISOString(),
+        environment: "prod",
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Insert new user
+    await (db.insert(users).values(newUser) as any);
+
+    // Disable the old admin account
+    await (db.update(users)
+      .set({ 
+        enabled: false,
+        updatedAt: new Date().toISOString(),
+        metadata: {
+          ...(req.user.metadata as any || {}),
+          transferredTo: newEmail,
+          transferredAt: new Date().toISOString(),
+        }
+      })
+      .where(eq(users.id, req.user.id)) as any);
+
+    console.log(`✅ Ownership transferred from admin@continuitybridge.local to ${newEmail}`);
+    console.log(`🔑 New API Key: ${newApiKey}`);
+
+    res.json({
+      success: true,
+      message: "Ownership transferred successfully",
+      newEmail,
+      newApiKey,
+      note: "Use /onboarding page to generate magic link for the new email",
+    });
+  } catch (error: any) {
+    console.error("Transfer ownership failed:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

@@ -1,14 +1,32 @@
 import { useAuth } from "@/lib/auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, User, Mail, Key, Building2, Shield, Calendar } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { LogOut, User, Mail, Key, Building2, Shield, Calendar, ArrowRightLeft, AlertTriangle } from "lucide-react";
 import { useLocation } from "wouter";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Profile() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [confirmEmail, setConfirmEmail] = useState("");
 
   // Fetch full user details from API
   const { data: userDetails } = useQuery({
@@ -26,6 +44,53 @@ export default function Profile() {
   const handleLogout = () => {
     logout();
     setLocation("/");
+  };
+
+  // Transfer ownership mutation
+  const transferMutation = useMutation({
+    mutationFn: async (data: { newEmail: string }) => {
+      const res = await apiRequest("POST", "/api/users/transfer-ownership", data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Ownership transferred",
+        description: "Account ownership has been transferred. The old account will be disabled.",
+      });
+      setTransferDialogOpen(false);
+      // Logout after 2 seconds
+      setTimeout(() => {
+        logout();
+        setLocation("/onboarding");
+      }, 2000);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Transfer failed",
+        description: error.message || "Failed to transfer ownership",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleTransfer = () => {
+    if (newEmail !== confirmEmail) {
+      toast({
+        title: "Email mismatch",
+        description: "Email addresses do not match",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!newEmail.includes("@")) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+    transferMutation.mutate({ newEmail });
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -188,6 +253,104 @@ export default function Profile() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Account Transfer (only for admin@continuitybridge.local) */}
+      {user?.email === "admin@continuitybridge.local" && user?.role === "superadmin" && (
+        <Card className="border-orange-200 dark:border-orange-900">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
+              <ArrowRightLeft className="h-5 w-5" />
+              Transfer Account Ownership
+            </CardTitle>
+            <CardDescription>
+              Transfer this superadmin account to a new email and disable the default account
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
+              <AlertTriangle className="h-4 w-4 text-orange-600" />
+              <AlertDescription className="text-orange-800 dark:text-orange-200">
+                <strong>Warning:</strong> This action will:
+                <ul className="list-disc ml-5 mt-2 space-y-1">
+                  <li>Create a new superadmin account with your desired email</li>
+                  <li>Transfer all permissions and access</li>
+                  <li>Disable the admin@continuitybridge.local account</li>
+                  <li>Log you out immediately after transfer</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+
+            <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="w-full border-orange-300 text-orange-700 hover:bg-orange-50">
+                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                  Transfer Ownership
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Transfer Account Ownership</DialogTitle>
+                  <DialogDescription>
+                    Enter your desired email address to transfer this account
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <label htmlFor="newEmail" className="text-sm font-medium">
+                      New Email Address
+                    </label>
+                    <Input
+                      id="newEmail"
+                      type="email"
+                      placeholder="your@email.com"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="confirmEmail" className="text-sm font-medium">
+                      Confirm Email Address
+                    </label>
+                    <Input
+                      id="confirmEmail"
+                      type="email"
+                      placeholder="your@email.com"
+                      value={confirmEmail}
+                      onChange={(e) => setConfirmEmail(e.target.value)}
+                    />
+                  </div>
+
+                  <Alert>
+                    <AlertDescription className="text-sm">
+                      The new account will be created with the same superadmin role and full access.
+                      You'll need to use the /onboarding page to get your magic link.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setTransferDialogOpen(false)}
+                    disabled={transferMutation.isPending}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleTransfer}
+                    disabled={transferMutation.isPending || !newEmail || !confirmEmail}
+                    className="bg-orange-600 hover:bg-orange-700"
+                  >
+                    {transferMutation.isPending ? "Transferring..." : "Transfer Ownership"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Assigned Customers (for consultants) */}
       {user?.role === "consultant" && user.assignedCustomers && (
