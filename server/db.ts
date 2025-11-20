@@ -101,4 +101,19 @@ export const {
   // Poller and secrets tables
   pollerStates,
   secretsMasterKeys,
+  // Version control & configuration
+  configurationVersions,
+  changeRequests,
+  deploymentHistory,
+  releasePlans,
+  integrationNotes,
+  // Error tracking
+  errorReports,
+  errorComments,
+  errorEscalationTickets,
+  // AI features
+  aiQuotaSettings,
+  aiUsageTracking,
+  aiPricingTiers,
+  organizationBranding,
 } = pgSchema;

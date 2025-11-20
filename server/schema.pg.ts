@@ -709,3 +709,257 @@ export const secretsMasterKeys = pgTable("secrets_master_keys", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// ============================================================================
+// VERSION CONTROL & CONFIGURATION MANAGEMENT
+// ============================================================================
+
+export const configurationVersions = pgTable("configuration_versions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name").notNull(),
+  targetEnvironment: text("target_environment").$type<"dev" | "staging" | "prod">().notNull().default("dev"),
+  version: text("version").notNull(),
+  versionMajor: integer("version_major").notNull().default(1),
+  versionMinor: integer("version_minor").notNull().default(0),
+  versionPatch: integer("version_patch").notNull().default(0),
+  label: text("label"),
+  description: text("description"),
+  changeType: text("change_type").$type<"major" | "minor" | "patch">().notNull().default("patch"),
+  status: text("status").$type<"draft" | "pending_approval" | "approved" | "deployed" | "archived">().notNull().default("draft"),
+  isImmutable: boolean("is_immutable").notNull().default(false),
+  configuration: jsonb("configuration").$type<{
+    flows?: any[];
+    interfaces?: any[];
+    dataSources?: any[];
+    mappings?: any[];
+    settings?: Record<string, any>;
+  }>().notNull(),
+  changesSummary: jsonb("changes_summary"),
+  createdBy: text("created_by").notNull(),
+  createdByEmail: text("created_by_email").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const changeRequests = pgTable("change_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name").notNull(),
+  requestType: text("request_type").$type<"feature" | "bug_fix" | "enhancement" | "sow_amendment">().notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  priority: text("priority").$type<"low" | "medium" | "high" | "urgent">().notNull().default("medium"),
+  status: text("status").$type<"draft" | "submitted" | "under_review" | "approved" | "rejected" | "completed">().notNull().default("draft"),
+  requestedBy: text("requested_by").notNull(),
+  requestedByEmail: text("requested_by_email").notNull(),
+  reviewedBy: text("reviewed_by"),
+  reviewedByEmail: text("reviewed_by_email"),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNotes: text("review_notes"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const deploymentHistory = pgTable("deployment_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name").notNull(),
+  environment: text("environment").$type<"dev" | "staging" | "prod">().notNull().default("dev"),
+  versionId: uuid("version_id"),
+  version: text("version").notNull(),
+  deploymentType: text("deployment_type").$type<"initial" | "update" | "rollback" | "hotfix">().notNull(),
+  deploymentMethod: text("deployment_method").$type<"docker" | "kubernetes" | "manual">().notNull(),
+  dockerImageTag: text("docker_image_tag").notNull(),
+  dockerRegistryUrl: text("docker_registry_url"),
+  containerName: text("container_name"),
+  status: text("status").$type<"pending" | "building" | "pushing" | "deploying" | "success" | "failed" | "rolled_back">().notNull().default("pending"),
+  buildStartedAt: timestamp("build_started_at"),
+  buildCompletedAt: timestamp("build_completed_at"),
+  buildDurationMs: integer("build_duration_ms"),
+  buildLogs: text("build_logs"),
+  deployedAt: timestamp("deployed_at"),
+  deploymentDurationMs: integer("deployment_duration_ms"),
+  deploymentLogs: text("deployment_logs"),
+  errorMessage: text("error_message"),
+  errorStack: text("error_stack"),
+  deployedBy: text("deployed_by").notNull(),
+  deployedByEmail: text("deployed_by_email").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const releasePlans = pgTable("release_plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name").notNull(),
+  releaseName: text("release_name").notNull(),
+  releaseType: text("release_type").$type<"initial_deployment" | "feature_release" | "hotfix" | "migration" | "upgrade">().notNull(),
+  devSchedule: jsonb("dev_schedule"),
+  stagingSchedule: jsonb("staging_schedule"),
+  prodSchedule: jsonb("prod_schedule"),
+  overallStatus: text("overall_status").$type<"planning" | "dev" | "uat" | "prod_ready" | "deployed" | "rolled_back" | "cancelled">().notNull().default("planning"),
+  createdBy: text("created_by").notNull(),
+  createdByEmail: text("created_by_email").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const integrationNotes = pgTable("integration_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name").notNull(),
+  title: text("title").notNull(),
+  category: text("category").$type<"architecture" | "mapping" | "api_config" | "data_model" | "business_logic" | "testing" | "deployment" | "troubleshooting" | "other">().notNull(),
+  content: text("content").notNull(),
+  relatedReleasePlanId: uuid("related_release_plan_id"),
+  relatedVersionId: uuid("related_version_id"),
+  relatedFlowId: text("related_flow_id"),
+  relatedInterfaceId: text("related_interface_id"),
+  tags: jsonb("tags").$type<string[]>(),
+  isPublic: boolean("is_public").notNull().default(false),
+  isPinned: boolean("is_pinned").notNull().default(false),
+  authorId: text("author_id").notNull(),
+  authorEmail: text("author_email").notNull(),
+  authorRole: text("author_role").$type<"superadmin" | "contractor" | "viewer">(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// ============================================================================
+// ERROR REPORTING & TRIAGE SYSTEM
+// ============================================================================
+
+export const errorReports = pgTable("error_reports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id").notNull(),
+  organizationName: text("organization_name"),
+  flowId: text("flow_id").notNull(),
+  flowName: text("flow_name").notNull(),
+  flowVersion: text("flow_version").notNull(),
+  runId: text("run_id").notNull(),
+  traceId: text("trace_id").notNull(),
+  nodeId: text("node_id").notNull(),
+  nodeName: text("node_name"),
+  nodeType: text("node_type"),
+  errorType: text("error_type").$type<"flow_execution" | "node_failure" | "validation" | "transformation" | "api_error" | "timeout" | "connection" | "authentication" | "data_format" | "business_logic" | "system" | "unknown">().notNull().default("unknown"),
+  errorMessageSimple: text("error_message_simple").notNull(),
+  errorMessageTechnical: text("error_message_technical").notNull(),
+  payloadSnapshot: jsonb("payload_snapshot"),
+  stackTrace: text("stack_trace"),
+  nodeConfig: jsonb("node_config"),
+  environment: text("environment").$type<"dev" | "staging" | "prod">().notNull().default("prod"),
+  executionMode: text("execution_mode").$type<"test" | "production">().notNull().default("production"),
+  triageStatus: text("triage_status").$type<"new" | "investigating" | "resolved" | "ignored" | "escalated">().notNull().default("new"),
+  severity: text("severity").$type<"low" | "medium" | "high" | "critical">().notNull().default("medium"),
+  assignedTo: text("assigned_to"),
+  assignedToEmail: text("assigned_to_email"),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: text("resolved_by"),
+  resolutionNotes: text("resolution_notes"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const errorComments = pgTable("error_comments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  errorReportId: uuid("error_report_id").notNull().references(() => errorReports.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  commentType: text("comment_type").$type<"investigation" | "workaround" | "root_cause" | "fix_applied" | "general">().notNull().default("general"),
+  authorId: text("author_id").notNull(),
+  authorEmail: text("author_email").notNull(),
+  authorRole: text("author_role").$type<"superadmin" | "consultant" | "customer_admin" | "customer_user">(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const errorEscalationTickets = pgTable("error_escalation_tickets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  errorReportId: uuid("error_report_id").notNull().references(() => errorReports.id, { onDelete: "cascade" }),
+  ticketNumber: text("ticket_number").unique(),
+  ticketSystem: text("ticket_system"),
+  ticketUrl: text("ticket_url"),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  priority: text("priority").$type<"low" | "medium" | "high" | "urgent">().notNull().default("medium"),
+  status: text("status").$type<"open" | "in_progress" | "waiting_response" | "resolved" | "closed">().notNull().default("open"),
+  createdBy: text("created_by").notNull(),
+  createdByEmail: text("created_by_email").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// ============================================================================
+// AI FEATURES
+// ============================================================================
+
+export const aiQuotaSettings = pgTable("ai_quota_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id").notNull().unique(),
+  organizationName: text("organization_name").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  trialEnabled: boolean("trial_enabled").notNull().default(true),
+  trialExpiresAt: timestamp("trial_expires_at"),
+  dailyRequestLimit: integer("daily_request_limit").notNull().default(15),
+  monthlyRequestLimit: integer("monthly_request_limit").notNull().default(450),
+  enabledBy: text("enabled_by"),
+  enabledAt: timestamp("enabled_at"),
+  disabledAt: timestamp("disabled_at"),
+  disabledReason: text("disabled_reason"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const aiUsageTracking = pgTable("ai_usage_tracking", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id").notNull(),
+  pricingTierId: text("pricing_tier_id"),
+  featureType: text("feature_type").notNull().$type<"smart_mapping" | "field_suggestion" | "validation_rule" | "flow_generation" | "error_diagnosis">(),
+  requestTokens: integer("request_tokens").notNull(),
+  responseTokens: integer("response_tokens").notNull(),
+  totalTokens: integer("total_tokens").notNull(),
+  estimatedCostUsd: integer("estimated_cost_usd").notNull(),
+  model: text("model").notNull(),
+  requestedBy: text("requested_by").notNull(),
+  requestedByEmail: text("requested_by_email").notNull(),
+  success: boolean("success").notNull().default(true),
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const aiPricingTiers = pgTable("ai_pricing_tiers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  teamId: text("team_id").notNull().unique(),
+  teamName: text("team_name").notNull(),
+  tier: text("tier").$type<"free" | "professional" | "enterprise">().notNull().default("free"),
+  monthlyTokenLimit: integer("monthly_token_limit").notNull().default(450),
+  costPerToken: integer("cost_per_token").notNull().default(0),
+  enabled: boolean("enabled").notNull().default(true),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const organizationBranding = pgTable("organization_branding", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id").notNull().unique(),
+  organizationName: text("organization_name").notNull(),
+  primaryColor: text("primary_color").notNull().default("#3b82f6"),
+  secondaryColor: text("secondary_color"),
+  logoUrl: text("logo_url"),
+  faviconUrl: text("favicon_url"),
+  customCss: text("custom_css"),
+  theme: text("theme").$type<"light" | "dark" | "auto">().notNull().default("light"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
