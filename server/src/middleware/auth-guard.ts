@@ -6,16 +6,23 @@ const logger = baseLogger.child("AuthGuard");
 export function createAuthGuard() {
   return async function authGuard(req: Request, res: Response, next: NextFunction) {
     // Skip auth guard for debug and public endpoints
+    // Note: req.path doesn't include route prefix, so check both full path and relative path
     const publicPaths = [
-      '/api/auth/debug',
-      '/api/auth/login/magic-link',
-      '/api/auth/login/verify',
-      '/api/auth/login/password',
-      '/api/auth/session',
-      '/api/enrollment',
+      '/debug',                      // Relative path
+      '/api/auth/debug',             // Full path
+      '/magic-link',                 // Relative path
+      '/api/auth/login/magic-link',  // Full path
+      '/verify',                     // Relative path
+      '/api/auth/login/verify',      // Full path
+      '/password',                   // Relative path
+      '/api/auth/login/password',    // Full path
+      '/session',                    // Relative path
+      '/api/auth/session',           // Full path
     ];
     
-    if (publicPaths.some(path => req.path.startsWith(path))) {
+    // Check both req.path and req.originalUrl
+    const pathToCheck = req.originalUrl.split('?')[0]; // Remove query params
+    if (publicPaths.some(path => req.path === path || pathToCheck === path || pathToCheck.endsWith(path))) {
       return next();
     }
     
